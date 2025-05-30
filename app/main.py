@@ -188,21 +188,25 @@ async def complete_task_handler(
                             status_code=status.HTTP_303_SEE_OTHER)
 
 
+@app.get("/login", response_class=RedirectResponse)
+async def redirect_to_keycloak_login():
+    """Redirect to Keycloak login page."""
+    from app.config import KEYCLOAK_SERVER_URL, KEYCLOAK_REALM, KEYCLOAK_API_CLIENT_ID
+    login_url = (
+        f"{KEYCLOAK_SERVER_URL}realms/{KEYCLOAK_REALM}/protocol/openid-connect/auth"
+        f"?client_id={KEYCLOAK_API_CLIENT_ID}&response_type=code&redirect_uri=http://localhost:8000/callback"
+    )
+    return RedirectResponse(url=login_url)
+
+# Note: The actual token endpoint will be handled by Keycloak
+# This is just a placeholder for Swagger UI compatibility
 @app.post("/token")
-async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
-    """Handle user login and return a token."""
-    from fastapi.security import OAuth2PasswordRequestForm
-    from app.core.security import get_user, fake_hash_password
-    
-    user = get_user(form_data.username)
-    if not user:
-        raise HTTPException(status_code=400, detail="Incorrect username or password")
-    
-    hashed_password = fake_hash_password(form_data.password)
-    if hashed_password != user.hashed_password:
-        raise HTTPException(status_code=400, detail="Incorrect username or password")
-    
-    return {"access_token": user.username, "token_type": "bearer"}
+async def token_placeholder():
+    """Placeholder for token endpoint - actual authentication handled by Keycloak."""
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Authentication handled by Keycloak. Use /login endpoint or configure client to use Keycloak directly."
+    )
 
 
 @app.get("/my-workflows", response_class=HTMLResponse)

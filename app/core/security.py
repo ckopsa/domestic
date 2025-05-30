@@ -1,7 +1,11 @@
-from typing import Annotated, Optional
+from typing import Annotated, Dict, Any
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel
+import jwt
+import requests
+from functools import lru_cache
+from app.config import KEYCLOAK_SERVER_URL, KEYCLOAK_REALM, KEYCLOAK_API_CLIENT_ID
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
@@ -10,60 +14,69 @@ class AuthenticatedUser(BaseModel):
     username: str
     email: str | None = None
     full_name: str | None = None
-    disabled: bool | None = None
+    disabled: bool | None = False
 
-class UserInDB(AuthenticatedUser):
-    hashed_password: str
-
-# Fake user database
-fake_users_db = {
-    "johndoe": {
-        "user_id": "johndoe_id",
-        "username": "johndoe",
-        "full_name": "John Doe",
-        "email": "johndoe@example.com",
-        "hashed_password": "fakehashedsecret",
-        "disabled": False,
-    },
-    "alice": {
-        "user_id": "alice_id",
-        "username": "alice",
-        "full_name": "Alice Wonderson",
-        "email": "alice@example.com",
-        "hashed_password": "fakehashedsecret2",
-        "disabled": True,
-    },
-}
-
-def get_user(username: str) -> Optional[UserInDB]:
-    """Get user from the fake database."""
-    if username in fake_users_db:
-        user_dict = fake_users_db[username]
-        return UserInDB(**user_dict)
-    return None
-
-def fake_hash_password(password: str) -> str:
-    """Fake password hashing for demonstration purposes."""
-    return "fakehashed" + password
-
-def fake_decode_token(token: str) -> Optional[AuthenticatedUser]:
-    """Fake token decoding for demonstration purposes."""
-    return get_user(token)
+@lru_cache(maxsize=1)
+def get_keycloak_public_keys() -> Dict[str, Any]:
+    """Fetch public keys from Keycloak server."""
+    certs_url = f"{KEYCLOAK_SERVER_URL}realms/{KEYCLOAK_REALM}/protocol/openid-connect/certs"
+    response = requests.get(certs_url, timeout=10)
+    response.raise_for_status()
+    return response.json()
 
 async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]) -> AuthenticatedUser:
-    """Extract user information from the token. This is a placeholder for real validation."""
+    """Extract user information from Keycloak JWT token."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Invalid authentication credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    user = fake_decode_token(token)
-    if not user:
-        raise credentials_exception
-    return user
+    
+    try:
+        # Get public keys from Keycloak
+        jwks = get_keycloak_public_keys()
+        keys = jwks.get('keys', [])
+        
+        # Try to decode with each key (usually there's just one, but handling multiple for robustness)
+        decoded_token = None
+        for key in keys:
+            try:
+                decoded_token = jwt.decode(
+                    token,
+                    key,
+                    algorithms=["RS256"],
+                    audience=KEYCLOAK_API_CLIENT_ID,
+                    issuer=f"{KEYCLOAK_SERVER_URL}realms/{KEYCLOAK_REALM}"
+                )
+                break
+            except jwt.InvalidTokenError:
+                continue
+                
+        if decoded_token is None:
+            raise credentials_exception
+            
+        # Extract user information from token
+        user_id = decoded_token.get("sub", "")
+        username = decoded_token.get("preferred_username", "")
+        email = decoded_token.get("email", None)
+        full_name = decoded_token.get("name", None)
+        
+        if not user_id or not username:
+            raise credentials_exception
+            
+        return AuthenticatedUser(
+            user_id=user_id,
+            username=username,
+            email=email,
+            full_name=full_name,
+            disabled=False  # Keycloak handles disabled status before token issuance
+        )
+        
+    except Exception as e:
+        raise credentials_exception from e
 
 async def get_current_active_user(current_user: Annotated[AuthenticatedUser, Depends(get_current_user)]) -> AuthenticatedUser:
-    """Check if the current user is active."""
+    """Check if the current user is active. Keycloak handles this before token issuance."""
     if current_user.disabled:
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
