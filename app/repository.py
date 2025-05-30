@@ -87,7 +87,7 @@ class PostgreSQLWorkflowRepository(WorkflowRepository):
 
     async def create_workflow_instance(self, instance_data: WorkflowInstance) -> WorkflowInstance:
         from app.db_models.workflow import WorkflowInstance as WorkflowInstanceORM
-        instance = WorkflowInstanceORM(**instance_data.dict())
+        instance = WorkflowInstanceORM(**instance_data.model_dump())
         self.db_session.add(instance)
         self.db_session.commit()
         self.db_session.refresh(instance)
@@ -97,7 +97,7 @@ class PostgreSQLWorkflowRepository(WorkflowRepository):
         from app.db_models.workflow import WorkflowInstance as WorkflowInstanceORM
         instance = self.db_session.query(WorkflowInstanceORM).filter(WorkflowInstanceORM.id == instance_id).first()
         if instance:
-            for key, value in instance_update.dict().items():
+            for key, value in instance_update.model_dump().items():
                 setattr(instance, key, value)
             self.db_session.commit()
             return instance_update
@@ -105,7 +105,7 @@ class PostgreSQLWorkflowRepository(WorkflowRepository):
 
     async def create_task_instance(self, task_data: TaskInstance) -> TaskInstance:
         from app.db_models.task import TaskInstance as TaskInstanceORM
-        task = TaskInstanceORM(**task_data.dict())
+        task = TaskInstanceORM(**task_data.model_dump())
         self.db_session.add(task)
         self.db_session.commit()
         self.db_session.refresh(task)
@@ -120,7 +120,7 @@ class PostgreSQLWorkflowRepository(WorkflowRepository):
         from app.db_models.task import TaskInstance as TaskInstanceORM
         task = self.db_session.query(TaskInstanceORM).filter(TaskInstanceORM.id == task_id).first()
         if task:
-            for key, value in task_update.dict().items():
+            for key, value in task_update.model_dump().items():
                 setattr(task, key, value)
             self.db_session.commit()
             return task_update
@@ -138,7 +138,7 @@ class PostgreSQLWorkflowRepository(WorkflowRepository):
 
     async def create_workflow_definition(self, definition_data: WorkflowDefinition) -> WorkflowDefinition:
         from app.db_models.workflow import WorkflowDefinition as WorkflowDefinitionORM
-        definition = WorkflowDefinitionORM(**definition_data.dict())
+        definition = WorkflowDefinitionORM(**definition_data.model_dump())
         self.db_session.add(definition)
         self.db_session.commit()
         self.db_session.refresh(definition)
