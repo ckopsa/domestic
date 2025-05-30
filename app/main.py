@@ -1,19 +1,18 @@
 # main.py
-import sys
 import os
+import sys
 from typing import List
-
-from app.core.security import AuthenticatedUser, get_current_user
 
 # Add the project root to sys.path to ensure 'app' module can be found
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from app.core.security import AuthenticatedUser, get_current_user
 
 from dominate import document
 from dominate.tags import *
 from fastapi import FastAPI, Form, status, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from app.repository import InMemoryWorkflowRepository, WorkflowRepository, PostgreSQLWorkflowRepository
+from app.repository import WorkflowRepository, PostgreSQLWorkflowRepository
 from app.services import WorkflowService
 from app.style import my_style
 from app.database import get_db
@@ -124,7 +123,7 @@ async def create_workflow_instance_handler(
 
 @app.get("/workflow-instances/{instance_id}", response_class=HTMLResponse)
 async def read_workflow_instance_page(
-        instance_id: str, 
+        instance_id: str,
         service: WorkflowService = Depends(get_workflow_service),
         current_user: AuthenticatedUser = Depends(get_current_user)
 ):
@@ -181,20 +180,24 @@ async def complete_task_handler(
         return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
     task = await service.complete_task(task_id, current_user.user_id)
     if not task:
-        return create_message_page("Error", "Task Update Failed", "Could not complete task or access denied.", [("← Back", "/")],
+        return create_message_page("Error", "Task Update Failed", "Could not complete task or access denied.",
+                                   [("← Back", "/")],
                                    status_code=400)
     return RedirectResponse(url=f"/workflow-instances/{task.workflow_instance_id}",
                             status_code=status.HTTP_303_SEE_OTHER)
+
+
 @app.get("/login", response_class=RedirectResponse)
 async def login():
     """Redirects to Keycloak for authentication."""
-    from app.config import KEYCLOAK_SERVER_URL, KEYCLOAK_REALM, KEYCLOAK_API_CLIENT_ID
+    from app.config import KEYCLOAK_SERVER_URL, KEYCLOAK_REALM
     redirect_uri = "http://localhost:8000/auth/callback"
     auth_url = (
         f"{KEYCLOAK_SERVER_URL}realms/{KEYCLOAK_REALM}/protocol/openid-connect/auth"
         f"?client_id=frontend-app&response_type=code&redirect_uri={redirect_uri}&scope=openid%20email%20profile"
     )
     return RedirectResponse(url=auth_url, status_code=status.HTTP_303_SEE_OTHER)
+
 
 @app.get("/auth/callback", response_class=RedirectResponse)
 async def auth_callback(code: str):
@@ -205,6 +208,7 @@ async def auth_callback(code: str):
     print(f"Received authorization code: {code}")
     return RedirectResponse(url="/my-workflows", status_code=status.HTTP_303_SEE_OTHER)
 
+
 @app.get("/my-workflows", response_class=HTMLResponse)
 async def list_user_workflows(
         service: WorkflowService = Depends(get_workflow_service),
@@ -213,7 +217,7 @@ async def list_user_workflows(
     """Serves a page listing all workflow instances for the current user."""
     if not current_user:
         return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
-    
+
     instances = await service.list_instances_for_user(current_user.user_id)
     doc = document(title='My Workflows')
     with doc.head:
@@ -232,5 +236,6 @@ async def list_user_workflows(
                             p(strong("Created: "), instance.created_at.isoformat())
                             a("View Details", href=f"/workflow-instances/{instance.id}", cls='action-button')
             a('← Back to Home', href='/', cls='back-link', style="margin-top:20px; display:inline-block;")
-            a('← Available Definitions', href='/workflow-definitions', cls='back-link', style="margin-top:20px; display:inline-block; margin-left:15px;")
+            a('← Available Definitions', href='/workflow-definitions', cls='back-link',
+              style="margin-top:20px; display:inline-block; margin-left:15px;")
     return doc.render()
