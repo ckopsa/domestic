@@ -82,8 +82,9 @@ def mock_get_keycloak_public_keys():
                 "kty": "RSA",
                 "alg": "RS256",
                 "use": "sig",
-                "n": "mock_modulus",
-                "e": "mock_exponent"
+                # Using valid base64url encoded values for modulus and exponent
+                "n": "n4EPtA7CPjjqS6Lsro5xCvbVWkJdyJ6aBk7c8v5v5o-G8a5e5I-2fA1o2B0sV9fP1eLmx5Wv4v8i1z-3o3v4u5v6w7x8y9z-0A1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P6Q7R8S9T0U1V2W3X4Y5Z6a7b8c9d0e1f2g3h4i5j6k7l8m9n0o1p2q3r4s5t6u7v8w9x0y1z2A3B4C5D6E7F8G9H0I1J2K3L4M5N6O7P8Q9R0S1T2U3V4W5X6Y7Z8a9b0c1d2e3f4g5h6i7j8k9l0m1n2o3p4q5r6s7t8u9v0w1x2y3z4",
+                "e": "AQAB"
             }
         ]
     }
@@ -255,8 +256,8 @@ async def test_login_redirect(monkeypatch):
     
     # Assert
     assert response.status_code == 307  # Redirect status code
-    assert "realms" in response.headers['location']
-    assert "openid-connect/auth" in response.headers['location']
+    assert "realms" in response.headers.get('location', '')
+    assert "openid-connect/auth" in response.headers.get('location', '')
 
 @pytest.mark.asyncio
 async def test_callback_with_valid_code(monkeypatch):
@@ -270,7 +271,7 @@ async def test_callback_with_valid_code(monkeypatch):
     monkeypatch.setattr("requests.post", mock_response)
     
     # Act
-    response = client.get("/callback?code=valid_code")
+    response = client.get("/callback", params={"code": "valid_code", "state": "/"})
     
     # Assert
     assert response.status_code == 303  # Redirect after successful token exchange
@@ -297,5 +298,5 @@ async def test_logout(monkeypatch):
     
     # Assert
     assert response.status_code == 303  # Redirect to Keycloak logout
-    assert "access_token" not in response.cookies or response.cookies["access_token"] == ""
-    assert "openid-connect/logout" in response.headers['location']
+    assert "access_token" not in response.cookies or response.cookies.get("access_token", "") == ""
+    assert "openid-connect/logout" in response.headers.get('location', '')
