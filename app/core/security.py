@@ -24,13 +24,17 @@ def get_keycloak_public_keys() -> Dict[str, Any]:
     response.raise_for_status()
     return response.json()
 
-async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]) -> AuthenticatedUser:
+async def get_current_user(request: Request, token: Annotated[str, Depends(oauth2_scheme)]) -> AuthenticatedUser:
     """Extract user information from Keycloak JWT token."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Invalid authentication credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    
+    # If token is not in header, try to get it from cookie
+    if not token:
+        token = request.cookies.get("access_token", "")
     
     if not token:
         raise credentials_exception

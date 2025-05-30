@@ -81,6 +81,7 @@ async def read_root(
                 if current_user:
                     li(a('My Workflows', href='/my-workflows', cls='action-button'))
                     li(a(f'Logged in as: {current_user.username}', href='#', cls='action-button disabled', style='pointer-events: none;'))
+                    li(a('Logout', href='/logout', cls='action-button'))
                 else:
                     li(a('Login to View/Create Workflows', href='/login', cls='action-button'))
     return doc.render()
@@ -247,6 +248,14 @@ async def token_placeholder():
         detail="Authentication handled by Keycloak. Use /login endpoint or configure client to use Keycloak directly."
     )
 
+@app.get("/logout", response_class=RedirectResponse)
+async def logout():
+    """Logout user by clearing the access token cookie and redirecting to Keycloak logout."""
+    from app.config import KEYCLOAK_SERVER_URL, KEYCLOAK_REALM
+    response = RedirectResponse(url=f"{KEYCLOAK_SERVER_URL}realms/{KEYCLOAK_REALM}/protocol/openid-connect/logout?redirect_uri=http://localhost:8000/", status_code=status.HTTP_303_SEE_OTHER)
+    response.delete_cookie(key="access_token")
+    return response
+
 
 @app.get("/my-workflows", response_class=HTMLResponse)
 async def list_user_workflows(
@@ -275,4 +284,5 @@ async def list_user_workflows(
             a('← Back to Home', href='/', cls='back-link', style="margin-top:20px; display:inline-block;")
             a('← Available Definitions', href='/workflow-definitions', cls='back-link',
               style="margin-top:20px; display:inline-block; margin-left:15px;")
+            a('Logout', href='/logout', cls='back-link', style="margin-top:20px; display:inline-block; margin-left:15px;")
     return doc.render()
