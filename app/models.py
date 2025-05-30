@@ -14,7 +14,7 @@ class WorkflowDefinition(BaseModel):
     task_names: List[str] = Field(default_factory=list)  # Simple list of task names for MVP
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
     def to_dict(self):
         return self.dict()
@@ -31,7 +31,7 @@ class TaskInstance(BaseModel):
     status: TaskStatus = TaskStatus.pending
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
     def to_dict(self):
         return self.dict()
@@ -49,7 +49,7 @@ class WorkflowInstance(BaseModel):
     created_at: DateObject = Field(default_factory=DateObject.today)
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
     def to_dict(self):
         return self.dict()

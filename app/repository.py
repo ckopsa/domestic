@@ -73,17 +73,17 @@ class PostgreSQLWorkflowRepository(WorkflowRepository):
     async def get_workflow_instance_by_id(self, instance_id: str) -> Optional[WorkflowInstance]:
         from app.db_models.workflow import WorkflowInstance as WorkflowInstanceORM
         instance = self.db_session.query(WorkflowInstanceORM).filter(WorkflowInstanceORM.id == instance_id).first()
-        return WorkflowInstance.from_orm(instance) if instance else None
+        return WorkflowInstance.model_validate(instance) if instance else None
 
     async def list_workflow_definitions(self) -> List[WorkflowDefinition]:
         from app.db_models.workflow import WorkflowDefinition as WorkflowDefinitionORM
         definitions = self.db_session.query(WorkflowDefinitionORM).all()
-        return [WorkflowDefinition.from_orm(defn) for defn in definitions]
+        return [WorkflowDefinition.model_validate(defn) for defn in definitions]
 
     async def get_workflow_definition_by_id(self, definition_id: str) -> Optional[WorkflowDefinition]:
         from app.db_models.workflow import WorkflowDefinition as WorkflowDefinitionORM
         defn = self.db_session.query(WorkflowDefinitionORM).filter(WorkflowDefinitionORM.id == definition_id).first()
-        return WorkflowDefinition.from_orm(defn) if defn else None
+        return WorkflowDefinition.model_validate(defn) if defn else None
 
     async def create_workflow_instance(self, instance_data: WorkflowInstance) -> WorkflowInstance:
         from app.db_models.workflow import WorkflowInstance as WorkflowInstanceORM
@@ -91,7 +91,7 @@ class PostgreSQLWorkflowRepository(WorkflowRepository):
         self.db_session.add(instance)
         self.db_session.commit()
         self.db_session.refresh(instance)
-        return WorkflowInstance.from_orm(instance)
+        return WorkflowInstance.model_validate(instance)
 
     async def update_workflow_instance(self, instance_id: str, instance_update: WorkflowInstance) -> Optional[WorkflowInstance]:
         from app.db_models.workflow import WorkflowInstance as WorkflowInstanceORM
@@ -109,12 +109,12 @@ class PostgreSQLWorkflowRepository(WorkflowRepository):
         self.db_session.add(task)
         self.db_session.commit()
         self.db_session.refresh(task)
-        return TaskInstance.from_orm(task)
+        return TaskInstance.model_validate(task)
 
     async def get_task_instance_by_id(self, task_id: str) -> Optional[TaskInstance]:
         from app.db_models.task import TaskInstance as TaskInstanceORM
         task = self.db_session.query(TaskInstanceORM).filter(TaskInstanceORM.id == task_id).first()
-        return TaskInstance.from_orm(task) if task else None
+        return TaskInstance.model_validate(task) if task else None
 
     async def update_task_instance(self, task_id: str, task_update: TaskInstance) -> Optional[TaskInstance]:
         from app.db_models.task import TaskInstance as TaskInstanceORM
@@ -129,12 +129,12 @@ class PostgreSQLWorkflowRepository(WorkflowRepository):
     async def get_tasks_for_workflow_instance(self, instance_id: str) -> List[TaskInstance]:
         from app.db_models.task import TaskInstance as TaskInstanceORM
         tasks = self.db_session.query(TaskInstanceORM).filter(TaskInstanceORM.workflow_instance_id == instance_id).order_by(TaskInstanceORM.order).all()
-        return [TaskInstance.from_orm(task) for task in tasks]
+        return [TaskInstance.model_validate(task) for task in tasks]
 
     async def list_workflow_instances_by_user(self, user_id: str) -> List[WorkflowInstance]:
         from app.db_models.workflow import WorkflowInstance as WorkflowInstanceORM
         instances = self.db_session.query(WorkflowInstanceORM).filter(WorkflowInstanceORM.user_id == user_id).order_by(WorkflowInstanceORM.created_at.desc()).all()
-        return [WorkflowInstance.from_orm(instance) for instance in instances]
+        return [WorkflowInstance.model_validate(instance) for instance in instances]
 
     async def create_workflow_definition(self, definition_data: WorkflowDefinition) -> WorkflowDefinition:
         from app.db_models.workflow import WorkflowDefinition as WorkflowDefinitionORM
@@ -142,7 +142,7 @@ class PostgreSQLWorkflowRepository(WorkflowRepository):
         self.db_session.add(definition)
         self.db_session.commit()
         self.db_session.refresh(definition)
-        return WorkflowDefinition.from_orm(definition)
+        return WorkflowDefinition.model_validate(definition)
 
     async def update_workflow_definition(self, definition_id: str, name: str, description: Optional[str], task_names: List[str]) -> Optional[WorkflowDefinition]:
         from app.db_models.workflow import WorkflowDefinition as WorkflowDefinitionORM
@@ -153,7 +153,7 @@ class PostgreSQLWorkflowRepository(WorkflowRepository):
             db_definition.task_names = task_names if task_names else []
             self.db_session.commit()
             self.db_session.refresh(db_definition)
-            return WorkflowDefinition.from_orm(db_definition)
+            return WorkflowDefinition.model_validate(db_definition)
         return None
 
     async def delete_workflow_definition(self, definition_id: str) -> bool:
