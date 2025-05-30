@@ -99,6 +99,7 @@ class PostgreSQLWorkflowRepository(WorkflowRepository):
         )
         self.db_session.add(instance)
         self.db_session.commit()
+        self.db_session.refresh(instance)
         return instance_data
 
     async def update_workflow_instance(self, instance_id: str, instance_update: WorkflowInstance) -> Optional[WorkflowInstance]:

@@ -27,18 +27,13 @@ class WorkflowService:
         )
         created_instance = await self.repository.create_workflow_instance(instance)
 
-        task_ids = []
         for i, task_name in enumerate(definition.task_names):
             task = TaskInstance(
                 workflow_instance_id=created_instance.id,
                 name=task_name,
                 order=i
             )
-            created_task = await self.repository.create_task_instance(task)
-            task_ids.append(created_task.id)
-
-        created_instance.task_ids = task_ids
-        await self.repository.update_workflow_instance(created_instance.id, created_instance)
+            await self.repository.create_task_instance(task)
         return created_instance
 
     async def list_workflow_definitions(self) -> List[WorkflowDefinition]:
