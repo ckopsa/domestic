@@ -11,11 +11,7 @@ _workflow_instances_db: Dict[str, WorkflowInstance] = {}
 _task_instances_db: Dict[str, TaskInstance] = {}
 
 
-class WorkflowRepository(ABC):
-    @abstractmethod
-    async def get_workflow_instance_by_id(self, instance_id: str) -> Optional[WorkflowInstance]:
-        pass
-
+class WorkflowDefinitionRepository(ABC):
     @abstractmethod
     async def list_workflow_definitions(self) -> List[WorkflowDefinition]:
         pass
@@ -25,14 +21,37 @@ class WorkflowRepository(ABC):
         pass
 
     @abstractmethod
+    async def create_workflow_definition(self, definition_data: WorkflowDefinition) -> WorkflowDefinition:
+        pass
+
+    @abstractmethod
+    async def update_workflow_definition(self, definition_id: str, name: str, description: Optional[str], task_names: List[str]) -> Optional[WorkflowDefinition]:
+        pass
+
+    @abstractmethod
+    async def delete_workflow_definition(self, definition_id: str) -> bool:
+        pass
+
+
+class WorkflowInstanceRepository(ABC):
+    @abstractmethod
+    async def get_workflow_instance_by_id(self, instance_id: str) -> Optional[WorkflowInstance]:
+        pass
+
+    @abstractmethod
     async def create_workflow_instance(self, instance_data: WorkflowInstance) -> WorkflowInstance:
         pass
 
     @abstractmethod
-    async def update_workflow_instance(self, instance_id: str, instance_update: WorkflowInstance) -> Optional[
-        WorkflowInstance]:
+    async def update_workflow_instance(self, instance_id: str, instance_update: WorkflowInstance) -> Optional[WorkflowInstance]:
         pass
 
+    @abstractmethod
+    async def list_workflow_instances_by_user(self, user_id: str) -> List[WorkflowInstance]:
+        pass
+
+
+class TaskInstanceRepository(ABC):
     @abstractmethod
     async def create_task_instance(self, task_data: TaskInstance) -> TaskInstance:
         pass
@@ -49,24 +68,8 @@ class WorkflowRepository(ABC):
     async def get_tasks_for_workflow_instance(self, instance_id: str) -> List[TaskInstance]:
         pass
 
-    @abstractmethod
-    async def list_workflow_instances_by_user(self, user_id: str) -> List[WorkflowInstance]:
-        pass
 
-    @abstractmethod
-    async def create_workflow_definition(self, definition_data: WorkflowDefinition) -> WorkflowDefinition:
-        pass
-
-    @abstractmethod
-    async def update_workflow_definition(self, definition_id: str, name: str, description: Optional[str], task_names: List[str]) -> Optional[WorkflowDefinition]:
-        pass
-
-    @abstractmethod
-    async def delete_workflow_definition(self, definition_id: str) -> bool:
-        pass
-
-
-class PostgreSQLWorkflowRepository(WorkflowRepository):
+class PostgreSQLWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanceRepository, TaskInstanceRepository):
     def __init__(self, db_session):
         self.db_session = db_session
 
@@ -170,7 +173,7 @@ class PostgreSQLWorkflowRepository(WorkflowRepository):
         return False
 
 
-class InMemoryWorkflowRepository(WorkflowRepository):
+class InMemoryWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanceRepository, TaskInstanceRepository):
     def __init__(self):
         self._seed_definitions()
 
@@ -207,8 +210,7 @@ class InMemoryWorkflowRepository(WorkflowRepository):
         _workflow_instances_db[new_instance.id] = new_instance
         return new_instance.model_copy(deep=True)
 
-    async def update_workflow_instance(self, instance_id: str, instance_update: WorkflowInstance) -> Optional[
-        WorkflowInstance]:
+    async def update_workflow_instance(self, instance_id: str, instance_update: WorkflowInstance) -> Optional[WorkflowInstance]:
         if instance_id in _workflow_instances_db:
             _workflow_instances_db[instance_id] = instance_update.model_copy(deep=True)
             return _workflow_instances_db[instance_id].model_copy(deep=True)

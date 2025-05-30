@@ -28,7 +28,7 @@ def db_session():
 async def test_create_workflow_instance(db_session):
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
-    service = WorkflowService(repo)
+    service = WorkflowService(repo, repo, repo)
     # Add a workflow definition to the database
     from app.db_models.workflow import WorkflowDefinition as WorkflowDefinitionORM
     defn = WorkflowDefinitionORM(

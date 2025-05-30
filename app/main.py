@@ -23,14 +23,18 @@ templates = Jinja2Templates(directory="app/templates")
 app.mount("/static", StaticFiles(directory="app/templates"), name="static")
 
 # --- Dependencies ---
-def get_workflow_repository(db=Depends(get_db)) -> WorkflowRepository:
-    """Provides an instance of the WorkflowRepository."""
-    return PostgreSQLWorkflowRepository(db)
+def get_workflow_repository(db=Depends(get_db)) -> tuple[WorkflowDefinitionRepository, WorkflowInstanceRepository, TaskInstanceRepository]:
+    """Provides instances of the repository interfaces."""
+    repo = PostgreSQLWorkflowRepository(db)
+    return repo, repo, repo
 
 
-def get_workflow_service(repo: WorkflowRepository = Depends(get_workflow_repository)) -> WorkflowService:
-    """Provides an instance of the WorkflowService, injecting the repository."""
-    return WorkflowService(repository=repo)
+def get_workflow_service(
+    repos: tuple[WorkflowDefinitionRepository, WorkflowInstanceRepository, TaskInstanceRepository] = Depends(get_workflow_repository)
+) -> WorkflowService:
+    """Provides an instance of the WorkflowService, injecting the repositories."""
+    definition_repo, instance_repo, task_repo = repos
+    return WorkflowService(definition_repo=definition_repo, instance_repo=instance_repo, task_repo=task_repo)
 
 
 # --- Utility for HTML message/error pages ---
