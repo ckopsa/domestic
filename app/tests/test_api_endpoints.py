@@ -31,7 +31,7 @@ def override_get_current_active_user():
     return mock_user
 
 # Override the dependency in the app for testing
-app.dependency_overrides[lambda: override_get_db] = override_get_db
+app.dependency_overrides[get_current_active_user] = override_get_current_active_user
 
 @pytest.mark.asyncio
 async def test_list_workflow_definitions(db_session):
