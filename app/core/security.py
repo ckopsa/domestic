@@ -27,7 +27,7 @@ def get_keycloak_public_keys() -> Dict[str, Any]:
     jwks_data = response.json()
     return jwks_data
 
-async def get_current_user(request: Request, token: Annotated[str, Depends(oauth2_scheme)]) -> AuthenticatedUser:
+async def get_current_user(request: Request, token: Annotated[str | None, Depends(oauth2_scheme)] = None) -> AuthenticatedUser:
     """Extract user information from Keycloak JWT token."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -35,7 +35,7 @@ async def get_current_user(request: Request, token: Annotated[str, Depends(oauth
         headers={"WWW-Authenticate": "Bearer"},
     )
     
-    if not token:
+    if token is None:
         token = request.cookies.get("access_token", "")
     
     if not token:
