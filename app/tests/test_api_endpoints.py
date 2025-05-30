@@ -7,7 +7,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')
 from app.db_models import Base
 from app.main import app
 from app.database import get_db, engine
-from app.core.security import AuthenticatedUser
+from app.core.security import AuthenticatedUser, get_current_active_user
 
 # Test client
 client = TestClient(app)
