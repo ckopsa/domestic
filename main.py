@@ -1,28 +1,28 @@
 # main.py
-import uuid
-from datetime import datetime, date as DateObject
-from typing import Optional, List
+from typing import List
 
 from dominate import document
 from dominate.tags import *
-from fastapi import FastAPI, HTTPException, Form, status, Depends
+from fastapi import FastAPI, Form, status, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from models import WorkflowDefinition, WorkflowInstance, TaskInstance
 from repository import InMemoryWorkflowRepository, WorkflowRepository
 from services import WorkflowService
 from style import my_style
 
 app = FastAPI()
 
+
 # --- Dependencies ---
 def get_workflow_repository() -> WorkflowRepository:
     """Provides an instance of the WorkflowRepository."""
     return InMemoryWorkflowRepository()
 
+
 def get_workflow_service(repo: WorkflowRepository = Depends(get_workflow_repository)) -> WorkflowService:
     """Provides an instance of the WorkflowService, injecting the repository."""
     return WorkflowService(repository=repo)
+
 
 # --- Utility for HTML message/error pages ---
 def create_message_page(
@@ -47,8 +47,10 @@ def create_message_page(
             h1(heading, style=heading_style)
             p(message)
             for link_text, link_href in links:
-                a(link_text, href=link_href, cls='back-link', style="margin-right:15px; display:inline-block; margin-top:10px;")
+                a(link_text, href=link_href, cls='back-link',
+                  style="margin-right:15px; display:inline-block; margin-top:10px;")
     return HTMLResponse(content=doc.render(), status_code=status_code)
+
 
 # --- Routes ---
 
@@ -67,11 +69,13 @@ async def read_root():
                 li(a('Available Workflow Definitions', href='/workflow-definitions', cls='action-button'))
     return doc.render()
 
+
 @app.get("/workflow-definitions", response_class=HTMLResponse)
 async def list_workflow_definitions_page(service: WorkflowService = Depends(get_workflow_service)):
     definitions = await service.list_workflow_definitions()
     doc = document(title='Available Workflow Definitions')
-    with doc.head: style(my_style)
+    with doc.head:
+        style(my_style)
     with doc.body:
         with div(cls='container'):
             h1('Available Workflow Definitions')
@@ -90,27 +94,33 @@ async def list_workflow_definitions_page(service: WorkflowService = Depends(get_
             a('← Back to Home', href='/', cls='back-link', style="margin-top:20px;")
     return doc.render()
 
+
 @app.post("/workflow-instances")
 async def create_workflow_instance_handler(
-    definition_id: str = Form(...),
-    service: WorkflowService = Depends(get_workflow_service)
+        definition_id: str = Form(...),
+        service: WorkflowService = Depends(get_workflow_service)
 ):
     instance = await service.create_workflow_instance(definition_id=definition_id)
     if not instance:
-        return create_message_page("Creation Failed", "Error", "Could not create workflow instance.", [("← Definitions", "/workflow-definitions")], status_code=500)
+        return create_message_page("Creation Failed", "Error", "Could not create workflow instance.",
+                                   [("← Definitions", "/workflow-definitions")], status_code=500)
     return RedirectResponse(url=f"/workflow-instances/{instance.id}", status_code=status.HTTP_303_SEE_OTHER)
+
 
 @app.get("/workflow-instances/{instance_id}", response_class=HTMLResponse)
 async def read_workflow_instance_page(instance_id: str, service: WorkflowService = Depends(get_workflow_service)):
     details = await service.get_workflow_instance_with_tasks(instance_id)
     if not details or not details["instance"]:
-        return create_message_page("Workflow Not Found", "Error 404", f"Workflow Instance with ID '{instance_id}' not found.", [("← Back to Definitions", "/workflow-definitions")], status_code=404)
+        return create_message_page("Workflow Not Found", "Error 404",
+                                   f"Workflow Instance with ID '{instance_id}' not found.",
+                                   [("← Back to Definitions", "/workflow-definitions")], status_code=404)
 
     instance = details["instance"]
     tasks = details["tasks"]
 
     doc = document(title=f'Workflow: {instance.name}')
-    with doc.head: style(my_style)
+    with doc.head:
+        style(my_style)
     with doc.body:
         with div(cls='container'):
             h1(f'Workflow: {instance.name}')
@@ -127,20 +137,27 @@ async def read_workflow_instance_page(instance_id: str, service: WorkflowService
                             with li(cls='task-item', style="margin-bottom:10px;"):
                                 p(strong('Task:'), f' {task.name} - {task.status.upper()}')
                                 if task.status == "pending":
-                                    with form(action=f"/task-instances/{task.id}/complete", method="post", style="display:inline; margin-left:10px;"):
+                                    with form(action=f"/task-instances/{task.id}/complete", method="post",
+                                              style="display:inline; margin-left:10px;"):
                                         button("Mark Complete", type="submit", cls="action-button submit")
                 if instance.status == "completed":
-                    p("🎉 Workflow Complete!", style="color: green; font-weight: bold; font-size:1.2em; margin-top:15px;")
-            a('← Back to Workflow Definitions', href='/workflow-definitions', cls='back-link', style="margin-top:20px; display:inline-block;")
-            a('← Back to Home', href='/', cls='back-link', style="margin-top:20px; display:inline-block; margin-left:15px;")
+                    p("🎉 Workflow Complete!",
+                      style="color: green; font-weight: bold; font-size:1.2em; margin-top:15px;")
+            a('← Back to Workflow Definitions', href='/workflow-definitions', cls='back-link',
+              style="margin-top:20px; display:inline-block;")
+            a('← Back to Home', href='/', cls='back-link',
+              style="margin-top:20px; display:inline-block; margin-left:15px;")
     return doc.render()
+
 
 @app.post("/task-instances/{task_id}/complete")
 async def complete_task_handler(
-    task_id: str,
-    service: WorkflowService = Depends(get_workflow_service)
+        task_id: str,
+        service: WorkflowService = Depends(get_workflow_service)
 ):
     task = await service.complete_task(task_id)
     if not task:
-        return create_message_page("Error", "Task Update Failed", "Could not complete task.", [("← Back", "/")], status_code=400)
-    return RedirectResponse(url=f"/workflow-instances/{task.workflow_instance_id}", status_code=status.HTTP_303_SEE_OTHER)
+        return create_message_page("Error", "Task Update Failed", "Could not complete task.", [("← Back", "/")],
+                                   status_code=400)
+    return RedirectResponse(url=f"/workflow-instances/{task.workflow_instance_id}",
+                            status_code=status.HTTP_303_SEE_OTHER)

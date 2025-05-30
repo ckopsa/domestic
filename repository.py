@@ -1,13 +1,14 @@
 # repository.py
-import uuid
 from abc import ABC, abstractmethod
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict
+
 from models import WorkflowDefinition, WorkflowInstance, TaskInstance
 
 # In-memory stores
 _workflow_definitions_db: Dict[str, WorkflowDefinition] = {}
 _workflow_instances_db: Dict[str, WorkflowInstance] = {}
 _task_instances_db: Dict[str, TaskInstance] = {}
+
 
 class WorkflowRepository(ABC):
     @abstractmethod
@@ -27,7 +28,8 @@ class WorkflowRepository(ABC):
         pass
 
     @abstractmethod
-    async def update_workflow_instance(self, instance_id: str, instance_update: WorkflowInstance) -> Optional[WorkflowInstance]:
+    async def update_workflow_instance(self, instance_id: str, instance_update: WorkflowInstance) -> Optional[
+        WorkflowInstance]:
         pass
 
     @abstractmethod
@@ -45,6 +47,7 @@ class WorkflowRepository(ABC):
     @abstractmethod
     async def get_tasks_for_workflow_instance(self, instance_id: str) -> List[TaskInstance]:
         pass
+
 
 class InMemoryWorkflowRepository(WorkflowRepository):
     def __init__(self):
@@ -83,7 +86,8 @@ class InMemoryWorkflowRepository(WorkflowRepository):
         _workflow_instances_db[new_instance.id] = new_instance
         return new_instance.model_copy(deep=True)
 
-    async def update_workflow_instance(self, instance_id: str, instance_update: WorkflowInstance) -> Optional[WorkflowInstance]:
+    async def update_workflow_instance(self, instance_id: str, instance_update: WorkflowInstance) -> Optional[
+        WorkflowInstance]:
         if instance_id in _workflow_instances_db:
             _workflow_instances_db[instance_id] = instance_update.model_copy(deep=True)
             return _workflow_instances_db[instance_id].model_copy(deep=True)
