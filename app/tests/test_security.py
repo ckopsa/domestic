@@ -6,7 +6,7 @@ from fastapi import HTTPException
 from jose import jwt
 
 # Add the project root to sys.path to ensure 'app' module can be found
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 from app.core.security import get_current_user, get_keycloak_public_keys, AuthenticatedUser
 from app.config import KEYCLOAK_SERVER_URL, KEYCLOAK_REALM, KEYCLOAK_API_CLIENT_ID
 

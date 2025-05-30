@@ -11,7 +11,7 @@ from app.database import get_db
 from app.core.security import AuthenticatedUser
 
 # Add the project root to sys.path to ensure 'app' module can be found
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 # Setup for in-memory SQLite database for testing
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
