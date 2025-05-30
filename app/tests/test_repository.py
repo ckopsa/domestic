@@ -56,6 +56,42 @@ async def test_get_workflow_definition_by_id_not_found(db_session):
     assert result is None
 
 @pytest.mark.asyncio
+async def test_get_workflow_instance_by_id(db_session):
+    # Arrange
+    repo = PostgreSQLWorkflowRepository(db_session)
+    from app.models.workflow import WorkflowInstance as WorkflowInstanceORM
+    instance = WorkflowInstanceORM(
+        id="test_wf_1",
+        workflow_definition_id="test_def_1",
+        name="Test Workflow Instance",
+        status="active",
+        created_at=DateObject.today()
+    )
+    db_session.add(instance)
+    db_session.commit()
+
+    # Act
+    result = await repo.get_workflow_instance_by_id("test_wf_1")
+
+    # Assert
+    assert result is not None
+    assert result.id == "test_wf_1"
+    assert result.workflow_definition_id == "test_def_1"
+    assert result.name == "Test Workflow Instance"
+    assert result.status == "active"
+
+@pytest.mark.asyncio
+async def test_get_workflow_instance_by_id_not_found(db_session):
+    # Arrange
+    repo = PostgreSQLWorkflowRepository(db_session)
+
+    # Act
+    result = await repo.get_workflow_instance_by_id("non_existent_id")
+
+    # Assert
+    assert result is None
+
+@pytest.mark.asyncio
 async def test_create_task_instance(db_session):
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
