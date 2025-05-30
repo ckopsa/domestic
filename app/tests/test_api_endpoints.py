@@ -3,30 +3,11 @@ import sys
 import os
 import json
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 from app.db_models import Base
 from app.main import app
-from app.database import get_db
+from app.database import get_db, engine
 from app.core.security import AuthenticatedUser
-
-# Add the project root to sys.path to ensure 'app' module can be found
-
-# Setup for in-memory SQLite database for testing
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-# Override the get_db dependency to use the test database
-def override_get_db():
-    db = TestingSessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-app.dependency_overrides[get_db] = override_get_db
 
 # Test client
 client = TestClient(app)
@@ -35,13 +16,15 @@ client = TestClient(app)
 mock_user = AuthenticatedUser(user_id="test_user", username="testuser", email="test@example.com")
 
 # Fixture to setup and teardown the database
-@pytest.fixture
+@pytest.fixture(scope="function")
 def db_session():
-    Base.metadata.create_all(bind=engine)
-    session = TestingSessionLocal()
+    connection = engine.connect()
+    transaction = connection.begin()
+    session = get_db().__next__()
     yield session
     session.close()
-    Base.metadata.drop_all(bind=engine)
+    transaction.rollback()
+    connection.close()
 
 # Mock the get_current_active_user dependency
 def override_get_current_active_user():
@@ -51,7 +34,7 @@ def override_get_current_active_user():
 app.dependency_overrides[lambda: override_get_db] = override_get_db
 
 @pytest.mark.asyncio
-def test_list_workflow_definitions(db_session):
+async def test_list_workflow_definitions(db_session):
     # Act
     response = client.get("/workflow-definitions/")
 
@@ -60,7 +43,7 @@ def test_list_workflow_definitions(db_session):
     assert isinstance(response.json(), list)
 
 @pytest.mark.asyncio
-def test_create_workflow_definition(db_session):
+async def test_create_workflow_definition(db_session):
     # Arrange
     data = {
         "name": "Test Workflow",
@@ -76,7 +59,7 @@ def test_create_workflow_definition(db_session):
     assert response.headers['location'] == "/workflow-definitions"
 
 @pytest.mark.asyncio
-def test_create_workflow_definition_invalid_data(db_session):
+async def test_create_workflow_definition_invalid_data(db_session):
     # Arrange
     data = {
         "name": "",  # Empty name should fail validation
@@ -91,7 +74,7 @@ def test_create_workflow_definition_invalid_data(db_session):
     assert response.status_code == 400  # Bad request due to validation error
 
 @pytest.mark.asyncio
-def test_edit_workflow_definition(db_session):
+async def test_edit_workflow_definition(db_session):
     # Arrange: First create a definition
     definition_data = {
         "name": "Original Workflow",
@@ -120,7 +103,7 @@ def test_edit_workflow_definition(db_session):
     assert response.headers['location'] == "/workflow-definitions"
 
 @pytest.mark.asyncio
-def test_edit_workflow_definition_not_found(db_session):
+async def test_edit_workflow_definition_not_found(db_session):
     # Arrange
     data = {
         "name": "Updated Workflow",
@@ -135,7 +118,7 @@ def test_edit_workflow_definition_not_found(db_session):
     assert response.status_code == 404  # Not found
 
 @pytest.mark.asyncio
-def test_delete_workflow_definition(db_session):
+async def test_delete_workflow_definition(db_session):
     # Arrange: First create a definition
     definition_data = {
         "name": "Workflow to Delete",
@@ -157,7 +140,7 @@ def test_delete_workflow_definition(db_session):
     assert response.headers['location'] == "/workflow-definitions"
 
 @pytest.mark.asyncio
-def test_delete_workflow_definition_not_found(db_session):
+async def test_delete_workflow_definition_not_found(db_session):
     # Act
     response = client.post("/workflow-definitions/delete/nonexistent_id")
 
@@ -165,7 +148,7 @@ def test_delete_workflow_definition_not_found(db_session):
     assert response.status_code == 404  # Not found
 
 @pytest.mark.asyncio
-def test_create_workflow_instance(db_session):
+async def test_create_workflow_instance(db_session):
     # Arrange: First create a definition
     definition_data = {
         "name": "Workflow for Instance",
@@ -192,7 +175,7 @@ def test_create_workflow_instance(db_session):
     assert response.headers['location'].startswith("/workflow-instances/")
 
 @pytest.mark.asyncio
-def test_create_workflow_instance_invalid_definition(db_session):
+async def test_create_workflow_instance_invalid_definition(db_session):
     # Arrange
     instance_data = {
         "definition_id": "nonexistent_id"
@@ -205,7 +188,7 @@ def test_create_workflow_instance_invalid_definition(db_session):
     assert response.status_code == 500  # Server error due to invalid definition ID
 
 @pytest.mark.asyncio
-def test_get_workflow_instance(db_session):
+async def test_get_workflow_instance(db_session):
     # Arrange: First create a definition and an instance
     definition_data = {
         "name": "Workflow for Instance",
@@ -235,7 +218,7 @@ def test_get_workflow_instance(db_session):
     assert response.json()["instance"]["id"] == instance_id
 
 @pytest.mark.asyncio
-def test_get_workflow_instance_not_found(db_session):
+async def test_get_workflow_instance_not_found(db_session):
     # Act
     response = client.get("/workflow-instances/nonexistent_id")
 
@@ -243,7 +226,7 @@ def test_get_workflow_instance_not_found(db_session):
     assert response.status_code == 404  # Not found
 
 @pytest.mark.asyncio
-def test_complete_task(db_session):
+async def test_complete_task(db_session):
     # Arrange: First create a definition and an instance with tasks
     definition_data = {
         "name": "Workflow for Task Completion",
@@ -276,7 +259,7 @@ def test_complete_task(db_session):
     assert response.headers['location'] == f"/workflow-instances/{instance_id}"
 
 @pytest.mark.asyncio
-def test_complete_task_not_found(db_session):
+async def test_complete_task_not_found(db_session):
     # Act
     response = client.post("/task-instances/nonexistent_id/complete")
 
@@ -284,7 +267,7 @@ def test_complete_task_not_found(db_session):
     assert response.status_code == 400  # Bad request due to task not found
 
 @pytest.mark.asyncio
-def test_list_user_workflows(db_session):
+async def test_list_user_workflows(db_session):
     # Arrange: Create a workflow instance for the user
     definition_data = {
         "name": "User Workflow",
