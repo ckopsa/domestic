@@ -131,7 +131,7 @@ def mock_jwt_decode(token, key, algorithms, audience, issuer):
 async def test_get_current_user_valid_token(monkeypatch):
     # Arrange
     monkeypatch.setattr("app.core.security.get_keycloak_public_keys", mock_get_keycloak_public_keys)
-    monkeypatch.setattr("jose.jwt.decode", mock_jwt_decode)
+    monkeypatch.setattr("jwt.decode", mock_jwt_decode)
     
     # Act
     user = await get_current_user(MagicMock(cookies={"access_token": MOCK_TOKEN_VALID}))
