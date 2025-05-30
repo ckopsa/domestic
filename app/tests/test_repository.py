@@ -1,9 +1,10 @@
 import pytest
+from datetime import date as DateObject
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from app.models import Base
 from app.repository import PostgreSQLWorkflowRepository
-from app.models import WorkflowDefinition
+from app.models import WorkflowDefinition, TaskInstance
 
 # Setup for in-memory SQLite database for testing
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
