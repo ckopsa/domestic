@@ -1,3 +1,4 @@
+import uuid
 from sqlalchemy import Column, String, Text, Date, Enum as SQLAlchemyEnum, ForeignKey
 from sqlalchemy.orm import relationship
 from typing import List
@@ -8,7 +9,7 @@ from app.models.enums import WorkflowStatus
 class WorkflowDefinition(Base):
     __tablename__ = "workflow_definitions"
 
-    id = Column(String, primary_key=True, index=True)
+    id = Column(String, primary_key=True, index=True, default=lambda: "wf_" + str(uuid.uuid4())[:8])
     name = Column(String, nullable=False)
     description = Column(Text, nullable=True, default="")
     task_names = Column(Text, nullable=False, default="[]")  # Stored as JSON string for simplicity
