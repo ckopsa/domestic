@@ -85,7 +85,7 @@ class PostgreSQLWorkflowRepository(WorkflowRepository):
                 id=defn.id,
                 name=defn.name,
                 description=defn.description,
-                task_names=eval(defn.task_names) if defn.task_names else []
+                task_names=eval(defn.task_names) if defn.task_names and defn.task_names != "[]" else []
             )
         return None
 
