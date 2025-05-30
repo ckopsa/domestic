@@ -95,12 +95,18 @@ class PostgreSQLWorkflowRepository(WorkflowRepository):
             workflow_definition_id=instance_data.workflow_definition_id,
             name=instance_data.name,
             status=instance_data.status,
-            created_at=instance_data.created_at
+            created_at=instance_data.created_at if instance_data.created_at else DateObject.today()
         )
         self.db_session.add(instance)
         self.db_session.commit()
         self.db_session.refresh(instance)
-        return instance_data
+        return WorkflowInstance(
+            id=instance.id,
+            workflow_definition_id=instance.workflow_definition_id,
+            name=instance.name,
+            status=instance.status,
+            created_at=instance.created_at
+        )
 
     async def update_workflow_instance(self, instance_id: str, instance_update: WorkflowInstance) -> Optional[WorkflowInstance]:
         from app.models.workflow import WorkflowInstance as WorkflowInstanceORM
@@ -125,7 +131,14 @@ class PostgreSQLWorkflowRepository(WorkflowRepository):
         )
         self.db_session.add(task)
         self.db_session.commit()
-        return task_data
+        self.db_session.refresh(task)
+        return TaskInstance(
+            id=task.id,
+            workflow_instance_id=task.workflow_instance_id,
+            name=task.name,
+            order=task.order,
+            status=task.status
+        )
 
     async def get_task_instance_by_id(self, task_id: str) -> Optional[TaskInstance]:
         from app.models.task import TaskInstance as TaskInstanceORM
