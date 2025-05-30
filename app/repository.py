@@ -49,6 +49,120 @@ class WorkflowRepository(ABC):
         pass
 
 
+class PostgreSQLWorkflowRepository(WorkflowRepository):
+    def __init__(self, db_session):
+        self.db_session = db_session
+
+    async def get_workflow_instance_by_id(self, instance_id: str) -> Optional[WorkflowInstance]:
+        from app.models.workflow import WorkflowInstance as WorkflowInstanceORM
+        instance = self.db_session.query(WorkflowInstanceORM).filter(WorkflowInstanceORM.id == instance_id).first()
+        if instance:
+            return WorkflowInstance(
+                id=instance.id,
+                workflow_definition_id=instance.workflow_definition_id,
+                name=instance.name,
+                status=instance.status,
+                created_at=instance.created_at
+            )
+        return None
+
+    async def list_workflow_definitions(self) -> List[WorkflowDefinition]:
+        from app.models.workflow import WorkflowDefinition as WorkflowDefinitionORM
+        definitions = self.db_session.query(WorkflowDefinitionORM).all()
+        return [WorkflowDefinition(
+            id=defn.id,
+            name=defn.name,
+            description=defn.description,
+            task_names=eval(defn.task_names) if defn.task_names else []
+        ) for defn in definitions]
+
+    async def get_workflow_definition_by_id(self, definition_id: str) -> Optional[WorkflowDefinition]:
+        from app.models.workflow import WorkflowDefinition as WorkflowDefinitionORM
+        defn = self.db_session.query(WorkflowDefinitionORM).filter(WorkflowDefinitionORM.id == definition_id).first()
+        if defn:
+            return WorkflowDefinition(
+                id=defn.id,
+                name=defn.name,
+                description=defn.description,
+                task_names=eval(defn.task_names) if defn.task_names else []
+            )
+        return None
+
+    async def create_workflow_instance(self, instance_data: WorkflowInstance) -> WorkflowInstance:
+        from app.models.workflow import WorkflowInstance as WorkflowInstanceORM
+        instance = WorkflowInstanceORM(
+            id=instance_data.id,
+            workflow_definition_id=instance_data.workflow_definition_id,
+            name=instance_data.name,
+            status=instance_data.status,
+            created_at=instance_data.created_at
+        )
+        self.db_session.add(instance)
+        self.db_session.commit()
+        return instance_data
+
+    async def update_workflow_instance(self, instance_id: str, instance_update: WorkflowInstance) -> Optional[WorkflowInstance]:
+        from app.models.workflow import WorkflowInstance as WorkflowInstanceORM
+        instance = self.db_session.query(WorkflowInstanceORM).filter(WorkflowInstanceORM.id == instance_id).first()
+        if instance:
+            instance.workflow_definition_id = instance_update.workflow_definition_id
+            instance.name = instance_update.name
+            instance.status = instance_update.status
+            instance.created_at = instance_update.created_at
+            self.db_session.commit()
+            return instance_update
+        return None
+
+    async def create_task_instance(self, task_data: TaskInstance) -> TaskInstance:
+        from app.models.task import TaskInstance as TaskInstanceORM
+        task = TaskInstanceORM(
+            id=task_data.id,
+            workflow_instance_id=task_data.workflow_instance_id,
+            name=task_data.name,
+            order=task_data.order,
+            status=task_data.status
+        )
+        self.db_session.add(task)
+        self.db_session.commit()
+        return task_data
+
+    async def get_task_instance_by_id(self, task_id: str) -> Optional[TaskInstance]:
+        from app.models.task import TaskInstance as TaskInstanceORM
+        task = self.db_session.query(TaskInstanceORM).filter(TaskInstanceORM.id == task_id).first()
+        if task:
+            return TaskInstance(
+                id=task.id,
+                workflow_instance_id=task.workflow_instance_id,
+                name=task.name,
+                order=task.order,
+                status=task.status
+            )
+        return None
+
+    async def update_task_instance(self, task_id: str, task_update: TaskInstance) -> Optional[TaskInstance]:
+        from app.models.task import TaskInstance as TaskInstanceORM
+        task = self.db_session.query(TaskInstanceORM).filter(TaskInstanceORM.id == task_id).first()
+        if task:
+            task.workflow_instance_id = task_update.workflow_instance_id
+            task.name = task_update.name
+            task.order = task_update.order
+            task.status = task_update.status
+            self.db_session.commit()
+            return task_update
+        return None
+
+    async def get_tasks_for_workflow_instance(self, instance_id: str) -> List[TaskInstance]:
+        from app.models.task import TaskInstance as TaskInstanceORM
+        tasks = self.db_session.query(TaskInstanceORM).filter(TaskInstanceORM.workflow_instance_id == instance_id).order_by(TaskInstanceORM.order).all()
+        return [TaskInstance(
+            id=task.id,
+            workflow_instance_id=task.workflow_instance_id,
+            name=task.name,
+            order=task.order,
+            status=task.status
+        ) for task in tasks]
+
+
 class InMemoryWorkflowRepository(WorkflowRepository):
     def __init__(self):
         self._seed_definitions()

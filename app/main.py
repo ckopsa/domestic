@@ -14,9 +14,9 @@ app = FastAPI()
 
 
 # --- Dependencies ---
-def get_workflow_repository() -> WorkflowRepository:
+def get_workflow_repository(db=Depends(get_db)) -> WorkflowRepository:
     """Provides an instance of the WorkflowRepository."""
-    return InMemoryWorkflowRepository()
+    return PostgreSQLWorkflowRepository(db)
 
 
 def get_workflow_service(repo: WorkflowRepository = Depends(get_workflow_repository)) -> WorkflowService:
