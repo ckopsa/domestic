@@ -19,3 +19,4 @@ dependencies = [
 
 [tool.pytest]
 asyncio_mode = "auto"
+pythonpath = ["."]

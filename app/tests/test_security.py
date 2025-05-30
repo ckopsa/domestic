@@ -1,4 +1,9 @@
 import pytest
+import sys
+import os
+
+# Add the project root to sys.path to ensure 'app' module can be found
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 from fastapi import HTTPException
 from jose import jwt
 from app.core.security import get_current_user, get_keycloak_public_keys

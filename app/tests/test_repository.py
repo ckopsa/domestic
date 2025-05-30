@@ -1,5 +1,10 @@
 import pytest
+import sys
+import os
 from datetime import date as DateObject
+
+# Add the project root to sys.path to ensure 'app' module can be found
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from app.models import Base
