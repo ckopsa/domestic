@@ -17,6 +17,8 @@ async def create_workflow_instance_handler(
         current_user: AuthenticatedUser = Depends(get_current_active_user),
         renderer: HtmlRendererInterface = Depends(get_html_renderer)
 ):
+    if isinstance(current_user, RedirectResponse):
+        return current_user
     instance = await service.create_workflow_instance(definition_id=definition_id, user_id=current_user.user_id)
     if not instance:
         return await create_message_page(
@@ -33,6 +35,8 @@ async def read_workflow_instance_page(
         current_user: AuthenticatedUser = Depends(get_current_active_user),
         renderer: HtmlRendererInterface = Depends(get_html_renderer)
 ):
+    if isinstance(current_user, RedirectResponse):
+        return current_user
     details = await service.get_workflow_instance_with_tasks(instance_id, current_user.user_id)
     if not details or not details["instance"]:
         return await create_message_page(

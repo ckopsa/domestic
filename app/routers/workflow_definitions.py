@@ -29,6 +29,8 @@ async def create_workflow_definition_page(
         renderer: HtmlRendererInterface = Depends(get_html_renderer)
 ):
     """Serves a page for creating a new workflow definition."""
+    if isinstance(current_user, RedirectResponse):
+        return current_user
     return await renderer.render("create_workflow_definition.html", request, {})
 
 @router.post("/create", response_class=RedirectResponse)
@@ -42,6 +44,8 @@ async def create_workflow_definition_handler(
     renderer: HtmlRendererInterface = Depends(get_html_renderer)
 ):
     """Handles the submission of a new workflow definition."""
+    if isinstance(current_user, RedirectResponse):
+        return current_user
     try:
         task_names = [task.strip() for task in task_names_str.split('\n') if task.strip()]
         await service.create_new_definition(name=name, description=description, task_names=task_names)
@@ -66,6 +70,8 @@ async def edit_workflow_definition_page(
     renderer: HtmlRendererInterface = Depends(get_html_renderer)
 ):
     """Serves a page for editing an existing workflow definition."""
+    if isinstance(current_user, RedirectResponse):
+        return current_user
     definition = await service.definition_repo.get_workflow_definition_by_id(definition_id)
     if not definition:
         return await create_message_page(
@@ -92,6 +98,8 @@ async def edit_workflow_definition_handler(
     renderer: HtmlRendererInterface = Depends(get_html_renderer)
 ):
     """Handles the submission of updates to an existing workflow definition."""
+    if isinstance(current_user, RedirectResponse):
+        return current_user
     try:
         task_names = [task.strip() for task in task_names_str.split('\n') if task.strip()]
         updated_definition = await service.update_definition(definition_id=definition_id, name=name, description=description, task_names=task_names)
@@ -126,6 +134,8 @@ async def confirm_delete_workflow_definition_page(
     renderer: HtmlRendererInterface = Depends(get_html_renderer)
 ):
     """Serves a confirmation page for deleting a workflow definition."""
+    if isinstance(current_user, RedirectResponse):
+        return current_user
     definition = await service.definition_repo.get_workflow_definition_by_id(definition_id)
     if not definition:
         return await create_message_page(
@@ -149,6 +159,8 @@ async def delete_workflow_definition_handler(
     renderer: HtmlRendererInterface = Depends(get_html_renderer)
 ):
     """Handles the deletion of a workflow definition."""
+    if isinstance(current_user, RedirectResponse):
+        return current_user
     try:
         await service.delete_definition(definition_id)
         return RedirectResponse(url="/workflow-definitions", status_code=status.HTTP_303_SEE_OTHER)

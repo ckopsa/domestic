@@ -39,7 +39,11 @@ async def get_current_user(request: Request, token: Annotated[str | None, Depend
         token = request.cookies.get("access_token", "")
     
     if not token:
-        raise credentials_exception
+        # Redirect to login page with the current URL as the redirect parameter
+        from fastapi.responses import RedirectResponse
+        original_url = str(request.url)
+        login_url = f"/login?redirect={original_url}"
+        return RedirectResponse(url=login_url, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
         
     try:
         jwks = get_keycloak_public_keys()

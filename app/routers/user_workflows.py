@@ -15,5 +15,7 @@ async def list_user_workflows(
         renderer: HtmlRendererInterface = Depends(get_html_renderer)
 ):
     """Serves a page listing all workflow instances for the current user."""
+    if isinstance(current_user, RedirectResponse):
+        return current_user
     instances = await service.list_instances_for_user(current_user.user_id)
     return await renderer.render("my_workflows.html", request, {"instances": instances})

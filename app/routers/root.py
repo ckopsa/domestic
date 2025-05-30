@@ -13,6 +13,8 @@ async def read_root(
         renderer: HtmlRendererInterface = Depends(get_html_renderer)
 ):
     """Serves the homepage."""
+    if isinstance(current_user, RedirectResponse):
+        return current_user
     return await renderer.render(
         "index.html",
         request,

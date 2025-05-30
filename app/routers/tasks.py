@@ -17,6 +17,8 @@ async def complete_task_handler(
         current_user: AuthenticatedUser = Depends(get_current_active_user),
         renderer: HtmlRendererInterface = Depends(get_html_renderer)
 ):
+    if isinstance(current_user, RedirectResponse):
+        return current_user
     task = await service.complete_task(task_id, current_user.user_id)
     if not task:
         return await create_message_page(
