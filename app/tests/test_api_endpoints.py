@@ -254,6 +254,11 @@ async def test_complete_task_not_found(db_session):
 
 @pytest.mark.asyncio
 async def test_list_user_workflows(db_session):
+    # Clean up existing instances for test_user to ensure a known starting state
+    from app.db_models.workflow import WorkflowInstance as WorkflowInstanceORM
+    db_session.query(WorkflowInstanceORM).filter(WorkflowInstanceORM.user_id == "test_user").delete()
+    db_session.commit()
+
     # Arrange: Create a workflow instance for the user
     definition_data = {
         "name": "User Workflow",
