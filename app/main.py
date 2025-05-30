@@ -8,6 +8,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from fastapi import FastAPI, Form, status, Depends, Request, HTTPException
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from app.core.security import AuthenticatedUser, get_current_user, get_current_active_user
 from app.repository import WorkflowRepository, PostgreSQLWorkflowRepository
 from app.services import WorkflowService
@@ -17,6 +18,9 @@ app = FastAPI()
 
 # Set up Jinja2 templates
 templates = Jinja2Templates(directory="app/templates")
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="app/templates"), name="static")
 
 # --- Dependencies ---
 def get_workflow_repository(db=Depends(get_db)) -> WorkflowRepository:
