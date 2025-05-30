@@ -109,6 +109,8 @@ async def list_workflow_definitions_page(request: Request, service: WorkflowServ
                                 input_(type="hidden", name="definition_id", value=defn.id)
                                 button(f"Start '{defn.name}'", type="submit", cls="action-button create-wip-link")
                             a('Edit', href=f'/edit-workflow-definition/{defn.id}', cls='action-button', style="background-color: #f6ad55; margin-left: 10px;")
+                            with form(action=f'/confirm-delete-workflow-definition/{defn.id}', method="get", style="display:inline; margin-left: 10px;"):
+                                button('Delete', type='submit', cls='action-button cancel')
             a('← Back to Home', href='/', cls='back-link', style="margin-top:20px;")
             a('Create New Checklist Template', href='/create-workflow-definition', cls='action-button', style="margin-top:20px;")
     return doc.render()
@@ -371,6 +373,73 @@ async def edit_workflow_definition_handler(
             "Error", 
             str(e),
             [("← Back to Edit Template", f"/edit-workflow-definition/{definition_id}"), ("← Back to Definitions", "/workflow-definitions")],
+            status_code=400
+        )
+
+@app.get("/confirm-delete-workflow-definition/{definition_id}", response_class=HTMLResponse)
+async def confirm_delete_workflow_definition_page(
+    request: Request, 
+    definition_id: str, 
+    service: WorkflowService = Depends(get_workflow_service),
+    current_user: AuthenticatedUser = Depends(get_current_active_user)
+):
+    """Serves a confirmation page for deleting a workflow definition."""
+    definition = await service.repository.get_workflow_definition_by_id(definition_id)
+    if not definition:
+        return create_message_page(
+            "Not Found", 
+            "Error 404", 
+            f"Workflow Definition with ID '{definition_id}' not found.",
+            [("← Back to Definitions", "/workflow-definitions")],
+            status_code=404
+        )
+    
+    doc = document(title=f'Confirm Delete: {definition.name}')
+    with doc.head:
+        style(my_style)
+    with doc.body:
+        with div(cls='container'):
+            h1(f'Confirm Delete: {definition.name}')
+            p(f"Are you sure you want to delete the workflow definition '{definition.name}'? This action cannot be undone.")
+            with form(action=f"/delete-workflow-definition/{definition_id}", method="post"):
+                button('Yes, Delete Permanently', type="submit", cls="action-button cancel")
+            a('No, Cancel', href='/workflow-definitions', cls='back-link', style="margin-top:20px; display:inline-block;")
+    return doc.render()
+
+@app.post("/delete-workflow-definition/{definition_id}", response_class=RedirectResponse)
+async def delete_workflow_definition_handler(
+    request: Request,
+    definition_id: str,
+    service: WorkflowService = Depends(get_workflow_service),
+    current_user: AuthenticatedUser = Depends(get_current_active_user)
+):
+    """Handles the deletion of a workflow definition."""
+    try:
+        was_deleted = await service.delete_definition(definition_id)
+        if not was_deleted:
+            definition = await service.repository.get_workflow_definition_by_id(definition_id)
+            if definition:
+                return create_message_page(
+                    "Deletion Failed", 
+                    "Error", 
+                    "Cannot delete definition: It is currently used by one or more workflow instances.",
+                    [("← Back to Definitions", "/workflow-definitions")],
+                    status_code=400
+                )
+            return create_message_page(
+                "Deletion Failed", 
+                "Error 404", 
+                f"Workflow Definition with ID '{definition_id}' not found.",
+                [("← Back to Definitions", "/workflow-definitions")],
+                status_code=404
+            )
+        return RedirectResponse(url="/workflow-definitions", status_code=status.HTTP_303_SEE_OTHER)
+    except ValueError as e:
+        return create_message_page(
+            "Deletion Failed", 
+            "Error", 
+            str(e),
+            [("← Back to Definitions", "/workflow-definitions")],
             status_code=400
         )
 

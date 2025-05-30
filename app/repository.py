@@ -61,6 +61,10 @@ class WorkflowRepository(ABC):
     async def update_workflow_definition(self, definition_id: str, name: str, description: Optional[str], task_names: List[str]) -> Optional[WorkflowDefinition]:
         pass
 
+    @abstractmethod
+    async def delete_workflow_definition(self, definition_id: str) -> bool:
+        pass
+
 
 class PostgreSQLWorkflowRepository(WorkflowRepository):
     def __init__(self, db_session):
@@ -239,6 +243,19 @@ class PostgreSQLWorkflowRepository(WorkflowRepository):
             )
         return None
 
+    async def delete_workflow_definition(self, definition_id: str) -> bool:
+        from app.models.workflow import WorkflowDefinition as WorkflowDefinitionORM
+        from app.models.workflow import WorkflowInstance as WorkflowInstanceORM
+        db_definition = self.db_session.query(WorkflowDefinitionORM).filter(WorkflowDefinitionORM.id == definition_id).first()
+        if db_definition:
+            linked_instances_count = self.db_session.query(WorkflowInstanceORM).filter(WorkflowInstanceORM.workflow_definition_id == definition_id).count()
+            if linked_instances_count > 0:
+                return False  # Indicate deletion failed due to existing instances
+            self.db_session.delete(db_definition)
+            self.db_session.commit()
+            return True
+        return False
+
 
 class InMemoryWorkflowRepository(WorkflowRepository):
     def __init__(self):
@@ -329,3 +346,12 @@ class InMemoryWorkflowRepository(WorkflowRepository):
             _workflow_definitions_db[definition_id] = updated_definition
             return updated_definition.model_copy(deep=True)
         return None
+
+    async def delete_workflow_definition(self, definition_id: str) -> bool:
+        if definition_id in _workflow_definitions_db:
+            linked_instances = any(instance.workflow_definition_id == definition_id for instance in _workflow_instances_db.values())
+            if linked_instances:
+                return False  # Indicate deletion failed due to existing instances
+            del _workflow_definitions_db[definition_id]
+            return True
+        return False

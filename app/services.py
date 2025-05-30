@@ -86,3 +86,11 @@ class WorkflowService:
             raise ValueError("A definition must have at least one task name.")
         
         return await self.repository.update_workflow_definition(definition_id, name, description, task_names)
+
+    async def delete_definition(self, definition_id: str) -> bool:
+        was_deleted = await self.repository.delete_workflow_definition(definition_id)
+        if not was_deleted:
+            definition = await self.repository.get_workflow_definition_by_id(definition_id)
+            if definition:
+                raise ValueError("Cannot delete definition: It is currently used by one or more workflow instances.")
+        return was_deleted
