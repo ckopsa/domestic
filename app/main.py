@@ -198,6 +198,31 @@ async def redirect_to_keycloak_login():
     )
     return RedirectResponse(url=login_url)
 
+@app.get("/callback", response_class=RedirectResponse)
+async def handle_keycloak_callback(code: str):
+    """Handle the callback from Keycloak with the authorization code."""
+    from app.config import KEYCLOAK_SERVER_URL, KEYCLOAK_REALM, KEYCLOAK_API_CLIENT_ID, KEYCLOAK_API_CLIENT_SECRET
+    import requests
+    
+    token_url = f"{KEYCLOAK_SERVER_URL}realms/{KEYCLOAK_REALM}/protocol/openid-connect/token"
+    payload = {
+        "grant_type": "authorization_code",
+        "client_id": KEYCLOAK_API_CLIENT_ID,
+        "client_secret": KEYCLOAK_API_CLIENT_SECRET,
+        "code": code,
+        "redirect_uri": "http://localhost:8000/callback"
+    }
+    
+    response = requests.post(token_url, data=payload)
+    if response.status_code != 200:
+        raise HTTPException(status_code=400, detail="Failed to exchange authorization code for token")
+    
+    # Here you would typically set the token as a cookie or handle it in some way
+    # For simplicity, we'll just redirect to the home page
+    # In a real application, you might want to store the token in a secure cookie
+    
+    return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
+
 # Note: The actual token endpoint will be handled by Keycloak
 # This is just a placeholder for Swagger UI compatibility
 @app.post("/token")
