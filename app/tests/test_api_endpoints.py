@@ -5,13 +5,13 @@ import json
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 from app.db_models import Base
 from app.main import app
 from app.database import get_db
 from app.core.security import AuthenticatedUser
 
 # Add the project root to sys.path to ensure 'app' module can be found
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 # Setup for in-memory SQLite database for testing
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
