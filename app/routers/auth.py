@@ -13,7 +13,7 @@ async def redirect_to_keycloak_login(request: Request, redirect: str = None):
     original_url = redirect if redirect else str(request.headers.get('referer', '/'))
     login_url = (
         f"{KEYCLOAK_SERVER_URL}realms/{KEYCLOAK_REALM}/protocol/openid-connect/auth"
-        f"?client_id={KEYCLOAK_API_CLIENT_ID}&response_type=code&redirect_uri=http://localhost:8000/callback"
+        f"?client_id={KEYCLOAK_API_CLIENT_ID}&response_type=code&redirect_uri={KEYCLOAK_REDIRECT_URI}"
         f"&state={original_url}"
     )
     return RedirectResponse(url=login_url)
@@ -27,7 +27,7 @@ async def handle_keycloak_callback(code: str, state: str = None):
         "client_id": KEYCLOAK_API_CLIENT_ID,
         "client_secret": KEYCLOAK_API_CLIENT_SECRET,
         "code": code,
-        "redirect_uri": "http://localhost:8000/callback"
+        "redirect_uri": KEYCLOAK_REDIRECT_URI
     }
 
     response = requests.post(token_url, data=payload)
@@ -66,7 +66,7 @@ async def token_placeholder():
 @router.get("/logout", response_class=RedirectResponse)
 async def logout():
     """Logout user by clearing cookies and redirecting to Keycloak logout."""
-    post_logout_redirect_to_app = "http://localhost:8000/login"
+    post_logout_redirect_to_app = os.getenv("KEYCLOAK_POST_LOGOUT_REDIRECT_URI", f"{KEYCLOAK_REDIRECT_URI.split('/callback')[0]}/login")
     encoded_post_logout_redirect = quote_plus(post_logout_redirect_to_app)
 
     keycloak_logout_url = (
