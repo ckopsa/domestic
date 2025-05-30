@@ -32,6 +32,9 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]) -> Aut
         headers={"WWW-Authenticate": "Bearer"},
     )
     
+    if not token:
+        raise credentials_exception
+        
     try:
         # Get public keys from Keycloak
         jwks = get_keycloak_public_keys()

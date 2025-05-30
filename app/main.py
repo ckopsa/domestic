@@ -80,8 +80,9 @@ async def read_root(
                 li(a('Available Workflow Definitions', href='/workflow-definitions', cls='action-button'))
                 if current_user:
                     li(a('My Workflows', href='/my-workflows', cls='action-button'))
+                    li(a(f'Logged in as: {current_user.username}', href='#', cls='action-button disabled', style='pointer-events: none;'))
                 else:
-                    li(a('Login to View/Create Workflows', href='/docs#/default/login_token_post', cls='action-button'))
+                    li(a('Login to View/Create Workflows', href='/login', cls='action-button'))
     return doc.render()
 
 
@@ -217,11 +218,24 @@ async def handle_keycloak_callback(code: str):
     if response.status_code != 200:
         raise HTTPException(status_code=400, detail="Failed to exchange authorization code for token")
     
-    # Here you would typically set the token as a cookie or handle it in some way
-    # For simplicity, we'll just redirect to the home page
-    # In a real application, you might want to store the token in a secure cookie
+    token_data = response.json()
+    access_token = token_data.get("access_token")
     
-    return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
+    if not access_token:
+        raise HTTPException(status_code=400, detail="No access token received from Keycloak")
+    
+    # Create a redirect response and set the token as a secure cookie
+    redirect_response = RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
+    redirect_response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,  # Prevents JavaScript access to the cookie
+        secure=False,   # Set to True in production with HTTPS
+        samesite="lax", # Helps prevent CSRF
+        max_age=token_data.get("expires_in", 3600)  # Set cookie expiration to match token expiration
+    )
+    
+    return redirect_response
 
 # Note: The actual token endpoint will be handled by Keycloak
 # This is just a placeholder for Swagger UI compatibility
