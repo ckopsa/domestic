@@ -29,7 +29,7 @@ class WorkflowDefinitionRepository(ABC):
         pass
 
     @abstractmethod
-    async def delete_workflow_definition(self, definition_id: str) -> bool:
+    async def delete_workflow_definition(self, definition_id: str) -> None:
         pass
 
 
@@ -68,6 +68,23 @@ class TaskInstanceRepository(ABC):
     async def get_tasks_for_workflow_instance(self, instance_id: str) -> List[TaskInstance]:
         pass
 
+
+# Custom exceptions for repository operations
+class DefinitionNotFoundError(Exception):
+    """Raised when a workflow definition is not found."""
+    pass
+
+class DefinitionInUseError(ValueError):
+    """Raised when a workflow definition cannot be deleted because it's in use."""
+    pass
+
+class InstanceNotFoundError(Exception):
+    """Raised when a workflow instance is not found."""
+    pass
+
+class TaskNotFoundError(Exception):
+    """Raised when a task instance is not found."""
+    pass
 
 class PostgreSQLWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanceRepository, TaskInstanceRepository):
     def __init__(self, db_session):
@@ -159,18 +176,19 @@ class PostgreSQLWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanc
             return WorkflowDefinition.model_validate(db_definition, from_attributes=True)
         return None
 
-    async def delete_workflow_definition(self, definition_id: str) -> bool:
+    async def delete_workflow_definition(self, definition_id: str) -> None:
         from app.db_models.workflow import WorkflowDefinition as WorkflowDefinitionORM
         from app.db_models.workflow import WorkflowInstance as WorkflowInstanceORM
         db_definition = self.db_session.query(WorkflowDefinitionORM).filter(WorkflowDefinitionORM.id == definition_id).first()
-        if db_definition:
-            linked_instances_count = self.db_session.query(WorkflowInstanceORM).filter(WorkflowInstanceORM.workflow_definition_id == definition_id).count()
-            if linked_instances_count > 0:
-                return False  # Indicate deletion failed due to existing instances
-            self.db_session.delete(db_definition)
-            self.db_session.commit()
-            return True
-        return False
+        if not db_definition:
+            raise DefinitionNotFoundError(f"Workflow Definition with ID '{definition_id}' not found.")
+        
+        linked_instances_count = self.db_session.query(WorkflowInstanceORM).filter(WorkflowInstanceORM.workflow_definition_id == definition_id).count()
+        if linked_instances_count > 0:
+            raise DefinitionInUseError(f"Cannot delete definition: It is currently used by {linked_instances_count} workflow instance(s).")
+            
+        self.db_session.delete(db_definition)
+        self.db_session.commit()
 
 
 class InMemoryWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanceRepository, TaskInstanceRepository):
@@ -262,11 +280,12 @@ class InMemoryWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanceR
             return updated_definition.model_copy(deep=True)
         return None
 
-    async def delete_workflow_definition(self, definition_id: str) -> bool:
-        if definition_id in _workflow_definitions_db:
-            linked_instances = any(instance.workflow_definition_id == definition_id for instance in _workflow_instances_db.values())
-            if linked_instances:
-                return False  # Indicate deletion failed due to existing instances
-            del _workflow_definitions_db[definition_id]
-            return True
-        return False
+    async def delete_workflow_definition(self, definition_id: str) -> None:
+        if definition_id not in _workflow_definitions_db:
+            raise DefinitionNotFoundError(f"Workflow Definition with ID '{definition_id}' not found.")
+            
+        linked_instances = any(instance.workflow_definition_id == definition_id for instance in _workflow_instances_db.values())
+        if linked_instances:
+            raise DefinitionInUseError("Cannot delete definition: It is currently used by one or more workflow instances.")
+            
+        del _workflow_definitions_db[definition_id]

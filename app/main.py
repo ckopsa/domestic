@@ -346,35 +346,20 @@ async def delete_workflow_definition_handler(
 ):
     """Handles the deletion of a workflow definition."""
     try:
-        was_deleted = await service.delete_definition(definition_id)
-        if not was_deleted:
-            definition = await service.definition_repo.get_workflow_definition_by_id(definition_id)
-            if definition:
-                return create_message_page(
-                    request,
-                    "Deletion Failed", 
-                    "Error", 
-                    "Cannot delete definition: It is currently used by one or more workflow instances.",
-                    [("← Back to Definitions", "/workflow-definitions")],
-                    status_code=400
-                )
-            return create_message_page(
-                request,
-                "Deletion Failed", 
-                "Error 404", 
-                f"Workflow Definition with ID '{definition_id}' not found.",
-                [("← Back to Definitions", "/workflow-definitions")],
-                status_code=404
-            )
+        await service.delete_definition(definition_id)
         return RedirectResponse(url="/workflow-definitions", status_code=status.HTTP_303_SEE_OTHER)
     except ValueError as e:
+        error_message = str(e)
+        status_code = 400
+        if "not found" in error_message.lower():
+            status_code = 404
         return create_message_page(
             request,
             "Deletion Failed", 
-            "Error", 
-            str(e),
+            "Error" + ( " 404" if status_code == 404 else "" ),
+            error_message,
             [("← Back to Definitions", "/workflow-definitions")],
-            status_code=400
+            status_code=status_code
         )
 
 

@@ -89,10 +89,11 @@ class WorkflowService:
         
         return await self.definition_repo.update_workflow_definition(definition_id, name, description, task_names)
 
-    async def delete_definition(self, definition_id: str) -> bool:
-        was_deleted = await self.definition_repo.delete_workflow_definition(definition_id)
-        if not was_deleted:
-            definition = await self.definition_repo.get_workflow_definition_by_id(definition_id)
-            if definition:
-                raise ValueError("Cannot delete definition: It is currently used by one or more workflow instances.")
-        return was_deleted
+    async def delete_definition(self, definition_id: str) -> None:
+        from app.repository import DefinitionNotFoundError, DefinitionInUseError
+        try:
+            await self.definition_repo.delete_workflow_definition(definition_id)
+        except DefinitionNotFoundError as e:
+            raise ValueError(str(e)) from e
+        except DefinitionInUseError as e:
+            raise ValueError(str(e)) from e
