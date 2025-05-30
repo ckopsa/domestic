@@ -3,6 +3,8 @@ import sys
 import os
 from typing import List
 
+from app.core.security import AuthenticatedUser, get_current_user
+
 # Add the project root to sys.path to ensure 'app' module can be found
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
