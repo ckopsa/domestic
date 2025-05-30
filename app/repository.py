@@ -62,6 +62,7 @@ class PostgreSQLWorkflowRepository(WorkflowRepository):
                 id=instance.id,
                 workflow_definition_id=instance.workflow_definition_id,
                 name=instance.name,
+                user_id=instance.user_id,
                 status=instance.status,
                 created_at=instance.created_at
             )

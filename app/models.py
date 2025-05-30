@@ -38,6 +38,7 @@ class WorkflowInstance(BaseModel):
     id: str = Field(default_factory=lambda: "wf_" + str(uuid.uuid4())[:8])
     workflow_definition_id: str
     name: str  # Copied from definition for easy display
+    user_id: str
     status: WorkflowStatus = WorkflowStatus.active
     created_at: DateObject = Field(default_factory=DateObject.today)
 

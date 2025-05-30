@@ -104,9 +104,10 @@ async def list_workflow_definitions_page(service: WorkflowService = Depends(get_
 @app.post("/workflow-instances")
 async def create_workflow_instance_handler(
         definition_id: str = Form(...),
-        service: WorkflowService = Depends(get_workflow_service)
+        service: WorkflowService = Depends(get_workflow_service),
+        current_user: AuthenticatedUser = Depends(get_current_user)
 ):
-    instance = await service.create_workflow_instance(definition_id=definition_id)
+    instance = await service.create_workflow_instance(definition_id=definition_id, user_id=current_user.user_id)
     if not instance:
         return create_message_page("Creation Failed", "Error", "Could not create workflow instance.",
                                    [("← Definitions", "/workflow-definitions")], status_code=500)
@@ -114,11 +115,15 @@ async def create_workflow_instance_handler(
 
 
 @app.get("/workflow-instances/{instance_id}", response_class=HTMLResponse)
-async def read_workflow_instance_page(instance_id: str, service: WorkflowService = Depends(get_workflow_service)):
-    details = await service.get_workflow_instance_with_tasks(instance_id)
+async def read_workflow_instance_page(
+        instance_id: str, 
+        service: WorkflowService = Depends(get_workflow_service),
+        current_user: AuthenticatedUser = Depends(get_current_user)
+):
+    details = await service.get_workflow_instance_with_tasks(instance_id, current_user.user_id)
     if not details or not details["instance"]:
         return create_message_page("Workflow Not Found", "Error 404",
-                                   f"Workflow Instance with ID '{instance_id}' not found.",
+                                   f"Workflow Instance with ID '{instance_id}' not found or access denied.",
                                    [("← Back to Definitions", "/workflow-definitions")], status_code=404)
 
     instance = details["instance"]
@@ -159,11 +164,12 @@ async def read_workflow_instance_page(instance_id: str, service: WorkflowService
 @app.post("/task-instances/{task_id}/complete")
 async def complete_task_handler(
         task_id: str,
-        service: WorkflowService = Depends(get_workflow_service)
+        service: WorkflowService = Depends(get_workflow_service),
+        current_user: AuthenticatedUser = Depends(get_current_user)
 ):
-    task = await service.complete_task(task_id)
+    task = await service.complete_task(task_id, current_user.user_id)
     if not task:
-        return create_message_page("Error", "Task Update Failed", "Could not complete task.", [("← Back", "/")],
+        return create_message_page("Error", "Task Update Failed", "Could not complete task or access denied.", [("← Back", "/")],
                                    status_code=400)
     return RedirectResponse(url=f"/workflow-instances/{task.workflow_instance_id}",
                             status_code=status.HTTP_303_SEE_OTHER)

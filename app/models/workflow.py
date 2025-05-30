@@ -22,6 +22,7 @@ class WorkflowInstance(Base):
     id = Column(String, primary_key=True, index=True, default=lambda: "wd_" + str(uuid.uuid4())[:8])
     workflow_definition_id = Column(String, ForeignKey("workflow_definitions.id"), nullable=False, index=True)
     name = Column(String, nullable=False)
+    user_id = Column(String, index=True, nullable=False)
     status = Column(SQLAlchemyEnum(WorkflowStatus), nullable=False, default=WorkflowStatus.active)
     created_at = Column(Date, nullable=False)
 
