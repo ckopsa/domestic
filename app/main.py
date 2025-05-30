@@ -5,7 +5,7 @@ from typing import List
 
 # Add the project root to sys.path to ensure 'app' module can be found
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from fastapi import FastAPI, Form, status, Depends, Request
+from fastapi import FastAPI, Form, status, Depends, Request, HTTPException
 from app.core.security import AuthenticatedUser, get_current_user
 
 from dominate import document
@@ -62,7 +62,10 @@ def create_message_page(
 # --- Routes ---
 
 @app.get("/", response_class=HTMLResponse)
-async def read_root(request: Request, current_user: AuthenticatedUser = Depends(get_current_user)):
+async def read_root(
+        request: Request,
+        current_user: AuthenticatedUser = Depends(get_current_user),
+):
     """Serves the homepage."""
     doc = document(title='Simple Checklist MVP')
     with doc.head:
