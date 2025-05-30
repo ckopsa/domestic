@@ -56,7 +56,10 @@ async def get_current_user(request: Request, token: Annotated[str, Depends(oauth
                     issuer=f"{KEYCLOAK_SERVER_URL}realms/{KEYCLOAK_REALM}"
                 )
                 break
-            except jwt.InvalidTokenError:
+            except Exception as e:
+                # If decoding fails, log the error and try the next key
+                print(f"Failed to decode token with key {key['kid']}: {e}")
+                raise credentials_exception from e
                 continue
                 
         if decoded_token is None:
