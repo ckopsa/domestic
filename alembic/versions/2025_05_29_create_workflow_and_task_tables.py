@@ -33,6 +33,7 @@ def upgrade() -> None:
     sa.Column('name', sa.String(), nullable=False),
     sa.Column('status', sa.Enum(WorkflowStatus), nullable=False),
     sa.Column('created_at', sa.Date(), nullable=False),
+    sa.ForeignKeyConstraint(['workflow_definition_id'], ['workflow_definitions.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_workflow_instances_id'), 'workflow_instances', ['id'], unique=False)
@@ -44,6 +45,7 @@ def upgrade() -> None:
     sa.Column('name', sa.String(), nullable=False),
     sa.Column('order', sa.Integer(), nullable=False),
     sa.Column('status', sa.Enum(TaskStatus), nullable=False),
+    sa.ForeignKeyConstraint(['workflow_instance_id'], ['workflow_instances.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_task_instances_id'), 'task_instances', ['id'], unique=False)

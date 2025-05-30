@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, Date, Enum as SQLAlchemyEnum
+from sqlalchemy import Column, String, Text, Date, Enum as SQLAlchemyEnum, ForeignKey
 from sqlalchemy.orm import relationship
 from typing import List
 
@@ -19,7 +19,7 @@ class WorkflowInstance(Base):
     __tablename__ = "workflow_instances"
 
     id = Column(String, primary_key=True, index=True)
-    workflow_definition_id = Column(String, nullable=False, index=True)
+    workflow_definition_id = Column(String, ForeignKey("workflow_definitions.id"), nullable=False, index=True)
     name = Column(String, nullable=False)
     status = Column(SQLAlchemyEnum(WorkflowStatus), nullable=False, default=WorkflowStatus.active)
     created_at = Column(Date, nullable=False)
