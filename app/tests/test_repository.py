@@ -15,10 +15,28 @@ from app.db_models.enums import WorkflowStatus, TaskStatus
 # Setup for PostgreSQL database for testing
 # Use environment variables or a test-specific configuration for the database connection
 import os
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
 from app.config import DB_USER, DB_PASS, DB_HOST, DB_PORT, DB_NAME
 
 # Construct the test database URL, appending '_test' to the database name to avoid using the main DB
 TEST_DB_NAME = f"{DB_NAME}_test"
+# First connect to 'postgres' database to create the test database if it doesn't exist
+BASE_DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/postgres"
+base_engine = create_engine(BASE_DATABASE_URL, echo=True)
+with base_engine.connect() as conn:
+    conn.execute(text("COMMIT"))
+    # Check if the test database exists, create if it doesn't
+    result = conn.execute(text(f"SELECT 1 FROM pg_database WHERE datname = '{TEST_DB_NAME}'"))
+    if not result.fetchone():
+        conn.execute(text(f"CREATE DATABASE {TEST_DB_NAME}"))
+        print(f"Created test database: {TEST_DB_NAME}")
+    else:
+        print(f"Test database {TEST_DB_NAME} already exists")
+
+base_engine.dispose()
+
+# Now connect to the test database
 SQLALCHEMY_DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{TEST_DB_NAME}"
 engine = create_engine(SQLALCHEMY_DATABASE_URL, echo=True)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
