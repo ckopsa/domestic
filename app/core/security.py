@@ -36,14 +36,24 @@ def get_keycloak_public_keys() -> Dict[str, Any]:
             ) from e
     return _jwks_cache
 
-async def get_current_user(token: str = Depends(oauth2_scheme)) -> AuthenticatedUser:
-    """Validate JWT token and extract user information."""
+from fastapi import Request
+
+async def get_current_user(request: Request, token: str = Depends(oauth2_scheme)) -> AuthenticatedUser:
+    """Validate JWT token and extract user information. For MVP, also check cookie."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
+        # For MVP, if token is not provided or invalid, check for mock cookie
+        if not token or token == "null":
+            token = request.cookies.get("auth_token", "")
+            if token and token.startswith("mock_token_"):
+                user_id = token.replace("mock_token_", "")
+                return AuthenticatedUser(user_id=user_id, username=user_id, email=f"{user_id}@example.com")
+            raise credentials_exception
+            
         jwks = get_keycloak_public_keys()
         # Find the correct key for the token's 'kid'
         kid = jwt.get_unverified_header(token).get('kid')
@@ -69,4 +79,9 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> Authenticated
             
         return AuthenticatedUser(user_id=user_id, username=username, email=email)
     except JWTError:
+        # For MVP, fallback to cookie check if JWT validation fails
+        token = request.cookies.get("auth_token", "")
+        if token and token.startswith("mock_token_"):
+            user_id = token.replace("mock_token_", "")
+            return AuthenticatedUser(user_id=user_id, username=user_id, email=f"{user_id}@example.com")
         raise credentials_exception

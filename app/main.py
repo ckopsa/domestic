@@ -62,7 +62,7 @@ def create_message_page(
 # --- Routes ---
 
 @app.get("/", response_class=HTMLResponse)
-async def read_root(current_user: AuthenticatedUser = Depends(get_current_user)):
+async def read_root(request: Request, current_user: AuthenticatedUser = Depends(get_current_user)):
     """Serves the homepage."""
     doc = document(title='Simple Checklist MVP')
     with doc.head:
@@ -74,15 +74,18 @@ async def read_root(current_user: AuthenticatedUser = Depends(get_current_user))
             h2('Workflows:')
             with ul():
                 li(a('Available Workflow Definitions', href='/workflow-definitions', cls='action-button'))
-                if current_user:
-                    li(a('My Workflows', href='/my-workflows', cls='action-button'))
-                else:
+                try:
+                    if current_user:
+                        li(a('My Workflows', href='/my-workflows', cls='action-button'))
+                    else:
+                        li(a('Login to View/Create Workflows', href='/login', cls='action-button'))
+                except HTTPException:
                     li(a('Login to View/Create Workflows', href='/login', cls='action-button'))
     return doc.render()
 
 
 @app.get("/workflow-definitions", response_class=HTMLResponse)
-async def list_workflow_definitions_page(service: WorkflowService = Depends(get_workflow_service)):
+async def list_workflow_definitions_page(request: Request, service: WorkflowService = Depends(get_workflow_service)):
     definitions = await service.list_workflow_definitions()
     doc = document(title='Available Workflow Definitions')
     with doc.head:
@@ -108,83 +111,95 @@ async def list_workflow_definitions_page(service: WorkflowService = Depends(get_
 
 @app.post("/workflow-instances")
 async def create_workflow_instance_handler(
+        request: Request,
         definition_id: str = Form(...),
         service: WorkflowService = Depends(get_workflow_service),
         current_user: AuthenticatedUser = Depends(get_current_user)
 ):
-    if not current_user:
+    try:
+        if not current_user:
+            return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+        instance = await service.create_workflow_instance(definition_id=definition_id, user_id=current_user.user_id)
+        if not instance:
+            return create_message_page("Creation Failed", "Error", "Could not create workflow instance.",
+                                       [("← Definitions", "/workflow-definitions")], status_code=500)
+        return RedirectResponse(url=f"/workflow-instances/{instance.id}", status_code=status.HTTP_303_SEE_OTHER)
+    except HTTPException:
         return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
-    instance = await service.create_workflow_instance(definition_id=definition_id, user_id=current_user.user_id)
-    if not instance:
-        return create_message_page("Creation Failed", "Error", "Could not create workflow instance.",
-                                   [("← Definitions", "/workflow-definitions")], status_code=500)
-    return RedirectResponse(url=f"/workflow-instances/{instance.id}", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.get("/workflow-instances/{instance_id}", response_class=HTMLResponse)
 async def read_workflow_instance_page(
+        request: Request,
         instance_id: str,
         service: WorkflowService = Depends(get_workflow_service),
         current_user: AuthenticatedUser = Depends(get_current_user)
 ):
-    if not current_user:
+    try:
+        if not current_user:
+            return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+        details = await service.get_workflow_instance_with_tasks(instance_id, current_user.user_id)
+        if not details or not details["instance"]:
+            return create_message_page("Workflow Not Found", "Error 404",
+                                       f"Workflow Instance with ID '{instance_id}' not found or access denied.",
+                                       [("← Back to Definitions", "/workflow-definitions")], status_code=404)
+
+        instance = details["instance"]
+        tasks = details["tasks"]
+
+        doc = document(title=f'Workflow: {instance.name}')
+        with doc.head:
+            style(my_style)
+        with doc.body:
+            with div(cls='container'):
+                h1(f'Workflow: {instance.name}')
+                with div(cls='workflow-details'):
+                    p(strong('ID:'), f' {instance.id}')
+                    p(strong('Status:'), f' {instance.status.upper()}')
+                    p(strong('Created At:'), f' {instance.created_at.isoformat()}')
+                    h2('Tasks:')
+                    if not tasks:
+                        p("No tasks available for this workflow.")
+                    else:
+                        with ul():
+                            for task in tasks:
+                                with li(cls='task-item', style="margin-bottom:10px;"):
+                                    p(strong('Task:'), f' {task.name} - {task.status.upper()}')
+                                    if task.status == "pending":
+                                        with form(action=f"/task-instances/{task.id}/complete", method="post",
+                                                  style="display:inline; margin-left:10px;"):
+                                            button("Mark Complete", type="submit", cls="action-button submit")
+                    if instance.status == "completed":
+                        p("🎉 Workflow Complete!",
+                          style="color: green; font-weight: bold; font-size:1.2em; margin-top:15px;")
+                a('← Back to Workflow Definitions', href='/workflow-definitions', cls='back-link',
+                  style="margin-top:20px; display:inline-block;")
+                a('← Back to Home', href='/', cls='back-link',
+                  style="margin-top:20px; display:inline-block; margin-left:15px;")
+        return doc.render()
+    except HTTPException:
         return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
-    details = await service.get_workflow_instance_with_tasks(instance_id, current_user.user_id)
-    if not details or not details["instance"]:
-        return create_message_page("Workflow Not Found", "Error 404",
-                                   f"Workflow Instance with ID '{instance_id}' not found or access denied.",
-                                   [("← Back to Definitions", "/workflow-definitions")], status_code=404)
-
-    instance = details["instance"]
-    tasks = details["tasks"]
-
-    doc = document(title=f'Workflow: {instance.name}')
-    with doc.head:
-        style(my_style)
-    with doc.body:
-        with div(cls='container'):
-            h1(f'Workflow: {instance.name}')
-            with div(cls='workflow-details'):
-                p(strong('ID:'), f' {instance.id}')
-                p(strong('Status:'), f' {instance.status.upper()}')
-                p(strong('Created At:'), f' {instance.created_at.isoformat()}')
-                h2('Tasks:')
-                if not tasks:
-                    p("No tasks available for this workflow.")
-                else:
-                    with ul():
-                        for task in tasks:
-                            with li(cls='task-item', style="margin-bottom:10px;"):
-                                p(strong('Task:'), f' {task.name} - {task.status.upper()}')
-                                if task.status == "pending":
-                                    with form(action=f"/task-instances/{task.id}/complete", method="post",
-                                              style="display:inline; margin-left:10px;"):
-                                        button("Mark Complete", type="submit", cls="action-button submit")
-                if instance.status == "completed":
-                    p("🎉 Workflow Complete!",
-                      style="color: green; font-weight: bold; font-size:1.2em; margin-top:15px;")
-            a('← Back to Workflow Definitions', href='/workflow-definitions', cls='back-link',
-              style="margin-top:20px; display:inline-block;")
-            a('← Back to Home', href='/', cls='back-link',
-              style="margin-top:20px; display:inline-block; margin-left:15px;")
-    return doc.render()
 
 
 @app.post("/task-instances/{task_id}/complete")
 async def complete_task_handler(
+        request: Request,
         task_id: str,
         service: WorkflowService = Depends(get_workflow_service),
         current_user: AuthenticatedUser = Depends(get_current_user)
 ):
-    if not current_user:
+    try:
+        if not current_user:
+            return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+        task = await service.complete_task(task_id, current_user.user_id)
+        if not task:
+            return create_message_page("Error", "Task Update Failed", "Could not complete task or access denied.",
+                                       [("← Back", "/")],
+                                       status_code=400)
+        return RedirectResponse(url=f"/workflow-instances/{task.workflow_instance_id}",
+                                status_code=status.HTTP_303_SEE_OTHER)
+    except HTTPException:
         return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
-    task = await service.complete_task(task_id, current_user.user_id)
-    if not task:
-        return create_message_page("Error", "Task Update Failed", "Could not complete task or access denied.",
-                                   [("← Back", "/")],
-                                   status_code=400)
-    return RedirectResponse(url=f"/workflow-instances/{task.workflow_instance_id}",
-                            status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.get("/login", response_class=RedirectResponse)
@@ -204,38 +219,45 @@ async def auth_callback(code: str):
     """Handles the callback from Keycloak with the authorization code."""
     # For this thinnest slice, we're not implementing the full token exchange.
     # In a real scenario, we would exchange the code for tokens here.
-    # For now, we'll log the code and redirect to my-workflows.
+    # For now, we'll set a mock token in a cookie and redirect to my-workflows.
     print(f"Received authorization code: {code}")
-    return RedirectResponse(url="/my-workflows", status_code=status.HTTP_303_SEE_OTHER)
+    response = RedirectResponse(url="/my-workflows", status_code=status.HTTP_303_SEE_OTHER)
+    # Set a mock token in a cookie for simplicity in this MVP
+    response.set_cookie(key="auth_token", value="mock_token_test_user", httponly=True, max_age=3600)
+    return response
 
 
 @app.get("/my-workflows", response_class=HTMLResponse)
 async def list_user_workflows(
+        request: Request,
         service: WorkflowService = Depends(get_workflow_service),
         current_user: AuthenticatedUser = Depends(get_current_user)
 ):
     """Serves a page listing all workflow instances for the current user."""
-    if not current_user:
-        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+    try:
+        if not current_user:
+            return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
 
-    instances = await service.list_instances_for_user(current_user.user_id)
-    doc = document(title='My Workflows')
-    with doc.head:
-        style(my_style)
-    with doc.body:
-        with div(cls='container'):
-            h1('My Workflows')
-            if not instances:
-                p("You have no workflows yet.")
-            else:
-                with ul():
-                    for instance in instances:
-                        with li(cls='wip-list-item'):
-                            h2(instance.name)
-                            p(strong("Status: "), instance.status.upper())
-                            p(strong("Created: "), instance.created_at.isoformat())
-                            a("View Details", href=f"/workflow-instances/{instance.id}", cls='action-button')
-            a('← Back to Home', href='/', cls='back-link', style="margin-top:20px; display:inline-block;")
-            a('← Available Definitions', href='/workflow-definitions', cls='back-link',
-              style="margin-top:20px; display:inline-block; margin-left:15px;")
-    return doc.render()
+        instances = await service.list_instances_for_user(current_user.user_id)
+        doc = document(title='My Workflows')
+        with doc.head:
+            style(my_style)
+        with doc.body:
+            with div(cls='container'):
+                h1('My Workflows')
+                if not instances:
+                    p("You have no workflows yet.")
+                else:
+                    with ul():
+                        for instance in instances:
+                            with li(cls='wip-list-item'):
+                                h2(instance.name)
+                                p(strong("Status: "), instance.status.upper())
+                                p(strong("Created: "), instance.created_at.isoformat())
+                                a("View Details", href=f"/workflow-instances/{instance.id}", cls='action-button')
+                a('← Back to Home', href='/', cls='back-link', style="margin-top:20px; display:inline-block;")
+                a('← Available Definitions', href='/workflow-definitions', cls='back-link',
+                  style="margin-top:20px; display:inline-block; margin-left:15px;")
+        return doc.render()
+    except HTTPException:
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
