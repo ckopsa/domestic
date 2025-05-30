@@ -12,18 +12,26 @@ from app.repository import PostgreSQLWorkflowRepository, DefinitionNotFoundError
 from app.models import WorkflowDefinition, TaskInstance, WorkflowInstance
 from app.db_models.enums import WorkflowStatus, TaskStatus
 
-# Setup for in-memory SQLite database for testing
-# Note: For CI environment, this should be changed to a PostgreSQL test database URL
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
+# Setup for PostgreSQL database for testing
+# Use environment variables or a test-specific configuration for the database connection
+import os
+from app.config import DB_USER, DB_PASS, DB_HOST, DB_PORT, DB_NAME
+
+# Construct the test database URL, appending '_test' to the database name to avoid using the main DB
+TEST_DB_NAME = f"{DB_NAME}_test"
+SQLALCHEMY_DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{TEST_DB_NAME}"
+engine = create_engine(SQLALCHEMY_DATABASE_URL, echo=True)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 def db_session():
+    # Create the test database tables
     Base.metadata.create_all(bind=engine)
     session = TestingSessionLocal()
     yield session
+    session.rollback()  # Rollback any changes to ensure a clean state
     session.close()
+    # Optionally drop tables after tests if needed, though this can be slow
     Base.metadata.drop_all(bind=engine)
 
 @pytest.mark.asyncio
