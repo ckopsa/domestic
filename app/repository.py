@@ -1,6 +1,7 @@
 # repository.py
 from abc import ABC, abstractmethod
 from typing import List, Optional, Dict
+from datetime import date as DateObject
 
 from app.models import WorkflowDefinition, WorkflowInstance, TaskInstance
 
