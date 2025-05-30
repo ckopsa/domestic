@@ -10,7 +10,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from app.core.security import AuthenticatedUser, get_current_user, get_current_active_user
-from app.repository import WorkflowRepository, PostgreSQLWorkflowRepository
+from app.repository import WorkflowDefinitionRepository, WorkflowInstanceRepository, TaskInstanceRepository, PostgreSQLWorkflowRepository
 from app.services import WorkflowService
 from app.database import get_db
 
