@@ -109,6 +109,7 @@ async def list_workflow_definitions_page(request: Request, service: WorkflowServ
                                 input_(type="hidden", name="definition_id", value=defn.id)
                                 button(f"Start '{defn.name}'", type="submit", cls="action-button create-wip-link")
             a('← Back to Home', href='/', cls='back-link', style="margin-top:20px;")
+            a('Create New Checklist Template', href='/create-workflow-definition', cls='action-button', style="margin-top:20px;")
     return doc.render()
 
 
@@ -254,6 +255,53 @@ async def token_placeholder():
         detail="Authentication handled by Keycloak. Use /login endpoint or configure client to use Keycloak directly."
     )
 
+@app.get("/create-workflow-definition", response_class=HTMLResponse)
+async def create_workflow_definition_page(request: Request, current_user: AuthenticatedUser = Depends(get_current_active_user)):
+    """Serves a page for creating a new workflow definition."""
+    doc = document(title='Create New Checklist Template')
+    with doc.head:
+        style(my_style)
+    with doc.body:
+        with div(cls='container'):
+            h1('Create New Checklist Template')
+            with form(action="/create-workflow-definition", method="post"):
+                with div():
+                    label('Definition Name:', for_="name")
+                    input_(type="text", name="name", id="name", required=True)
+                with div():
+                    label('Description:', for_="description")
+                    textarea(name="description", id="description", rows=3)
+                with div():
+                    label('Task Names (one per line):', for_="task_names_str")
+                    textarea(name="task_names_str", id="task_names_str", rows=5, placeholder="Enter one task name per line", required=True)
+                button('Create Template', type="submit", cls="action-button submit")
+            a('← Back to Available Definitions', href='/workflow-definitions', cls='back-link', style="margin-top:20px; display:inline-block;")
+            a('← Back to Home', href='/', cls='back-link', style="margin-top:20px; display:inline-block; margin-left:15px;")
+    return doc.render()
+
+@app.post("/create-workflow-definition", response_class=RedirectResponse)
+async def create_workflow_definition_handler(
+    request: Request,
+    name: str = Form(...),
+    description: str = Form(default=""),
+    task_names_str: str = Form(...),
+    service: WorkflowService = Depends(get_workflow_service),
+    current_user: AuthenticatedUser = Depends(get_current_active_user)
+):
+    """Handles the submission of a new workflow definition."""
+    try:
+        task_names = [task.strip() for task in task_names_str.split('\n') if task.strip()]
+        await service.create_new_definition(name=name, description=description, task_names=task_names)
+        return RedirectResponse(url="/workflow-definitions", status_code=status.HTTP_303_SEE_OTHER)
+    except ValueError as e:
+        return create_message_page(
+            "Creation Failed", 
+            "Error", 
+            str(e),
+            [("← Back to Create Template", "/create-workflow-definition"), ("← Back to Definitions", "/workflow-definitions")],
+            status_code=400
+        )
+
 
 @app.get("/logout", response_class=RedirectResponse)
 async def logout():
@@ -301,6 +349,6 @@ async def list_user_workflows(
             a('← Back to Home', href='/', cls='back-link', style="margin-top:20px; display:inline-block;")
             a('← Available Definitions', href='/workflow-definitions', cls='back-link',
               style="margin-top:20px; display:inline-block; margin-left:15px;")
-            a('Logout', href='/logout', cls='back-link',
-              style="margin-top:20px; display:inline-block; margin-left:15px;")
+            a('Create New Checklist Template', href='/create-workflow-definition', cls='action-button', style="margin-top:20px; display:inline-block; margin-left:15px;")
+            a('Logout', href='/logout', cls='back-link', style="margin-top:20px; display:inline-block; margin-left:15px;")
     return doc.render()

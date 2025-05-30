@@ -53,6 +53,10 @@ class WorkflowRepository(ABC):
     async def list_workflow_instances_by_user(self, user_id: str) -> List[WorkflowInstance]:
         pass
 
+    @abstractmethod
+    async def create_workflow_definition(self, definition_data: WorkflowDefinition) -> WorkflowDefinition:
+        pass
+
 
 class PostgreSQLWorkflowRepository(WorkflowRepository):
     def __init__(self, db_session):
@@ -196,6 +200,24 @@ class PostgreSQLWorkflowRepository(WorkflowRepository):
             created_at=instance.created_at
         ) for instance in instances]
 
+    async def create_workflow_definition(self, definition_data: WorkflowDefinition) -> WorkflowDefinition:
+        from app.models.workflow import WorkflowDefinition as WorkflowDefinitionORM
+        definition = WorkflowDefinitionORM(
+            id=definition_data.id,
+            name=definition_data.name,
+            description=definition_data.description,
+            task_names=str(definition_data.task_names) if definition_data.task_names else "[]"
+        )
+        self.db_session.add(definition)
+        self.db_session.commit()
+        self.db_session.refresh(definition)
+        return WorkflowDefinition(
+            id=definition.id,
+            name=definition.name,
+            description=definition.description,
+            task_names=eval(definition.task_names) if definition.task_names and definition.task_names != "[]" else []
+        )
+
 
 class InMemoryWorkflowRepository(WorkflowRepository):
     def __init__(self):
@@ -269,3 +291,8 @@ class InMemoryWorkflowRepository(WorkflowRepository):
             if instance.user_id == user_id
         ]
         return sorted(instances, key=lambda i: i.created_at, reverse=True)
+
+    async def create_workflow_definition(self, definition_data: WorkflowDefinition) -> WorkflowDefinition:
+        new_definition = definition_data.model_copy(deep=True)
+        _workflow_definitions_db[new_definition.id] = new_definition
+        return new_definition.model_copy(deep=True)

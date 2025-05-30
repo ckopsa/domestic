@@ -65,3 +65,16 @@ class WorkflowService:
 
     async def list_instances_for_user(self, user_id: str) -> List[WorkflowInstance]:
         return await self.repository.list_workflow_instances_by_user(user_id)
+
+    async def create_new_definition(self, name: str, description: Optional[str], task_names: List[str]) -> WorkflowDefinition:
+        if not name.strip():
+            raise ValueError("Definition name cannot be empty.")
+        if not task_names:
+            raise ValueError("A definition must have at least one task name.")
+        
+        definition = WorkflowDefinition(
+            name=name,
+            description=description,
+            task_names=task_names
+        )
+        return await self.repository.create_workflow_definition(definition)
