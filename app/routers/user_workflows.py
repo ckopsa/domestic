@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request, Depends
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from app.services import WorkflowService
 from app.dependencies import get_workflow_service, get_html_renderer
 from app.core.html_renderer import HtmlRendererInterface
