@@ -1,10 +1,8 @@
 from typing import List
-from fastapi import Request
+from fastapi import Request, Depends
 from fastapi.responses import HTMLResponse
 from app.core.html_renderer import HtmlRendererInterface
-
-from fastapi import Depends
-from app.main import get_html_renderer
+from app.dependencies import get_html_renderer
 
 async def create_message_page(
         request: Request,

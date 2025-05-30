@@ -4,7 +4,7 @@ from fastapi import status
 from app.services import WorkflowService
 from app.core.html_renderer import HtmlRendererInterface
 from app.core.security import AuthenticatedUser, get_current_active_user
-from app.main import get_workflow_service
+from app.dependencies import get_workflow_service, get_html_renderer
 from app.utils import create_message_page
 
 router = APIRouter(prefix="/workflow-definitions", tags=["workflow_definitions"])
