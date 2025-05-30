@@ -108,6 +108,7 @@ async def list_workflow_definitions_page(request: Request, service: WorkflowServ
                             with form(action="/workflow-instances", method="post", style="margin-top:10px;"):
                                 input_(type="hidden", name="definition_id", value=defn.id)
                                 button(f"Start '{defn.name}'", type="submit", cls="action-button create-wip-link")
+                            a('Edit', href=f'/edit-workflow-definition/{defn.id}', cls='action-button', style="background-color: #f6ad55; margin-left: 10px;")
             a('← Back to Home', href='/', cls='back-link', style="margin-top:20px;")
             a('Create New Checklist Template', href='/create-workflow-definition', cls='action-button', style="margin-top:20px;")
     return doc.render()
@@ -299,6 +300,77 @@ async def create_workflow_definition_handler(
             "Error", 
             str(e),
             [("← Back to Create Template", "/create-workflow-definition"), ("← Back to Definitions", "/workflow-definitions")],
+            status_code=400
+        )
+
+@app.get("/edit-workflow-definition/{definition_id}", response_class=HTMLResponse)
+async def edit_workflow_definition_page(
+    request: Request, 
+    definition_id: str, 
+    service: WorkflowService = Depends(get_workflow_service),
+    current_user: AuthenticatedUser = Depends(get_current_active_user)
+):
+    """Serves a page for editing an existing workflow definition."""
+    definition = await service.repository.get_workflow_definition_by_id(definition_id)
+    if not definition:
+        return create_message_page(
+            "Not Found", 
+            "Error 404", 
+            f"Workflow Definition with ID '{definition_id}' not found.",
+            [("← Back to Definitions", "/workflow-definitions")],
+            status_code=404
+        )
+    
+    doc = document(title=f'Edit Checklist Template: {definition.name}')
+    with doc.head:
+        style(my_style)
+    with doc.body:
+        with div(cls='container'):
+            h1(f'Edit Checklist Template: {definition.name}')
+            with form(action=f"/edit-workflow-definition/{definition_id}", method="post"):
+                with div():
+                    label('Definition Name:', for_="name")
+                    input_(type="text", name="name", id="name", value=definition.name, required=True)
+                with div():
+                    label('Description:', for_="description")
+                    textarea(name="description", id="description", rows=3, text=definition.description or "")
+                with div():
+                    label('Task Names (one per line):', for_="task_names_str")
+                    textarea(name="task_names_str", id="task_names_str", rows=5, placeholder="Enter one task name per line", required=True, text="\n".join(definition.task_names))
+                button('Save Changes', type="submit", cls="action-button submit")
+            a('← Back to Available Definitions', href='/workflow-definitions', cls='back-link', style="margin-top:20px; display:inline-block;")
+            a('← Back to Home', href='/', cls='back-link', style="margin-top:20px; display:inline-block; margin-left:15px;")
+    return doc.render()
+
+@app.post("/edit-workflow-definition/{definition_id}", response_class=RedirectResponse)
+async def edit_workflow_definition_handler(
+    request: Request,
+    definition_id: str,
+    name: str = Form(...),
+    description: str = Form(default=""),
+    task_names_str: str = Form(...),
+    service: WorkflowService = Depends(get_workflow_service),
+    current_user: AuthenticatedUser = Depends(get_current_active_user)
+):
+    """Handles the submission of updates to an existing workflow definition."""
+    try:
+        task_names = [task.strip() for task in task_names_str.split('\n') if task.strip()]
+        updated_definition = await service.update_definition(definition_id=definition_id, name=name, description=description, task_names=task_names)
+        if not updated_definition:
+            return create_message_page(
+                "Update Failed", 
+                "Error 404", 
+                f"Workflow Definition with ID '{definition_id}' not found.",
+                [("← Back to Definitions", "/workflow-definitions")],
+                status_code=404
+            )
+        return RedirectResponse(url="/workflow-definitions", status_code=status.HTTP_303_SEE_OTHER)
+    except ValueError as e:
+        return create_message_page(
+            "Update Failed", 
+            "Error", 
+            str(e),
+            [("← Back to Edit Template", f"/edit-workflow-definition/{definition_id}"), ("← Back to Definitions", "/workflow-definitions")],
             status_code=400
         )
 

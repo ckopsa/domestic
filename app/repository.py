@@ -57,6 +57,10 @@ class WorkflowRepository(ABC):
     async def create_workflow_definition(self, definition_data: WorkflowDefinition) -> WorkflowDefinition:
         pass
 
+    @abstractmethod
+    async def update_workflow_definition(self, definition_id: str, name: str, description: Optional[str], task_names: List[str]) -> Optional[WorkflowDefinition]:
+        pass
+
 
 class PostgreSQLWorkflowRepository(WorkflowRepository):
     def __init__(self, db_session):
@@ -218,6 +222,23 @@ class PostgreSQLWorkflowRepository(WorkflowRepository):
             task_names=eval(definition.task_names) if definition.task_names and definition.task_names != "[]" else []
         )
 
+    async def update_workflow_definition(self, definition_id: str, name: str, description: Optional[str], task_names: List[str]) -> Optional[WorkflowDefinition]:
+        from app.models.workflow import WorkflowDefinition as WorkflowDefinitionORM
+        db_definition = self.db_session.query(WorkflowDefinitionORM).filter(WorkflowDefinitionORM.id == definition_id).first()
+        if db_definition:
+            db_definition.name = name
+            db_definition.description = description
+            db_definition.task_names = str(task_names) if task_names else "[]"
+            self.db_session.commit()
+            self.db_session.refresh(db_definition)
+            return WorkflowDefinition(
+                id=db_definition.id,
+                name=db_definition.name,
+                description=db_definition.description,
+                task_names=eval(db_definition.task_names) if db_definition.task_names and db_definition.task_names != "[]" else []
+            )
+        return None
+
 
 class InMemoryWorkflowRepository(WorkflowRepository):
     def __init__(self):
@@ -296,3 +317,15 @@ class InMemoryWorkflowRepository(WorkflowRepository):
         new_definition = definition_data.model_copy(deep=True)
         _workflow_definitions_db[new_definition.id] = new_definition
         return new_definition.model_copy(deep=True)
+
+    async def update_workflow_definition(self, definition_id: str, name: str, description: Optional[str], task_names: List[str]) -> Optional[WorkflowDefinition]:
+        if definition_id in _workflow_definitions_db:
+            updated_definition = WorkflowDefinition(
+                id=definition_id,
+                name=name,
+                description=description,
+                task_names=task_names
+            )
+            _workflow_definitions_db[definition_id] = updated_definition
+            return updated_definition.model_copy(deep=True)
+        return None

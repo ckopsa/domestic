@@ -78,3 +78,11 @@ class WorkflowService:
             task_names=task_names
         )
         return await self.repository.create_workflow_definition(definition)
+
+    async def update_definition(self, definition_id: str, name: str, description: Optional[str], task_names: List[str]) -> Optional[WorkflowDefinition]:
+        if not name.strip():
+            raise ValueError("Definition name cannot be empty.")
+        if not task_names:
+            raise ValueError("A definition must have at least one task name.")
+        
+        return await self.repository.update_workflow_definition(definition_id, name, description, task_names)
