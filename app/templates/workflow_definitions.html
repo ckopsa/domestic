@@ -16,7 +16,7 @@
                         <button type="submit" class="action-button create-wip-link">Start '{{ defn.name }}'</button>
                     </form>
                     <a href="/edit-workflow-definition/{{ defn.id }}" class="action-button" style="background-color: #f6ad55; margin-left: 10px;">Edit</a>
-                    <form action="/confirm-delete-workflow-definition/{{ defn.id }}" method="get" style="display:inline; margin-left: 10px;">
+                    <form action="/workflow-definitions/confirm-delete-workflow-definition/{{ defn.id }}" method="get" style="display:inline; margin-left: 10px;">
                         <button type="submit" class="action-button cancel">Delete</button>
                     </form>
                 </li>

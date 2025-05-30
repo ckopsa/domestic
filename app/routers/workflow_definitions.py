@@ -117,7 +117,7 @@ async def edit_workflow_definition_handler(
             renderer=renderer
         )
 
-@router.get("/confirm-delete/{definition_id}", response_class=HTMLResponse)
+@router.get("/confirm-delete-workflow-definition/{definition_id}", response_class=HTMLResponse)
 async def confirm_delete_workflow_definition_page(
     request: Request, 
     definition_id: str, 
@@ -140,7 +140,7 @@ async def confirm_delete_workflow_definition_page(
     
     return await renderer.render("confirm_delete_workflow_definition.html", request, {"definition": definition})
 
-@router.post("/delete/{definition_id}", response_class=RedirectResponse)
+@router.post("/delete-workflow-definition/{definition_id}", response_class=RedirectResponse)
 async def delete_workflow_definition_handler(
     request: Request,
     definition_id: str,

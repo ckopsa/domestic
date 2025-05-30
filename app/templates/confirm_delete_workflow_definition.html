@@ -3,7 +3,7 @@
 {% block content %}
     <h1>Confirm Delete: {{ definition.name }}</h1>
     <p>Are you sure you want to delete the workflow definition '{{ definition.name }}'? This action cannot be undone.</p>
-    <form action="/delete-workflow-definition/{{ definition.id }}" method="post">
+    <form action="/workflow-definitions/delete-workflow-definition/{{ definition.id }}" method="post">
         <button type="submit" class="action-button cancel">Yes, Delete Permanently</button>
     </form>
     <a href="/workflow-definitions" class="back-link" style="margin-top:20px; display:inline-block;">No, Cancel</a>
