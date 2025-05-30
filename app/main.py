@@ -2,6 +2,7 @@
 import os
 import sys
 from typing import List, Annotated
+from urllib.parse import quote_plus
 
 # Add the project root to sys.path to ensure 'app' module can be found
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -255,7 +256,19 @@ async def token_placeholder():
 async def logout():
     """Logout user by clearing the access token cookie and redirecting to Keycloak logout."""
     from app.config import KEYCLOAK_SERVER_URL, KEYCLOAK_REALM
-    response = RedirectResponse(url=f"{KEYCLOAK_SERVER_URL}realms/{KEYCLOAK_REALM}/protocol/openid-connect/logout?redirect_uri=http://localhost:8000/", status_code=status.HTTP_303_SEE_OTHER)
+
+    # Define your desired post-logout redirect URI for the application
+    post_logout_redirect_to_app = "http://localhost:8000/" # Or "http://localhost:8000/login" if you changed it
+
+    # URL encode the redirect_uri value
+    encoded_redirect_uri = quote_plus(post_logout_redirect_to_app)
+
+    keycloak_logout_url = (
+        f"{KEYCLOAK_SERVER_URL}realms/{KEYCLOAK_REALM}/protocol/openid-connect/logout"
+        f"?post_logout_redirect_uri={encoded_redirect_uri}"  # Use the encoded URI
+    )
+
+    response = RedirectResponse(url=keycloak_logout_url, status_code=status.HTTP_303_SEE_OTHER)
     response.delete_cookie(key="access_token")
     return response
 
