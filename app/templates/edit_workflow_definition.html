@@ -2,7 +2,7 @@
 
 {% block content %}
     <h1>Edit Checklist Template: {{ definition.name }}</h1>
-    <form action="/edit-workflow-definition/{{ definition.id }}" method="post">
+    <form action="/workflow-definitions/edit/{{ definition.id }}" method="post">
         <div>
             <label for="name">Definition Name:</label>
             <input type="text" name="name" id="name" value="{{ definition.name }}" required>
