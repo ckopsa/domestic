@@ -5,12 +5,8 @@ services:
     image: postgres:13
     env_file:
       - ../.env
-    environment:
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASS}
-      POSTGRES_DB: ${DB_NAME}
     ports:
-      - "${DB_PORT}:5432"
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
@@ -23,6 +19,19 @@ services:
     ports:
       - "8080:8080"
     command: start-dev
+    restart: unless-stopped
+  
+  api:
+    build:
+      context: ../
+      dockerfile: Dockerfile
+    env_file:
+      - ../.env
+    ports:
+      - "5000:80"
+    depends_on:
+      - postgres
+      - keycloak
     restart: unless-stopped
 
 volumes:
