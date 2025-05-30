@@ -114,7 +114,7 @@ async def create_workflow_instance_handler(
         request: Request,
         definition_id: str = Form(...),
         service: WorkflowService = Depends(get_workflow_service),
-        current_user: AuthenticatedUser = Depends(get_current_user)
+        current_user: AuthenticatedUser = Depends(get_current_active_user)
 ):
     if not current_user:
         return RedirectResponse(url="/docs#/default/login_token_post", status_code=status.HTTP_303_SEE_OTHER)
@@ -130,7 +130,7 @@ async def read_workflow_instance_page(
         request: Request,
         instance_id: str,
         service: WorkflowService = Depends(get_workflow_service),
-        current_user: AuthenticatedUser = Depends(get_current_user)
+        current_user: AuthenticatedUser = Depends(get_current_active_user)
 ):
     if not current_user:
         return RedirectResponse(url="/docs#/default/login_token_post", status_code=status.HTTP_303_SEE_OTHER)
@@ -180,7 +180,7 @@ async def complete_task_handler(
         request: Request,
         task_id: str,
         service: WorkflowService = Depends(get_workflow_service),
-        current_user: AuthenticatedUser = Depends(get_current_user)
+        current_user: AuthenticatedUser = Depends(get_current_active_user)
 ):
     if not current_user:
         return RedirectResponse(url="/docs#/default/login_token_post", status_code=status.HTTP_303_SEE_OTHER)
@@ -194,17 +194,27 @@ async def complete_task_handler(
 
 
 @app.post("/token")
-async def login():
-    """Placeholder for token generation. In a real app, this would validate username/password."""
-    # This is a placeholder. In a real app, you would validate credentials here.
-    return {"access_token": "test_user", "token_type": "bearer"}
+async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
+    """Handle user login and return a token."""
+    from fastapi.security import OAuth2PasswordRequestForm
+    from app.core.security import get_user, fake_hash_password
+    
+    user = get_user(form_data.username)
+    if not user:
+        raise HTTPException(status_code=400, detail="Incorrect username or password")
+    
+    hashed_password = fake_hash_password(form_data.password)
+    if hashed_password != user.hashed_password:
+        raise HTTPException(status_code=400, detail="Incorrect username or password")
+    
+    return {"access_token": user.username, "token_type": "bearer"}
 
 
 @app.get("/my-workflows", response_class=HTMLResponse)
 async def list_user_workflows(
         request: Request,
         service: WorkflowService = Depends(get_workflow_service),
-        current_user: AuthenticatedUser = Depends(get_current_user)
+        current_user: AuthenticatedUser = Depends(get_current_active_user)
 ):
     """Serves a page listing all workflow instances for the current user."""
     if not current_user:
