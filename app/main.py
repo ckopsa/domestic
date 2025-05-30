@@ -173,8 +173,6 @@ async def read_workflow_instance_page(
                 a('← Back to Home', href='/', cls='back-link',
                   style="margin-top:20px; display:inline-block; margin-left:15px;")
         return doc.render()
-    except HTTPException:
-        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.post("/task-instances/{task_id}/complete")
