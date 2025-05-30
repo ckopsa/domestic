@@ -5,7 +5,7 @@ from typing import Optional, List
 
 from pydantic import BaseModel, Field
 
-from app.models.enums import WorkflowStatus, TaskStatus
+from app.db_models.enums import WorkflowStatus, TaskStatus
 
 class WorkflowDefinition(BaseModel):
     id: str = Field(default_factory=lambda: "def_" + str(uuid.uuid4())[:8])
