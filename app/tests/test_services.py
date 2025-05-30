@@ -6,10 +6,10 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from app.models import Base
+from app.db_models import Base
 from app.repository import PostgreSQLWorkflowRepository
 from app.services import WorkflowService
-from app.models import WorkflowDefinition, WorkflowInstance
+from app.db_models import WorkflowDefinition, WorkflowInstance
 
 # Setup for in-memory SQLite database for testing
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
@@ -30,7 +30,7 @@ async def test_create_workflow_instance(db_session):
     repo = PostgreSQLWorkflowRepository(db_session)
     service = WorkflowService(repo)
     # Add a workflow definition to the database
-    from app.models.workflow import WorkflowDefinition as WorkflowDefinitionORM
+    from app.db_models.workflow import WorkflowDefinition as WorkflowDefinitionORM
     defn = WorkflowDefinitionORM(
         id="test_def_1",
         name="Test Workflow",

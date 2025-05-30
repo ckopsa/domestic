@@ -7,7 +7,7 @@ Create Date: 2025-05-29 10:00:00.000000
 """
 from alembic import op
 import sqlalchemy as sa
-from app.models.enums import WorkflowStatus, TaskStatus
+from app.db_models.enums import WorkflowStatus, TaskStatus
 
 # revision identifiers, used by Alembic.
 revision = 'initial'

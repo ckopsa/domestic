@@ -4,8 +4,8 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB
 from typing import List
 
-from app.models.base import Base
-from app.models.enums import WorkflowStatus
+from app.db_models.base import Base
+from app.db_models.enums import WorkflowStatus
 
 class WorkflowDefinition(Base):
     __tablename__ = "workflow_definitions"

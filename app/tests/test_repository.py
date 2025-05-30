@@ -7,9 +7,9 @@ from datetime import date as DateObject
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from app.models import Base
+from app.db_models import Base
 from app.repository import PostgreSQLWorkflowRepository
-from app.models import WorkflowDefinition, TaskInstance, WorkflowInstance
+from app.db_models import WorkflowDefinition, TaskInstance, WorkflowInstance
 
 # Setup for in-memory SQLite database for testing
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
@@ -29,7 +29,7 @@ async def test_get_workflow_definition_by_id(db_session):
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
     # Add a workflow definition to the database
-    from app.models.workflow import WorkflowDefinition as WorkflowDefinitionORM
+    from app.db_models.workflow import WorkflowDefinition as WorkflowDefinitionORM
     defn = WorkflowDefinitionORM(
         id="test_def_1",
         name="Test Workflow",
@@ -64,7 +64,7 @@ async def test_get_workflow_definition_by_id_not_found(db_session):
 async def test_get_workflow_instance_by_id(db_session):
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
-    from app.models.workflow import WorkflowInstance as WorkflowInstanceORM
+    from app.db_models.workflow import WorkflowInstance as WorkflowInstanceORM
     instance = WorkflowInstanceORM(
         id="test_wf_1",
         workflow_definition_id="test_def_1",
@@ -102,7 +102,7 @@ async def test_create_task_instance(db_session):
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
     # First, create a workflow instance to associate the task with
-    from app.models.workflow import WorkflowInstance as WorkflowInstanceORM
+    from app.db_models.workflow import WorkflowInstance as WorkflowInstanceORM
     workflow_instance = WorkflowInstanceORM(
         id="test_wf_1",
         workflow_definition_id="test_def_1",
@@ -137,8 +137,8 @@ async def test_create_task_instance(db_session):
 async def test_get_tasks_for_workflow_instance(db_session):
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
-    from app.models.workflow import WorkflowInstance as WorkflowInstanceORM
-    from app.models.task import TaskInstance as TaskInstanceORM
+    from app.db_models.workflow import WorkflowInstance as WorkflowInstanceORM
+    from app.db_models.task import TaskInstance as TaskInstanceORM
     workflow_instance = WorkflowInstanceORM(
         id="test_wf_1",
         workflow_definition_id="test_def_1",
@@ -179,7 +179,7 @@ async def test_get_tasks_for_workflow_instance(db_session):
 async def test_get_tasks_for_workflow_instance_no_tasks(db_session):
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
-    from app.models.workflow import WorkflowInstance as WorkflowInstanceORM
+    from app.db_models.workflow import WorkflowInstance as WorkflowInstanceORM
     workflow_instance = WorkflowInstanceORM(
         id="test_wf_1",
         workflow_definition_id="test_def_1",
@@ -201,8 +201,8 @@ async def test_get_tasks_for_workflow_instance_no_tasks(db_session):
 async def test_get_task_instance_by_id(db_session):
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
-    from app.models.workflow import WorkflowInstance as WorkflowInstanceORM
-    from app.models.task import TaskInstance as TaskInstanceORM
+    from app.db_models.workflow import WorkflowInstance as WorkflowInstanceORM
+    from app.db_models.task import TaskInstance as TaskInstanceORM
     workflow_instance = WorkflowInstanceORM(
         id="test_wf_1",
         workflow_definition_id="test_def_1",
@@ -250,8 +250,8 @@ async def test_get_task_instance_by_id_not_found(db_session):
 async def test_update_task_instance(db_session):
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
-    from app.models.workflow import WorkflowInstance as WorkflowInstanceORM
-    from app.models.task import TaskInstance as TaskInstanceORM
+    from app.db_models.workflow import WorkflowInstance as WorkflowInstanceORM
+    from app.db_models.task import TaskInstance as TaskInstanceORM
     workflow_instance = WorkflowInstanceORM(
         id="test_wf_1",
         workflow_definition_id="test_def_1",
@@ -314,7 +314,7 @@ async def test_update_task_instance_not_found(db_session):
 async def test_update_workflow_instance(db_session):
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
-    from app.models.workflow import WorkflowInstance as WorkflowInstanceORM
+    from app.db_models.workflow import WorkflowInstance as WorkflowInstanceORM
     instance = WorkflowInstanceORM(
         id="test_wf_1",
         workflow_definition_id="test_def_1",

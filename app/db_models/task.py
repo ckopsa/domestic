@@ -2,8 +2,8 @@ import uuid
 from sqlalchemy import Column, String, Integer, Enum as SQLAlchemyEnum, ForeignKey
 from sqlalchemy.orm import relationship
 
-from app.models.base import Base
-from app.models.enums import TaskStatus
+from app.db_models.base import Base
+from app.db_models.enums import TaskStatus
 
 class TaskInstance(Base):
     __tablename__ = "task_instances"
