@@ -65,3 +65,6 @@ class WorkflowService:
 
     async def list_instances_for_user(self, user_id: str) -> List[WorkflowInstance]:
         return await self.repository.list_workflow_instances_by_user(user_id)
+
+    async def list_instances_for_user(self, user_id: str) -> List[WorkflowInstance]:
+        return await self.repository.list_workflow_instances_by_user(user_id)
