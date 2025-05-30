@@ -257,7 +257,7 @@ async def edit_workflow_definition_page(
     current_user: AuthenticatedUser = Depends(get_current_active_user)
 ):
     """Serves a page for editing an existing workflow definition."""
-    definition = await service.repository.get_workflow_definition_by_id(definition_id)
+    definition = await service.definition_repo.get_workflow_definition_by_id(definition_id)
     if not definition:
         return create_message_page(
             request,
@@ -318,7 +318,7 @@ async def confirm_delete_workflow_definition_page(
     current_user: AuthenticatedUser = Depends(get_current_active_user)
 ):
     """Serves a confirmation page for deleting a workflow definition."""
-    definition = await service.repository.get_workflow_definition_by_id(definition_id)
+    definition = await service.definition_repo.get_workflow_definition_by_id(definition_id)
     if not definition:
         return create_message_page(
             request,
@@ -348,7 +348,7 @@ async def delete_workflow_definition_handler(
     try:
         was_deleted = await service.delete_definition(definition_id)
         if not was_deleted:
-            definition = await service.repository.get_workflow_definition_by_id(definition_id)
+            definition = await service.definition_repo.get_workflow_definition_by_id(definition_id)
             if definition:
                 return create_message_page(
                     request,
