@@ -23,10 +23,17 @@ _jwks_cache: Dict[str, Any] = {}
 def get_keycloak_public_keys() -> Dict[str, Any]:
     """Fetch and cache Keycloak public keys from JWKS endpoint."""
     if not _jwks_cache:
-        jwks_url = f"{KEYCLOAK_SERVER_URL}realms/{KEYCLOAK_REALM}/protocol/openid-connect/certs"
-        response = requests.get(jwks_url)
-        response.raise_for_status()
-        _jwks_cache.update(response.json())
+        try:
+            jwks_url = f"{KEYCLOAK_SERVER_URL}realms/{KEYCLOAK_REALM}/protocol/openid-connect/certs"
+            response = requests.get(jwks_url, timeout=5)
+            response.raise_for_status()
+            _jwks_cache.update(response.json())
+        except requests.exceptions.RequestException as e:
+            # Log the error in a real application
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Unable to fetch Keycloak public keys",
+            ) from e
     return _jwks_cache
 
 async def get_current_user(token: str = Depends(oauth2_scheme)) -> AuthenticatedUser:
