@@ -53,3 +53,38 @@ async def test_get_workflow_definition_by_id_not_found(db_session):
 
     # Assert
     assert result is None
+
+@pytest.mark.asyncio
+async def test_create_task_instance(db_session):
+    # Arrange
+    repo = PostgreSQLWorkflowRepository(db_session)
+    # First, create a workflow instance to associate the task with
+    from app.models.workflow import WorkflowInstance as WorkflowInstanceORM
+    workflow_instance = WorkflowInstanceORM(
+        id="test_wf_1",
+        workflow_definition_id="test_def_1",
+        name="Test Workflow Instance",
+        status="active",
+        created_at=DateObject.today()
+    )
+    db_session.add(workflow_instance)
+    db_session.commit()
+
+    task_data = TaskInstance(
+        id="test_task_1",
+        workflow_instance_id="test_wf_1",
+        name="Test Task",
+        order=0,
+        status="pending"
+    )
+
+    # Act
+    created_task = await repo.create_task_instance(task_data)
+
+    # Assert
+    assert created_task is not None
+    assert created_task.id == "test_task_1"
+    assert created_task.workflow_instance_id == "test_wf_1"
+    assert created_task.name == "Test Task"
+    assert created_task.order == 0
+    assert created_task.status == "pending"
