@@ -62,3 +62,6 @@ class WorkflowService:
                     workflow_instance.status = "completed"
                     await self.repository.update_workflow_instance(workflow_instance.id, workflow_instance)
         return updated_task
+
+    async def list_instances_for_user(self, user_id: str) -> List[WorkflowInstance]:
+        return await self.repository.list_workflow_instances_by_user(user_id)

@@ -49,6 +49,10 @@ class WorkflowRepository(ABC):
     async def get_tasks_for_workflow_instance(self, instance_id: str) -> List[TaskInstance]:
         pass
 
+    @abstractmethod
+    async def list_workflow_instances_by_user(self, user_id: str) -> List[WorkflowInstance]:
+        pass
+
 
 class PostgreSQLWorkflowRepository(WorkflowRepository):
     def __init__(self, db_session):
@@ -178,6 +182,18 @@ class PostgreSQLWorkflowRepository(WorkflowRepository):
             status=task.status
         ) for task in tasks]
 
+    async def list_workflow_instances_by_user(self, user_id: str) -> List[WorkflowInstance]:
+        from app.models.workflow import WorkflowInstance as WorkflowInstanceORM
+        instances = self.db_session.query(WorkflowInstanceORM).filter(WorkflowInstanceORM.user_id == user_id).order_by(WorkflowInstanceORM.created_at.desc()).all()
+        return [WorkflowInstance(
+            id=instance.id,
+            workflow_definition_id=instance.workflow_definition_id,
+            name=instance.name,
+            user_id=instance.user_id,
+            status=instance.status,
+            created_at=instance.created_at
+        ) for instance in instances]
+
 
 class InMemoryWorkflowRepository(WorkflowRepository):
     def __init__(self):
@@ -244,3 +260,10 @@ class InMemoryWorkflowRepository(WorkflowRepository):
             if task.workflow_instance_id == instance_id
         ]
         return sorted(tasks, key=lambda t: t.order)
+
+    async def list_workflow_instances_by_user(self, user_id: str) -> List[WorkflowInstance]:
+        instances = [
+            instance.model_copy(deep=True) for instance in _workflow_instances_db.values()
+            if instance.user_id == user_id
+        ]
+        return sorted(instances, key=lambda i: i.created_at, reverse=True)
