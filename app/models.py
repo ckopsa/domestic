@@ -13,6 +13,9 @@ class WorkflowDefinition(BaseModel):
     description: Optional[str] = ""
     task_names: List[str] = Field(default_factory=list)  # Simple list of task names for MVP
 
+    class Config:
+        from_attributes = True
+
     def to_dict(self):
         return self.model_dump(mode='json')
 
@@ -26,6 +29,9 @@ class TaskInstance(BaseModel):
     name: str
     order: int
     status: TaskStatus = TaskStatus.pending
+
+    class Config:
+        from_attributes = True
 
     def to_dict(self):
         return self.model_dump(mode='json')
@@ -41,6 +47,9 @@ class WorkflowInstance(BaseModel):
     user_id: str
     status: WorkflowStatus = WorkflowStatus.active
     created_at: DateObject = Field(default_factory=DateObject.today)
+
+    class Config:
+        from_attributes = True
 
     def to_dict(self):
         return self.model_dump(mode='json')
