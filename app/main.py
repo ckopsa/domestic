@@ -6,9 +6,10 @@ from dominate.tags import *
 from fastapi import FastAPI, Form, status, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from repository import InMemoryWorkflowRepository, WorkflowRepository
-from services import WorkflowService
-from style import my_style
+from app.repository import InMemoryWorkflowRepository, WorkflowRepository, PostgreSQLWorkflowRepository
+from app.services import WorkflowService
+from app.style import my_style
+from app.database import get_db
 
 app = FastAPI()
 
