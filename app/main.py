@@ -1,14 +1,12 @@
 # main.py
 import os
 import sys
-from typing import List, Annotated
-from urllib.parse import quote_plus
+from typing import List
 
 # Add the project root to sys.path to ensure 'app' module can be found
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from fastapi import FastAPI, Form, status, Depends, Request, HTTPException
 from app.core.security import AuthenticatedUser, get_current_user, get_current_active_user
-from fastapi.security import OAuth2PasswordRequestForm
 
 from dominate import document
 from dominate.tags import *
@@ -81,7 +79,8 @@ async def read_root(
                 li(a('Available Workflow Definitions', href='/workflow-definitions', cls='action-button'))
                 if current_user:
                     li(a('My Workflows', href='/my-workflows', cls='action-button'))
-                    li(a(f'Logged in as: {current_user.username}', href='#', cls='action-button disabled', style='pointer-events: none;'))
+                    li(a(f'Logged in as: {current_user.username}', href='#', cls='action-button disabled',
+                         style='pointer-events: none;'))
                     li(a('Logout', href='/logout', cls='action-button'))
                 else:
                     li(a('Login to View/Create Workflows', href='/login', cls='action-button'))
@@ -203,12 +202,13 @@ async def redirect_to_keycloak_login(request: Request, redirect: str = None):
     )
     return RedirectResponse(url=login_url)
 
+
 @app.get("/callback", response_class=RedirectResponse)
 async def handle_keycloak_callback(code: str, state: str = None):
     """Handle the callback from Keycloak with the authorization code."""
     from app.config import KEYCLOAK_SERVER_URL, KEYCLOAK_REALM, KEYCLOAK_API_CLIENT_ID, KEYCLOAK_API_CLIENT_SECRET
     import requests
-    
+
     token_url = f"{KEYCLOAK_SERVER_URL}realms/{KEYCLOAK_REALM}/protocol/openid-connect/token"
     payload = {
         "grant_type": "authorization_code",
@@ -217,17 +217,18 @@ async def handle_keycloak_callback(code: str, state: str = None):
         "code": code,
         "redirect_uri": "http://localhost:8000/callback"
     }
-    
+
     response = requests.post(token_url, data=payload)
     if response.status_code != 200:
-        raise HTTPException(status_code=400, detail="Failed to exchange authorization code for token")
-    
+        raise HTTPException(status_code=400,
+                            detail=f"Failed to exchange authorization code for token. Keycloak response: {response.text}")
+
     token_data = response.json()
     access_token = token_data.get("access_token")
-    
+
     if not access_token:
         raise HTTPException(status_code=400, detail="No access token received from Keycloak")
-    
+
     # Create a redirect response and set the token as a secure cookie
     redirect_url = state if state else "/"
     redirect_response = RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
@@ -235,12 +236,13 @@ async def handle_keycloak_callback(code: str, state: str = None):
         key="access_token",
         value=access_token,
         httponly=True,  # Prevents JavaScript access to the cookie
-        secure=False,   # Set to True in production with HTTPS
-        samesite="lax", # Helps prevent CSRF
+        secure=False,  # Set to True in production with HTTPS
+        samesite="lax",  # Helps prevent CSRF
         max_age=token_data.get("expires_in", 3600)  # Set cookie expiration to match token expiration
     )
-    
+
     return redirect_response
+
 
 # Note: The actual token endpoint will be handled by Keycloak
 # This is just a placeholder for Swagger UI compatibility
@@ -252,20 +254,19 @@ async def token_placeholder():
         detail="Authentication handled by Keycloak. Use /login endpoint or configure client to use Keycloak directly."
     )
 
+
 @app.get("/logout", response_class=RedirectResponse)
 async def logout():
-    """Logout user by clearing the access token cookie and redirecting to Keycloak logout."""
-    from app.config import KEYCLOAK_SERVER_URL, KEYCLOAK_REALM
+    """Logout user by clearing cookies and redirecting to Keycloak logout."""
+    from app.config import KEYCLOAK_SERVER_URL, KEYCLOAK_REALM, KEYCLOAK_API_CLIENT_ID
+    from urllib.parse import quote_plus
 
-    # Define your desired post-logout redirect URI for the application
-    post_logout_redirect_to_app = "http://localhost:8000/" # Or "http://localhost:8000/login" if you changed it
-
-    # URL encode the redirect_uri value
-    encoded_redirect_uri = quote_plus(post_logout_redirect_to_app)
+    post_logout_redirect_to_app = "http://localhost:8000/login"
+    encoded_post_logout_redirect = quote_plus(post_logout_redirect_to_app)
 
     keycloak_logout_url = (
         f"{KEYCLOAK_SERVER_URL}realms/{KEYCLOAK_REALM}/protocol/openid-connect/logout"
-        f"?post_logout_redirect_uri={encoded_redirect_uri}"  # Use the encoded URI
+        f"?post_logout_redirect_uri={encoded_post_logout_redirect}&client_id={KEYCLOAK_API_CLIENT_ID}"
     )
 
     response = RedirectResponse(url=keycloak_logout_url, status_code=status.HTTP_303_SEE_OTHER)
@@ -300,5 +301,6 @@ async def list_user_workflows(
             a('← Back to Home', href='/', cls='back-link', style="margin-top:20px; display:inline-block;")
             a('← Available Definitions', href='/workflow-definitions', cls='back-link',
               style="margin-top:20px; display:inline-block; margin-left:15px;")
-            a('Logout', href='/logout', cls='back-link', style="margin-top:20px; display:inline-block; margin-left:15px;")
+            a('Logout', href='/logout', cls='back-link',
+              style="margin-top:20px; display:inline-block; margin-left:15px;")
     return doc.render()
