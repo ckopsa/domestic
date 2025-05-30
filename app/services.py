@@ -1,7 +1,7 @@
 # services.py
 from typing import List, Optional, Dict, Any
 
-from app.db_models import WorkflowDefinition, WorkflowInstance, TaskInstance
+from app.models import WorkflowDefinition, WorkflowInstance, TaskInstance
 from app.repository import WorkflowRepository
 
 
