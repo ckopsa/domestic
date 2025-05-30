@@ -2,7 +2,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional, Dict
 
-from models import WorkflowDefinition, WorkflowInstance, TaskInstance
+from app.models import WorkflowDefinition, WorkflowInstance, TaskInstance
 
 # In-memory stores
 _workflow_definitions_db: Dict[str, WorkflowDefinition] = {}

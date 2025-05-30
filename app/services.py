@@ -1,8 +1,8 @@
 # services.py
 from typing import List, Optional, Dict, Any
 
-from models import WorkflowDefinition, WorkflowInstance, TaskInstance
-from repository import WorkflowRepository
+from app.models import WorkflowDefinition, WorkflowInstance, TaskInstance
+from app.repository import WorkflowRepository
 
 
 class WorkflowService:
