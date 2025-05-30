@@ -91,7 +91,7 @@ class PostgreSQLWorkflowRepository(WorkflowRepository):
             id=defn.id,
             name=defn.name,
             description=defn.description,
-            task_names=eval(defn.task_names) if defn.task_names and defn.task_names != "[]" else []
+            task_names=defn.task_names if defn.task_names else []
         ) for defn in definitions]
 
     async def get_workflow_definition_by_id(self, definition_id: str) -> Optional[WorkflowDefinition]:
@@ -102,7 +102,7 @@ class PostgreSQLWorkflowRepository(WorkflowRepository):
                 id=defn.id,
                 name=defn.name,
                 description=defn.description,
-                task_names=eval(defn.task_names) if defn.task_names and defn.task_names != "[]" else []
+                task_names=defn.task_names if defn.task_names else []
             )
         return None
 
@@ -214,7 +214,7 @@ class PostgreSQLWorkflowRepository(WorkflowRepository):
             id=definition_data.id,
             name=definition_data.name,
             description=definition_data.description,
-            task_names=str(definition_data.task_names) if definition_data.task_names else "[]"
+            task_names=definition_data.task_names if definition_data.task_names else []
         )
         self.db_session.add(definition)
         self.db_session.commit()
@@ -223,7 +223,7 @@ class PostgreSQLWorkflowRepository(WorkflowRepository):
             id=definition.id,
             name=definition.name,
             description=definition.description,
-            task_names=eval(definition.task_names) if definition.task_names and definition.task_names != "[]" else []
+            task_names=definition.task_names if definition.task_names else []
         )
 
     async def update_workflow_definition(self, definition_id: str, name: str, description: Optional[str], task_names: List[str]) -> Optional[WorkflowDefinition]:
@@ -232,7 +232,7 @@ class PostgreSQLWorkflowRepository(WorkflowRepository):
         if db_definition:
             db_definition.name = name
             db_definition.description = description
-            db_definition.task_names = str(task_names) if task_names else "[]"
+            db_definition.task_names = task_names if task_names else []
             self.db_session.commit()
             self.db_session.refresh(db_definition)
             return WorkflowDefinition(
