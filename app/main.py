@@ -140,39 +140,39 @@ async def read_workflow_instance_page(
                                    f"Workflow Instance with ID '{instance_id}' not found or access denied.",
                                    [("← Back to Definitions", "/workflow-definitions")], status_code=404)
 
-        instance = details["instance"]
-        tasks = details["tasks"]
+    instance = details["instance"]
+    tasks = details["tasks"]
 
-        doc = document(title=f'Workflow: {instance.name}')
-        with doc.head:
-            style(my_style)
-        with doc.body:
-            with div(cls='container'):
-                h1(f'Workflow: {instance.name}')
-                with div(cls='workflow-details'):
-                    p(strong('ID:'), f' {instance.id}')
-                    p(strong('Status:'), f' {instance.status.upper()}')
-                    p(strong('Created At:'), f' {instance.created_at.isoformat()}')
-                    h2('Tasks:')
-                    if not tasks:
-                        p("No tasks available for this workflow.")
-                    else:
-                        with ul():
-                            for task in tasks:
-                                with li(cls='task-item', style="margin-bottom:10px;"):
-                                    p(strong('Task:'), f' {task.name} - {task.status.upper()}')
-                                    if task.status == "pending":
-                                        with form(action=f"/task-instances/{task.id}/complete", method="post",
-                                                  style="display:inline; margin-left:10px;"):
-                                            button("Mark Complete", type="submit", cls="action-button submit")
-                    if instance.status == "completed":
-                        p("🎉 Workflow Complete!",
-                          style="color: green; font-weight: bold; font-size:1.2em; margin-top:15px;")
-                a('← Back to Workflow Definitions', href='/workflow-definitions', cls='back-link',
-                  style="margin-top:20px; display:inline-block;")
-                a('← Back to Home', href='/', cls='back-link',
-                  style="margin-top:20px; display:inline-block; margin-left:15px;")
-        return doc.render()
+    doc = document(title=f'Workflow: {instance.name}')
+    with doc.head:
+        style(my_style)
+    with doc.body:
+        with div(cls='container'):
+            h1(f'Workflow: {instance.name}')
+            with div(cls='workflow-details'):
+                p(strong('ID:'), f' {instance.id}')
+                p(strong('Status:'), f' {instance.status.upper()}')
+                p(strong('Created At:'), f' {instance.created_at.isoformat()}')
+                h2('Tasks:')
+                if not tasks:
+                    p("No tasks available for this workflow.")
+                else:
+                    with ul():
+                        for task in tasks:
+                            with li(cls='task-item', style="margin-bottom:10px;"):
+                                p(strong('Task:'), f' {task.name} - {task.status.upper()}')
+                                if task.status == "pending":
+                                    with form(action=f"/task-instances/{task.id}/complete", method="post",
+                                              style="display:inline; margin-left:10px;"):
+                                        button("Mark Complete", type="submit", cls="action-button submit")
+                if instance.status == "completed":
+                    p("🎉 Workflow Complete!",
+                      style="color: green; font-weight: bold; font-size:1.2em; margin-top:15px;")
+            a('← Back to Workflow Definitions', href='/workflow-definitions', cls='back-link',
+              style="margin-top:20px; display:inline-block;")
+            a('← Back to Home', href='/', cls='back-link',
+              style="margin-top:20px; display:inline-block; margin-left:15px;")
+    return doc.render()
 
 
 @app.post("/task-instances/{task_id}/complete")
