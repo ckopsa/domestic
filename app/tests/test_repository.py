@@ -69,6 +69,7 @@ async def test_get_workflow_instance_by_id(db_session):
         id="test_wf_1",
         workflow_definition_id="test_def_1",
         name="Test Workflow Instance",
+        user_id="test_user",
         status="active",
         created_at=DateObject.today()
     )
@@ -106,6 +107,7 @@ async def test_create_task_instance(db_session):
         id="test_wf_1",
         workflow_definition_id="test_def_1",
         name="Test Workflow Instance",
+        user_id="test_user",
         status="active",
         created_at=DateObject.today()
     )
@@ -141,6 +143,7 @@ async def test_get_tasks_for_workflow_instance(db_session):
         id="test_wf_1",
         workflow_definition_id="test_def_1",
         name="Test Workflow Instance",
+        user_id="test_user",
         status="active",
         created_at=DateObject.today()
     )
@@ -181,6 +184,7 @@ async def test_get_tasks_for_workflow_instance_no_tasks(db_session):
         id="test_wf_1",
         workflow_definition_id="test_def_1",
         name="Test Workflow Instance",
+        user_id="test_user",
         status="active",
         created_at=DateObject.today()
     )
@@ -203,6 +207,7 @@ async def test_get_task_instance_by_id(db_session):
         id="test_wf_1",
         workflow_definition_id="test_def_1",
         name="Test Workflow Instance",
+        user_id="test_user",
         status="active",
         created_at=DateObject.today()
     )
@@ -251,6 +256,7 @@ async def test_update_task_instance(db_session):
         id="test_wf_1",
         workflow_definition_id="test_def_1",
         name="Test Workflow Instance",
+        user_id="test_user",
         status="active",
         created_at=DateObject.today()
     )
@@ -313,6 +319,7 @@ async def test_update_workflow_instance(db_session):
         id="test_wf_1",
         workflow_definition_id="test_def_1",
         name="Test Workflow Instance",
+        user_id="test_user",
         status="active",
         created_at=DateObject.today()
     )

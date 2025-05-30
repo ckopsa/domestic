@@ -41,12 +41,13 @@ async def test_create_workflow_instance(db_session):
     db_session.commit()
 
     # Act
-    instance = await service.create_workflow_instance("test_def_1")
+    instance = await service.create_workflow_instance("test_def_1", user_id="test_user")
 
     # Assert
     assert instance is not None
     assert instance.workflow_definition_id == "test_def_1"
     assert instance.name == "Test Workflow"
+    assert instance.user_id == "test_user"
     assert instance.status == "active"
     # Check if tasks are created
     tasks = await repo.get_tasks_for_workflow_instance(instance.id)
