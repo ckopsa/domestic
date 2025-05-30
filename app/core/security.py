@@ -2,7 +2,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2AuthorizationCodeBearer
 from jose import JWTError, jwt
 import requests
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from pydantic import BaseModel
 from app.config import KEYCLOAK_SERVER_URL, KEYCLOAK_REALM, KEYCLOAK_API_CLIENT_ID
 
