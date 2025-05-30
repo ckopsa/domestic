@@ -8,7 +8,18 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 class AuthenticatedUser(BaseModel):
     user_id: str
     username: str
-    email: str = ""
+    email: str | None = None
+    full_name: str | None = None
+    disabled: bool | None = None
+
+def fake_decode_token(token: str) -> AuthenticatedUser:
+    """Fake token decoding for demonstration purposes."""
+    return AuthenticatedUser(
+        user_id=token,
+        username=token + "_decoded",
+        email=f"{token}@example.com",
+        full_name=f"{token.capitalize()} User"
+    )
 
 async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]) -> AuthenticatedUser:
     """Extract user information from the token. This is a placeholder for real validation."""
@@ -17,8 +28,7 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]) -> Aut
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    # For simplicity, we're not validating the token against a real user database
-    # Just returning a mock user based on the token content
     if not token:
         raise credentials_exception
-    return AuthenticatedUser(user_id=token, username=token, email=f"{token}@example.com")
+    user = fake_decode_token(token)
+    return user

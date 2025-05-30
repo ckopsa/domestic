@@ -64,7 +64,7 @@ def create_message_page(
 @app.get("/", response_class=HTMLResponse)
 async def read_root(
         request: Request,
-        current_user: AuthenticatedUser = Depends(get_current_user),
+        current_user: AuthenticatedUser | None = Depends(get_current_user),
 ):
     """Serves the homepage."""
     doc = document(title='Simple Checklist MVP')
