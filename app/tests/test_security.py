@@ -4,11 +4,11 @@ import os
 from unittest.mock import patch
 from fastapi import HTTPException
 from jose import jwt
-from app.core.security import get_current_user, get_keycloak_public_keys, AuthenticatedUser
-from app.config import KEYCLOAK_SERVER_URL, KEYCLOAK_REALM, KEYCLOAK_API_CLIENT_ID
 
 # Add the project root to sys.path to ensure 'app' module can be found
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+from app.core.security import get_current_user, get_keycloak_public_keys, AuthenticatedUser
+from app.config import KEYCLOAK_SERVER_URL, KEYCLOAK_REALM, KEYCLOAK_API_CLIENT_ID
 
 # Mock data for testing
 MOCK_TOKEN_VALID = jwt.encode(
