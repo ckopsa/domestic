@@ -39,19 +39,21 @@ def get_keycloak_public_keys() -> Dict[str, Any]:
 from fastapi import Request
 
 async def get_current_user(request: Request, token: str = Depends(oauth2_scheme)) -> AuthenticatedUser:
-    """Validate JWT token and extract user information. For MVP, also check cookie."""
+    """Validate JWT token and extract user information. For MVP, prioritize cookie check."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        # For MVP, if token is not provided or invalid, check for mock cookie
+        # For MVP, first check for mock cookie before attempting JWT validation
+        cookie_token = request.cookies.get("auth_token", "")
+        if cookie_token and cookie_token.startswith("mock_token_"):
+            user_id = cookie_token.replace("mock_token_", "")
+            return AuthenticatedUser(user_id=user_id, username=user_id, email=f"{user_id}@example.com")
+            
+        # If no valid cookie, attempt JWT validation
         if not token or token == "null":
-            token = request.cookies.get("auth_token", "")
-            if token and token.startswith("mock_token_"):
-                user_id = token.replace("mock_token_", "")
-                return AuthenticatedUser(user_id=user_id, username=user_id, email=f"{user_id}@example.com")
             raise credentials_exception
             
         jwks = get_keycloak_public_keys()
@@ -79,9 +81,5 @@ async def get_current_user(request: Request, token: str = Depends(oauth2_scheme)
             
         return AuthenticatedUser(user_id=user_id, username=username, email=email)
     except JWTError:
-        # For MVP, fallback to cookie check if JWT validation fails
-        token = request.cookies.get("auth_token", "")
-        if token and token.startswith("mock_token_"):
-            user_id = token.replace("mock_token_", "")
-            return AuthenticatedUser(user_id=user_id, username=user_id, email=f"{user_id}@example.com")
+        # If JWT validation fails, we've already checked the cookie, so fail
         raise credentials_exception
