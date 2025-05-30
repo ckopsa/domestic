@@ -1,13 +1,11 @@
 # models.py
 import uuid
 from datetime import date as DateObject
-from typing import Optional, Literal, List
+from typing import Optional, List
 
 from pydantic import BaseModel, Field
 
-WorkflowStatus = Literal["active", "completed"]
-TaskStatus = Literal["pending", "completed"]
-
+from app.models.enums import WorkflowStatus, TaskStatus
 
 class WorkflowDefinition(BaseModel):
     id: str = Field(default_factory=lambda: "def_" + str(uuid.uuid4())[:8])
@@ -22,13 +20,12 @@ class WorkflowDefinition(BaseModel):
     def from_dict(cls, data: dict):
         return cls(**data)
 
-
 class TaskInstance(BaseModel):
     id: str = Field(default_factory=lambda: "task_" + str(uuid.uuid4())[:8])
     workflow_instance_id: str
     name: str
     order: int
-    status: TaskStatus = "pending"
+    status: TaskStatus = TaskStatus.pending
 
     def to_dict(self):
         return self.model_dump(mode='json')
@@ -37,14 +34,12 @@ class TaskInstance(BaseModel):
     def from_dict(cls, data: dict):
         return cls(**data)
 
-
 class WorkflowInstance(BaseModel):
     id: str = Field(default_factory=lambda: "wf_" + str(uuid.uuid4())[:8])
     workflow_definition_id: str
     name: str  # Copied from definition for easy display
-    status: WorkflowStatus = "active"
+    status: WorkflowStatus = WorkflowStatus.active
     created_at: DateObject = Field(default_factory=DateObject.today)
-    task_ids: List[str] = Field(default_factory=list)  # List of TaskInstance IDs
 
     def to_dict(self):
         return self.model_dump(mode='json')
