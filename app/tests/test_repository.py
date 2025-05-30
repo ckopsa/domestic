@@ -125,3 +125,65 @@ async def test_create_task_instance(db_session):
     assert created_task.name == "Test Task"
     assert created_task.order == 0
     assert created_task.status == "pending"
+
+@pytest.mark.asyncio
+async def test_get_tasks_for_workflow_instance(db_session):
+    # Arrange
+    repo = PostgreSQLWorkflowRepository(db_session)
+    from app.models.workflow import WorkflowInstance as WorkflowInstanceORM
+    from app.models.task import TaskInstance as TaskInstanceORM
+    workflow_instance = WorkflowInstanceORM(
+        id="test_wf_1",
+        workflow_definition_id="test_def_1",
+        name="Test Workflow Instance",
+        status="active",
+        created_at=DateObject.today()
+    )
+    db_session.add(workflow_instance)
+    db_session.commit()
+
+    tasks = [
+        TaskInstanceORM(
+            id=f"test_task_{i}",
+            workflow_instance_id="test_wf_1",
+            name=f"Task {i}",
+            order=i,
+            status="pending"
+        ) for i in range(3)
+    ]
+    for task in tasks:
+        db_session.add(task)
+    db_session.commit()
+
+    # Act
+    result = await repo.get_tasks_for_workflow_instance("test_wf_1")
+
+    # Assert
+    assert len(result) == 3
+    for i, task in enumerate(result):
+        assert task.id == f"test_task_{i}"
+        assert task.workflow_instance_id == "test_wf_1"
+        assert task.name == f"Task {i}"
+        assert task.order == i
+        assert task.status == "pending"
+
+@pytest.mark.asyncio
+async def test_get_tasks_for_workflow_instance_no_tasks(db_session):
+    # Arrange
+    repo = PostgreSQLWorkflowRepository(db_session)
+    from app.models.workflow import WorkflowInstance as WorkflowInstanceORM
+    workflow_instance = WorkflowInstanceORM(
+        id="test_wf_1",
+        workflow_definition_id="test_def_1",
+        name="Test Workflow Instance",
+        status="active",
+        created_at=DateObject.today()
+    )
+    db_session.add(workflow_instance)
+    db_session.commit()
+
+    # Act
+    result = await repo.get_tasks_for_workflow_instance("test_wf_1")
+
+    # Assert
+    assert len(result) == 0
