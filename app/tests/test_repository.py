@@ -225,7 +225,7 @@ async def test_delete_workflow_definition_in_use(db_session):
     db_session.commit()
 
     # Act & Assert
-    with pytest.raises(DefinitionInUseError, match="Cannot delete definition: It is currently used by 1 workflow instance\(s\)."):
+    with pytest.raises(DefinitionInUseError, match="Cannot delete definition: It is currently used by 1 workflow instance\\(s\\)."):
         await repo.delete_workflow_definition("test_def_1")
 
 @pytest.mark.asyncio
