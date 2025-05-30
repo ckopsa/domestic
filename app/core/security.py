@@ -94,7 +94,6 @@ async def get_current_user(request: Request, token: Annotated[str, Depends(oauth
             full_name=full_name,
             disabled=False 
         )
-        
     except HTTPException as e: 
         raise e
     except Exception as e: 
