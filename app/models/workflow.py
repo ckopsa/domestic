@@ -19,7 +19,7 @@ class WorkflowDefinition(Base):
 class WorkflowInstance(Base):
     __tablename__ = "workflow_instances"
 
-    id = Column(String, primary_key=True, index=True)
+    id = Column(String, primary_key=True, index=True, default=lambda: "wd_" + str(uuid.uuid4())[:8])
     workflow_definition_id = Column(String, ForeignKey("workflow_definitions.id"), nullable=False, index=True)
     name = Column(String, nullable=False)
     status = Column(SQLAlchemyEnum(WorkflowStatus), nullable=False, default=WorkflowStatus.active)
