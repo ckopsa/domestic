@@ -17,7 +17,7 @@ class WorkflowDefinition(BaseModel):
         from_attributes = True
 
     def to_dict(self):
-        return self.model_dump()
+        return self.model_dump(mode='json')
 
     @classmethod
     def from_dict(cls, data: dict):
@@ -34,7 +34,7 @@ class TaskInstance(BaseModel):
         from_attributes = True
 
     def to_dict(self):
-        return self.model_dump()
+        return self.model_dump(mode='json')
 
     @classmethod
     def from_dict(cls, data: dict):
@@ -52,7 +52,7 @@ class WorkflowInstance(BaseModel):
         from_attributes = True
 
     def to_dict(self):
-        return self.model_dump()
+        return self.model_dump(mode='json')
 
     @classmethod
     def from_dict(cls, data: dict):
