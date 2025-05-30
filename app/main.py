@@ -116,8 +116,6 @@ async def create_workflow_instance_handler(
         service: WorkflowService = Depends(get_workflow_service),
         current_user: AuthenticatedUser = Depends(get_current_active_user)
 ):
-    if not current_user:
-        return RedirectResponse(url="/docs#/default/login_token_post", status_code=status.HTTP_303_SEE_OTHER)
     instance = await service.create_workflow_instance(definition_id=definition_id, user_id=current_user.user_id)
     if not instance:
         return create_message_page("Creation Failed", "Error", "Could not create workflow instance.",
@@ -132,8 +130,6 @@ async def read_workflow_instance_page(
         service: WorkflowService = Depends(get_workflow_service),
         current_user: AuthenticatedUser = Depends(get_current_active_user)
 ):
-    if not current_user:
-        return RedirectResponse(url="/docs#/default/login_token_post", status_code=status.HTTP_303_SEE_OTHER)
     details = await service.get_workflow_instance_with_tasks(instance_id, current_user.user_id)
     if not details or not details["instance"]:
         return create_message_page("Workflow Not Found", "Error 404",
@@ -182,8 +178,6 @@ async def complete_task_handler(
         service: WorkflowService = Depends(get_workflow_service),
         current_user: AuthenticatedUser = Depends(get_current_active_user)
 ):
-    if not current_user:
-        return RedirectResponse(url="/docs#/default/login_token_post", status_code=status.HTTP_303_SEE_OTHER)
     task = await service.complete_task(task_id, current_user.user_id)
     if not task:
         return create_message_page("Error", "Task Update Failed", "Could not complete task or access denied.",
@@ -217,9 +211,6 @@ async def list_user_workflows(
         current_user: AuthenticatedUser = Depends(get_current_active_user)
 ):
     """Serves a page listing all workflow instances for the current user."""
-    if not current_user:
-        return RedirectResponse(url="/docs#/default/login_token_post", status_code=status.HTTP_303_SEE_OTHER)
-
     instances = await service.list_instances_for_user(current_user.user_id)
     doc = document(title='My Workflows')
     with doc.head:
