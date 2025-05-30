@@ -8,7 +8,7 @@ my_style = """
             li { margin-bottom: 8px; }
             a { color: #3182ce; text-decoration: none; transition: color 0.2s ease-in-out; }
             a:hover { color: #2b6cb0; text-decoration: underline; }
-            button, input[type="submit"] { /* Ensure submit inputs look like buttons */
+            button, input[type="submit"] {
                 background-color: #4299e1;
                 color: white;
                 padding: 10px 15px;
@@ -44,7 +44,7 @@ my_style = """
             .create-wip-link:hover { background-color: #2b6cb0; transform: translateY(-1px); }
             form div { margin-bottom: 15px; }
             label { display: block; margin-bottom: 5px; font-weight: bold; color: #4a5568; }
-            input[type="text"], input[type="date"], input[type="email"], select, textarea { /* Added select, textarea */
+            input[type="text"], input[type="date"], input[type="email"], select, textarea {
                 width: 100%;
                 padding: 10px;
                 border: 1px solid #cbd5e0;
@@ -53,7 +53,7 @@ my_style = """
                 font-size: 16px;
                 transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
             }
-            input[type="text"]:focus, input[type="date"]:focus, input[type="email"]:focus, select:focus, textarea:focus { /* Added select, textarea */
+            input[type="text"]:focus, input[type="date"]:focus, input[type="email"]:focus, select:focus, textarea:focus {
                 border-color: #63b3ed;
                 box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.5);
                 outline: none;
@@ -79,5 +79,4 @@ my_style = """
             .share-form label { font-size: 0.9em; }
             .share-form input[type="email"] { width: 70%; display: inline-block; margin-right:10px; padding: 8px; font-size: 0.95em;}
             .share-form button { font-size: 14px; padding: 8px 12px; vertical-align: baseline;}
-
 """

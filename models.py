@@ -1,47 +1,56 @@
 # models.py
 import uuid
 from datetime import date as DateObject
-from typing import Optional, Literal
+from typing import Optional, Literal, List
 
 from pydantic import BaseModel, Field
 
-WIPStatus = Literal["draft", "working", "submitted", "canceled", "archived"]
-BackgroundCheckStatus = Literal["pending", "in_progress", "completed", "failed", "requires_review"]
+WorkflowStatus = Literal["active", "completed"]
+TaskStatus = Literal["pending", "completed"]
 
 
-class WIPDocument(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    title: str
-    owner: str
-    dateCreated: DateObject = Field(default_factory=DateObject.today)
-    dueDate: Optional[DateObject] = None
-    status: WIPStatus = "draft"
+class WorkflowDefinition(BaseModel):
+    id: str = Field(default_factory=lambda: "def_" + str(uuid.uuid4())[:8])
+    name: str
+    description: Optional[str] = ""
+    task_names: List[str] = Field(default_factory=list)  # Simple list of task names for MVP
 
-    employee_name: Optional[str] = ""
-    employee_email: Optional[str] = ""
-    interview_notes: Optional[str] = ""
-    background_check_status: BackgroundCheckStatus = "pending"
-    contract_details: Optional[str] = ""
-
-    # Helper to convert to dict for storage if needed, Pydantic handles this mostly
     def to_dict(self):
-        return self.model_dump(mode='json')  # model_dump is the newer Pydantic v2 way
+        return self.model_dump(mode='json')
 
     @classmethod
     def from_dict(cls, data: dict):
-        # Ensure dateCreated and dueDate are proper date objects if coming from raw dict
-        if isinstance(data.get("dateCreated"), str):
-            data["dateCreated"] = DateObject.fromisoformat(data["dateCreated"])
-        if data.get("dueDate") and isinstance(data["dueDate"], str):
-            data["dueDate"] = DateObject.fromisoformat(data["dueDate"])
         return cls(**data)
 
 
-# For form data that updates parts of WIPDocument
-class WIPUpdateData(BaseModel):
-    employee_name: Optional[str] = None
-    employee_email: Optional[str] = None
-    interview_notes: Optional[str] = None
-    background_check_status: Optional[BackgroundCheckStatus] = None
-    contract_details: Optional[str] = None
-    due_date: Optional[DateObject] = None  # Allow unsetting by passing None via an empty string form field
+class TaskInstance(BaseModel):
+    id: str = Field(default_factory=lambda: "task_" + str(uuid.uuid4())[:8])
+    workflow_instance_id: str
+    name: str
+    order: int
+    status: TaskStatus = "pending"
+
+    def to_dict(self):
+        return self.model_dump(mode='json')
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(**data)
+
+
+class WorkflowInstance(BaseModel):
+    id: str = Field(default_factory=lambda: "wf_" + str(uuid.uuid4())[:8])
+    workflow_definition_id: str
+    name: str  # Copied from definition for easy display
+    status: WorkflowStatus = "active"
+    created_at: DateObject = Field(default_factory=DateObject.today)
+    task_ids: List[str] = Field(default_factory=list)  # List of TaskInstance IDs
+
+    def to_dict(self):
+        return self.model_dump(mode='json')
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        if isinstance(data.get("created_at"), str):
+            data["created_at"] = DateObject.fromisoformat(data["created_at"])
+        return cls(**data)
