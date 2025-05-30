@@ -192,7 +192,7 @@ async def login():
     redirect_uri = "http://localhost:8000/auth/callback"
     auth_url = (
         f"{KEYCLOAK_SERVER_URL}realms/{KEYCLOAK_REALM}/protocol/openid-connect/auth"
-        f"?client_id={KEYCLOAK_API_CLIENT_ID}&response_type=code&redirect_uri={redirect_uri}&scope=openid%20email%20profile"
+        f"?client_id=frontend-app&response_type=code&redirect_uri={redirect_uri}&scope=openid%20email%20profile"
     )
     return RedirectResponse(url=auth_url, status_code=status.HTTP_303_SEE_OTHER)
 
