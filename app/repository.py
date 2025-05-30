@@ -100,6 +100,7 @@ class PostgreSQLWorkflowRepository(WorkflowRepository):
             id=instance_data.id,
             workflow_definition_id=instance_data.workflow_definition_id,
             name=instance_data.name,
+            user_id=instance_data.user_id,
             status=instance_data.status,
             created_at=instance_data.created_at if instance_data.created_at else DateObject.today()
         )
@@ -110,6 +111,7 @@ class PostgreSQLWorkflowRepository(WorkflowRepository):
             id=instance.id,
             workflow_definition_id=instance.workflow_definition_id,
             name=instance.name,
+            user_id=instance.user_id,
             status=instance.status,
             created_at=instance.created_at
         )
