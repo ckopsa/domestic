@@ -235,3 +235,66 @@ async def test_get_task_instance_by_id_not_found(db_session):
 
     # Assert
     assert result is None
+
+@pytest.mark.asyncio
+async def test_update_task_instance(db_session):
+    # Arrange
+    repo = PostgreSQLWorkflowRepository(db_session)
+    from app.models.workflow import WorkflowInstance as WorkflowInstanceORM
+    from app.models.task import TaskInstance as TaskInstanceORM
+    workflow_instance = WorkflowInstanceORM(
+        id="test_wf_1",
+        workflow_definition_id="test_def_1",
+        name="Test Workflow Instance",
+        status="active",
+        created_at=DateObject.today()
+    )
+    db_session.add(workflow_instance)
+    db_session.commit()
+
+    task = TaskInstanceORM(
+        id="test_task_1",
+        workflow_instance_id="test_wf_1",
+        name="Test Task",
+        order=0,
+        status="pending"
+    )
+    db_session.add(task)
+    db_session.commit()
+
+    updated_task_data = TaskInstance(
+        id="test_task_1",
+        workflow_instance_id="test_wf_1",
+        name="Updated Test Task",
+        order=1,
+        status="completed"
+    )
+
+    # Act
+    result = await repo.update_task_instance("test_task_1", updated_task_data)
+
+    # Assert
+    assert result is not None
+    assert result.id == "test_task_1"
+    assert result.workflow_instance_id == "test_wf_1"
+    assert result.name == "Updated Test Task"
+    assert result.order == 1
+    assert result.status == "completed"
+
+@pytest.mark.asyncio
+async def test_update_task_instance_not_found(db_session):
+    # Arrange
+    repo = PostgreSQLWorkflowRepository(db_session)
+    updated_task_data = TaskInstance(
+        id="non_existent_task",
+        workflow_instance_id="test_wf_1",
+        name="Updated Test Task",
+        order=1,
+        status="completed"
+    )
+
+    # Act
+    result = await repo.update_task_instance("non_existent_task", updated_task_data)
+
+    # Assert
+    assert result is None
