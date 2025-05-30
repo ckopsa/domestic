@@ -84,7 +84,7 @@ async def get_current_user(request: Request, token: Annotated[str, Depends(oauth
                     token,
                     public_key,
                     algorithms=["RS256"],
-                    audience=KEYCLOAK_API_CLIENT_ID,
+                    audience='account',
                     issuer=expected_issuer # Use the variable for consistency
                 )
                 print(f"DEBUG: Token successfully decoded with KID: {key_data.get('kid')}")
