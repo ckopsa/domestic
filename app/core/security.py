@@ -1,3 +1,4 @@
+from base64 import b64decode
 from typing import Annotated, Dict, Any
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
@@ -6,6 +7,8 @@ import jwt
 import requests
 from functools import lru_cache
 from app.config import KEYCLOAK_SERVER_URL, KEYCLOAK_REALM, KEYCLOAK_API_CLIENT_ID
+from jwt.algorithms import RSAAlgorithm
+
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
@@ -47,10 +50,12 @@ async def get_current_user(request: Request, token: Annotated[str, Depends(oauth
         # Try to decode with each key (usually there's just one, but handling multiple for robustness)
         decoded_token = None
         for key in keys:
+            # Convert JWK to RSA public key
+            rsa_key = RSAAlgorithm.from_jwk(key)
             try:
                 decoded_token = jwt.decode(
                     token,
-                    key,
+                    b64decode(rsa_key),
                     algorithms=["RS256"],
                     audience=KEYCLOAK_API_CLIENT_ID,
                     issuer=f"{KEYCLOAK_SERVER_URL}realms/{KEYCLOAK_REALM}"
