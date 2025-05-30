@@ -22,7 +22,7 @@ def upgrade() -> None:
         'workflow_definitions', 
         'task_names',
         type_=postgresql.JSONB,
-        postgresql_using="CASE WHEN task_names = '[]' THEN '[]'::jsonb ELSE task_names::jsonb END",
+        postgresql_using="CASE WHEN task_names = '[]' OR task_names IS NULL THEN '[]'::jsonb ELSE REPLACE(REPLACE(task_names, '''', '\"'), ' ', '')::jsonb END",
         nullable=False
     )
 
