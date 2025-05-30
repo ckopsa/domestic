@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1 style="{{ heading_style }}">{{ heading }}</h1>
+    <p>{{ message }}</p>
+    {% for link_text, link_href in links %}
+        <a href="{{ link_href }}" class="back-link" style="margin-right:15px; display:inline-block; margin-top:10px;">{{ link_text }}</a>
+    {% endfor %}
+{% endblock %}

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>My Workflows</h1>
+    {% if not instances %}
+        <p>You have no workflows yet.</p>
+    {% else %}
+        <ul>
+            {% for instance in instances %}
+                <li class="wip-list-item">
+                    <h2>{{ instance.name }}</h2>
+                    <p><strong>Status:</strong> {{ instance.status.upper() }}</p>
+                    <p><strong>Created:</strong> {{ instance.created_at.isoformat() }}</p>
+                    <a href="/workflow-instances/{{ instance.id }}" class="action-button">View Details</a>
+                </li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+    <a href="/" class="back-link" style="margin-top:20px; display:inline-block;">← Back to Home</a>
+    <a href="/workflow-definitions" class="back-link" style="margin-top:20px; display:inline-block; margin-left:15px;">← Available Definitions</a>
+    <a href="/create-workflow-definition" class="action-button" style="margin-top:20px; display:inline-block; margin-left:15px;">Create New Checklist Template</a>
+    <a href="/logout" class="back-link" style="margin-top:20px; display:inline-block; margin-left:15px;">Logout</a>
+{% endblock %}
