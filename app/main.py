@@ -1,12 +1,13 @@
 # main.py
 import os
 import sys
-from typing import List
+from typing import List, Annotated
 
 # Add the project root to sys.path to ensure 'app' module can be found
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from fastapi import FastAPI, Form, status, Depends, Request, HTTPException
-from app.core.security import AuthenticatedUser, get_current_user
+from app.core.security import AuthenticatedUser, get_current_user, get_current_active_user
+from fastapi.security import OAuth2PasswordRequestForm
 
 from dominate import document
 from dominate.tags import *
