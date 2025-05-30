@@ -1,5 +1,10 @@
 # main.py
+import sys
+import os
 from typing import List
+
+# Add the project root to sys.path to ensure 'app' module can be found
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from dominate import document
 from dominate.tags import *
