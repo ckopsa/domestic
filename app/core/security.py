@@ -1,11 +1,9 @@
-from base64 import b64decode
 from typing import Annotated, Dict, Any
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel
 import jwt
 import requests
-from functools import lru_cache
 from app.config import KEYCLOAK_SERVER_URL, KEYCLOAK_REALM, KEYCLOAK_API_CLIENT_ID
 from jwt.algorithms import RSAAlgorithm
 
@@ -19,13 +17,17 @@ class AuthenticatedUser(BaseModel):
     full_name: str | None = None
     disabled: bool | None = False
 
-@lru_cache(maxsize=1)
+# Temporarily comment out lru_cache to rule out stale cached keys
+# @lru_cache(maxsize=1) 
 def get_keycloak_public_keys() -> Dict[str, Any]:
     """Fetch public keys from Keycloak server."""
+    print("Fetching public keys from Keycloak JWKS endpoint...")
     certs_url = f"{KEYCLOAK_SERVER_URL}realms/{KEYCLOAK_REALM}/protocol/openid-connect/certs"
     response = requests.get(certs_url, timeout=10)
     response.raise_for_status()
-    return response.json()
+    jwks_data = response.json()
+    print(f"Fetched {len(jwks_data.get('keys', []))} keys from JWKS.")
+    return jwks_data
 
 async def get_current_user(request: Request, token: Annotated[str, Depends(oauth2_scheme)]) -> AuthenticatedUser:
     """Extract user information from Keycloak JWT token."""
@@ -35,46 +37,83 @@ async def get_current_user(request: Request, token: Annotated[str, Depends(oauth
         headers={"WWW-Authenticate": "Bearer"},
     )
     
-    # If token is not in header, try to get it from cookie
     if not token:
         token = request.cookies.get("access_token", "")
     
     if not token:
         raise credentials_exception
         
+    # --- Start Debug Logging ---
     try:
-        # Get public keys from Keycloak
+        unverified_header = jwt.get_unverified_header(token)
+        token_kid = unverified_header.get('kid')
+        print(f"DEBUG: Token KID from header: {token_kid}")
+        # Decoding without verification for debug purposes ONLY
+        unverified_payload = jwt.decode(token, options={"verify_signature": False, "verify_aud": False, "verify_iss": False})
+        print(f"DEBUG: Token Issuer (unverified): {unverified_payload.get('iss')}")
+        print(f"DEBUG: Token Audience (unverified): {unverified_payload.get('aud')}")
+    except Exception as e:
+        print(f"DEBUG: Error decoding unverified token header/payload: {e}")
+
+    expected_issuer = f"{KEYCLOAK_SERVER_URL}realms/{KEYCLOAK_REALM}"
+    print(f"DEBUG: Expected Issuer: {expected_issuer}")
+    print(f"DEBUG: Expected Audience: {KEYCLOAK_API_CLIENT_ID}")
+    # --- End Debug Logging ---
+
+    try:
         jwks = get_keycloak_public_keys()
-        keys = jwks.get('keys', [])
+        keys_from_jwks = jwks.get('keys', []) # Renamed to avoid confusion with 'key' loop variable
         
-        # Try to decode with each key (usually there's just one, but handling multiple for robustness)
-        decoded_token = None
-        for key in keys:
-            # Convert JWK to RSA public key
-            rsa_key = RSAAlgorithm.from_jwk(key)
+        if not keys_from_jwks:
+            print("DEBUG: No keys found in JWKS response.")
+            raise credentials_exception # Or a more specific error
+
+        print(f"DEBUG: Number of keys in JWKS being tried: {len(keys_from_jwks)}")
+        for idx, key_data in enumerate(keys_from_jwks):
+            print(f"DEBUG: Trying key index {idx}, KID from JWKS: {key_data.get('kid')}")
+        # --- End Debug Logging for keys ---
+
+        decoded_token_payload = None
+        last_exception = None
+        
+        for key_data in keys_from_jwks: 
             try:
-                decoded_token = jwt.decode(
+                public_key = RSAAlgorithm.from_jwk(key_data)
+                
+                decoded_token_payload = jwt.decode(
                     token,
-                    b64decode(rsa_key),
+                    public_key,
                     algorithms=["RS256"],
                     audience=KEYCLOAK_API_CLIENT_ID,
-                    issuer=f"{KEYCLOAK_SERVER_URL}realms/{KEYCLOAK_REALM}"
+                    issuer=expected_issuer # Use the variable for consistency
                 )
+                print(f"DEBUG: Token successfully decoded with KID: {key_data.get('kid')}")
                 break
-            except Exception as e:
-                # If decoding fails, log the error and try the next key
-                print(f"Failed to decode token with key {key['kid']}: {e}")
+            except jwt.ExpiredSignatureError as e:
+                print(f"Token decoding failed: Expired signature. {e}")
+                last_exception = e
                 raise credentials_exception from e
+            except jwt.InvalidTokenError as e: # InvalidSignatureError is a subclass of InvalidTokenError
+                last_exception = e
+                print(f"Invalid token with key KID {key_data.get('kid', 'N/A')}: {e}. Trying next key.")
+                continue 
+            except Exception as e: 
+                last_exception = e
+                print(f"Unexpected error decoding token with key KID {key_data.get('kid', 'N/A')}: {e}. Trying next key.")
                 continue
                 
-        if decoded_token is None:
-            raise credentials_exception
+        if decoded_token_payload is None:
+            if last_exception:
+                print(f"DEBUG: All keys failed. Last error: {last_exception}")
+                raise credentials_exception from last_exception
+            else: 
+                print("DEBUG: Decoded token payload is None, but no exception was caught or no keys in JWKS.")
+                raise credentials_exception
             
-        # Extract user information from token
-        user_id = decoded_token.get("sub", "")
-        username = decoded_token.get("preferred_username", "")
-        email = decoded_token.get("email", None)
-        full_name = decoded_token.get("name", None)
+        user_id = decoded_token_payload.get("sub", "")
+        username = decoded_token_payload.get("preferred_username", "")
+        email = decoded_token_payload.get("email", None)
+        full_name = decoded_token_payload.get("name", None)
         
         if not user_id or not username:
             raise credentials_exception
@@ -84,10 +123,13 @@ async def get_current_user(request: Request, token: Annotated[str, Depends(oauth
             username=username,
             email=email,
             full_name=full_name,
-            disabled=False  # Keycloak handles disabled status before token issuance
+            disabled=False 
         )
         
-    except Exception as e:
+    except HTTPException as e: 
+        raise e
+    except Exception as e: 
+        print(f"General exception during token processing: {e}")
         raise credentials_exception from e
 
 async def get_current_active_user(current_user: Annotated[AuthenticatedUser, Depends(get_current_user)]) -> AuthenticatedUser:
