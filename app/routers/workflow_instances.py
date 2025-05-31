@@ -9,7 +9,7 @@ from app.utils import create_message_page
 
 router = APIRouter(prefix="/workflow-instances", tags=["workflow_instances"])
 
-@router.post("/", response_class=RedirectResponse)
+@router.post("", response_class=RedirectResponse)
 async def create_workflow_instance_handler(
         request: Request,
         definition_id: str = Form(...),

@@ -9,7 +9,9 @@ from fastapi.staticfiles import StaticFiles
 from app.templating import get_templates
 from app.routers import root, workflow_definitions, workflow_instances, tasks, auth, user_workflows, api
 
-app = FastAPI()
+app = FastAPI(
+    redirect_slashes=False,
+)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="app/templates"), name="static")

@@ -9,7 +9,7 @@ from app.utils import create_message_page
 
 router = APIRouter(prefix="/workflow-definitions", tags=["workflow_definitions"])
 
-@router.get("/", response_class=HTMLResponse)
+@router.get("", response_class=HTMLResponse)
 async def list_workflow_definitions_page(
         request: Request,
         service: WorkflowService = Depends(get_workflow_service),
