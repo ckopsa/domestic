@@ -191,11 +191,21 @@ async def test_get_current_user_no_token(monkeypatch):
     # Arrange
     monkeypatch.setattr("app.core.security.get_keycloak_public_keys", mock_get_keycloak_public_keys)
     monkeypatch.setattr("jose.jwt.decode", mock_jwt_decode)
+    from fastapi.responses import RedirectResponse
+    from starlette.datastructures import URL
     
-    # Act & Assert
-    with pytest.raises(HTTPException) as exc_info:
-        await get_current_user(MagicMock(cookies={}))
-    assert exc_info.value.status_code == 401
+    # Prepare mock request
+    mock_request = MagicMock()
+    mock_request.cookies = {}
+    mock_request.url = URL("http://testserver/some/path") # Use Starlette URL for .path attribute
+
+    # Act
+    response = await get_current_user(mock_request)
+
+    # Assert
+    assert isinstance(response, RedirectResponse)
+    assert response.status_code == 307
+    assert "/login?redirect=http://testserver/some/path" in response.headers["location"]
 
 @pytest.mark.asyncio
 async def test_get_current_active_user_disabled(monkeypatch):
@@ -229,22 +239,33 @@ async def test_get_current_active_user_active(monkeypatch):
     # Assert
     assert result == active_user
 
+@pytest.mark.asyncio
+async def test_get_current_active_user_redirect_response():
+    # Arrange
+    from fastapi.responses import RedirectResponse
+    redirect_response = RedirectResponse(url="/login")
+
+    # Act
+    result = await get_current_active_user(redirect_response)
+
+    # Assert
+    assert result == redirect_response
+
 # Test protected routes for authentication
-@pytest.mark.skip("Skipping protected route tests as they require human eyes")
 def test_protected_route_without_auth():
     # Act
-    response = client.get("/my-workflows")
+    response = client.get("/my-workflows", follow_redirects=False) # Added follow_redirects=False
     
     # Assert
-    assert response.status_code in [401, 403]
+    assert response.status_code == 307 # Check for redirect
+    assert "/login" in response.headers.get("location", "") # Check if redirected to login
 
-@pytest.mark.skip("Skipping protected route tests as they require human eyes")
 def test_protected_route_api_without_auth():
     # Act
     response = client.get("/api/my-workflows")
     
     # Assert
-    assert response.status_code in [401, 403]
+    assert response.status_code == 401 # API should return 401, not redirect
 
 # Mocking Keycloak login and callback
 @pytest.mark.asyncio
