@@ -104,5 +104,8 @@ async def list_user_workflows(
         current_user: AuthenticatedUser = Depends(get_current_active_user)
 ):
     """API endpoint to list all workflow instances for the current user."""
+    from fastapi.responses import RedirectResponse
+    if isinstance(current_user, RedirectResponse):
+        return current_user
     instances = await service.list_instances_for_user(current_user.user_id)
     return {"instances": instances}
