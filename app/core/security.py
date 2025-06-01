@@ -39,11 +39,14 @@ async def get_current_user(request: Request, token: Annotated[str | None, Depend
         token = request.cookies.get("access_token", "")
     
     if not token:
-        # Redirect to login page with the current URL as the redirect parameter
-        from fastapi.responses import RedirectResponse
-        original_url = str(request.url)
-        login_url = f"/login?redirect={original_url}"
-        return RedirectResponse(url=login_url, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
+        if request.url.path.startswith("/api"):
+            raise credentials_exception # Defined earlier, raises 401
+        else:
+            # Redirect to login page for non-API routes
+            from fastapi.responses import RedirectResponse
+            original_url = str(request.url)
+            login_url = f"/login?redirect={original_url}"
+            return RedirectResponse(url=login_url, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
         
     try:
         jwks = get_keycloak_public_keys()
@@ -105,6 +108,9 @@ async def get_current_user(request: Request, token: Annotated[str | None, Depend
 
 async def get_current_active_user(current_user: Annotated[AuthenticatedUser, Depends(get_current_user)]) -> AuthenticatedUser:
     """Check if the current user is active. Keycloak handles this before token issuance."""
+    # If current_user is a RedirectResponse, return it immediately
+    if not isinstance(current_user, AuthenticatedUser):
+        return current_user
     if current_user.disabled:
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
