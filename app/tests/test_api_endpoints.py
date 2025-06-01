@@ -42,6 +42,71 @@ async def test_list_workflow_definitions(db_session):
     assert response.status_code == 200
     assert isinstance(response.json(), list)
 
+
+@pytest.mark.asyncio
+async def test_list_workflow_definitions_with_name_filter(db_session):
+    # Arrange: Create a few workflow definitions
+    def_alpha_data = {"name": "Test Workflow Alpha", "description": "Alpha test", "task_names": ["Task A"]}
+    def_beta_data = {"name": "Another Workflow Beta", "description": "Beta test", "task_names": ["Task B"]}
+    def_gamma_data = {"name": "Test Workflow Gamma", "description": "Gamma test", "task_names": ["Task C"]}
+
+    response_alpha = client.post("/api/workflow-definitions", json=def_alpha_data)
+    assert response_alpha.status_code == 201
+    id_alpha = response_alpha.json()["id"]
+
+    response_beta = client.post("/api/workflow-definitions", json=def_beta_data)
+    assert response_beta.status_code == 201
+    # id_beta = response_beta.json()["id"] # Not strictly needed for this test's assertions
+
+    response_gamma = client.post("/api/workflow-definitions", json=def_gamma_data)
+    assert response_gamma.status_code == 201
+    id_gamma = response_gamma.json()["id"]
+
+    # Act: Filter by name "Test Workflow"
+    response_filter = client.get("/api/workflow-definitions?name=Test%20Workflow")
+
+    # Assert: Check filtered results
+    assert response_filter.status_code == 200
+    filtered_defs = response_filter.json()
+    assert isinstance(filtered_defs, list)
+    assert len(filtered_defs) == 2
+
+    # Check that the correct definitions are present (case-insensitive)
+    returned_ids = {d["id"] for d in filtered_defs}
+    assert id_alpha in returned_ids
+    assert id_gamma in returned_ids
+
+    # Ensure names match, allowing for case variation in the filter term (though API is case-insensitive)
+    for d in filtered_defs:
+        assert "test workflow" in d["name"].lower()
+        assert "another workflow beta" not in d["name"].lower()
+
+
+    # Act: Filter by a name that should not match anything
+    response_no_match = client.get("/api/workflow-definitions?name=NonExistentName")
+
+    # Assert: Check for no matches
+    assert response_no_match.status_code == 200
+    assert response_no_match.json() == []
+
+    # Act: Get all definitions (no filter)
+    response_all = client.get("/api/workflow-definitions")
+
+    # Assert: Check for all definitions
+    assert response_all.status_code == 200
+    all_defs = response_all.json()
+    assert isinstance(all_defs, list)
+    # Depending on whether other tests run in parallel and create definitions,
+    # we should ensure at least our 3 are present.
+    # For a cleaner test, ideally, we'd clear the DB or ensure unique names not used elsewhere.
+    # For now, we'll check that the count is at least 3 and our specific ones are present.
+    assert len(all_defs) >= 3
+    all_returned_ids = {d["id"] for d in all_defs}
+    assert id_alpha in all_returned_ids
+    assert response_beta.json()["id"] in all_returned_ids # Get id_beta here
+    assert id_gamma in all_returned_ids
+
+
 @pytest.mark.asyncio
 async def test_create_workflow_definition(db_session):
     # Arrange

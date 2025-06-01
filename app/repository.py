@@ -15,7 +15,7 @@ _task_instances_db: Dict[str, TaskInstance] = {}
 
 class WorkflowDefinitionRepository(ABC):
     @abstractmethod
-    async def list_workflow_definitions(self) -> List[WorkflowDefinition]:
+    async def list_workflow_definitions(self, name: Optional[str] = None) -> List[WorkflowDefinition]:
         pass
 
     @abstractmethod
@@ -96,8 +96,11 @@ class PostgreSQLWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanc
         instance = self.db_session.query(WorkflowInstanceORM).filter(WorkflowInstanceORM.id == instance_id).first()
         return WorkflowInstance.model_validate(instance, from_attributes=True) if instance else None
 
-    async def list_workflow_definitions(self) -> List[WorkflowDefinition]:
-        definitions = self.db_session.query(WorkflowDefinitionORM).all()
+    async def list_workflow_definitions(self, name: Optional[str] = None) -> List[WorkflowDefinition]:
+        query = self.db_session.query(WorkflowDefinitionORM)
+        if name:
+            query = query.filter(WorkflowDefinitionORM.name.ilike(f"%{name}%"))
+        definitions = query.all()
         return [WorkflowDefinition.model_validate(defn, from_attributes=True) for defn in definitions]
 
     async def get_workflow_definition_by_id(self, definition_id: str) -> Optional[WorkflowDefinition]:
@@ -204,8 +207,11 @@ class InMemoryWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanceR
         instance = _workflow_instances_db.get(instance_id)
         return instance.model_copy(deep=True) if instance else None
 
-    async def list_workflow_definitions(self) -> List[WorkflowDefinition]:
-        return [defn.model_copy(deep=True) for defn in _workflow_definitions_db.values()]
+    async def list_workflow_definitions(self, name: Optional[str] = None) -> List[WorkflowDefinition]:
+        definitions = [defn.model_copy(deep=True) for defn in _workflow_definitions_db.values()]
+        if name:
+            definitions = [defn for defn in definitions if name.lower() in defn.name.lower()]
+        return definitions
 
     async def get_workflow_definition_by_id(self, definition_id: str) -> Optional[WorkflowDefinition]:
         defn = _workflow_definitions_db.get(definition_id)
