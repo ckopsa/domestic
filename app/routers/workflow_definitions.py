@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, Form, Depends
+from fastapi import APIRouter, Request, Form, Depends, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi import status
 from app.services import WorkflowService
@@ -12,14 +12,15 @@ router = APIRouter(prefix="/workflow-definitions", tags=["workflow_definitions"]
 @router.get("", response_class=HTMLResponse)
 async def list_workflow_definitions_page(
         request: Request,
+        name: Optional[str] = Query(None),
         service: WorkflowService = Depends(get_workflow_service),
         renderer: HtmlRendererInterface = Depends(get_html_renderer)
 ):
-    definitions = await service.list_workflow_definitions()
+    definitions = await service.list_workflow_definitions(name=name)
     return await renderer.render(
         "workflow_definitions.html",
         request,
-        {"definitions": definitions}
+        {"definitions": definitions, "current_filter_name": name}
     )
 
 @router.get("/create", response_class=HTMLResponse)
