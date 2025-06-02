@@ -3,14 +3,20 @@ import sys
 import os
 import json
 from fastapi.testclient import TestClient
+from unittest.mock import AsyncMock, MagicMock, ANY
+from datetime import date
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 from app.db_models import Base
 from app.main import app
-from app.database import get_db, engine
+from app.database import get_db, engine # get_db might not be directly used by these new tests
+from app.dependencies import get_workflow_service, get_html_renderer # For overriding
+from app.services import WorkflowService # For spec
+from app.core.html_renderer import HtmlRendererInterface # For spec
 from app.core.security import AuthenticatedUser, get_current_active_user
+from app.db_models.enums import WorkflowStatus # For test cases
 
-# Test client
-client = TestClient(app)
+# Test client - can be initialized per test or per module if state is managed
+# client = TestClient(app) # Will re-initialize client in fixture for overrides
 
 # Mock user for authentication
 mock_user = AuthenticatedUser(user_id="test_user", username="testuser", email="test@example.com")
@@ -346,3 +352,208 @@ async def test_list_user_workflows(db_session):
     # Assert
     assert response.status_code == 200
     assert len(response.json()["instances"]) == 1
+
+
+# --- Tests for /my-workflows HTML Endpoint ---
+
+@pytest.fixture
+def mock_dependencies_for_my_workflows(monkeypatch):
+    # Create fresh mocks for each test run using this fixture
+    mock_service = MagicMock(spec=WorkflowService)
+    mock_service.list_instances_for_user = AsyncMock(return_value=[]) # Default empty list
+
+    mock_renderer_instance = MagicMock(spec=HtmlRendererInterface)
+    mock_renderer_instance.render = AsyncMock(return_value="Mocked HTML") # Default render response
+    
+    # Store mocks to access them in tests if needed (e.g. via request.app.state or by returning them)
+    # For simplicity here, we'll rely on them being the ones used by the overridden dependencies.
+    # If we needed to access the mocks directly from the test function, this fixture would return them.
+
+    # Apply overrides using monkeypatch for the app's dependency_overrides
+    # This is cleaner than globally modifying app.dependency_overrides for specific tests.
+    monkeypatch.setitem(app.dependency_overrides, get_workflow_service, lambda: mock_service)
+    monkeypatch.setitem(app.dependency_overrides, get_html_renderer, lambda: mock_renderer_instance)
+    
+    # Yield the mocks if tests need to directly inspect them, e.g., for call counts after request
+    yield mock_service, mock_renderer_instance
+    
+    # Clean up overrides after the test
+    monkeypatch.delitem(app.dependency_overrides, get_workflow_service, raising=False)
+    monkeypatch.delitem(app.dependency_overrides, get_html_renderer, raising=False)
+
+
+@pytest.mark.asyncio
+async def test_my_workflows_no_query_parameters(mock_dependencies_for_my_workflows):
+    client = TestClient(app) # Fresh client to ensure overrides are clean if not using monkeypatch correctly
+    mock_service, mock_renderer = mock_dependencies_for_my_workflows
+
+    response = client.get("/my-workflows")
+    assert response.status_code == 200
+
+    mock_service.list_instances_for_user.assert_called_once_with(
+        user_id=mock_user.user_id, # from global mock_user via override_get_current_active_user
+        created_at_date=date.today(),
+        status=WorkflowStatus.active
+    )
+    mock_renderer.render.assert_called_once_with(
+        "my_workflows.html",
+        ANY, # request object
+        {
+            "instances": [], # Default return from mock_service.list_instances_for_user
+            "selected_created_at": date.today().isoformat(),
+            "selected_status": "active",
+            "workflow_statuses": [s.value for s in WorkflowStatus]
+        }
+    )
+
+@pytest.mark.asyncio
+async def test_my_workflows_with_created_at(mock_dependencies_for_my_workflows):
+    client = TestClient(app)
+    mock_service, mock_renderer = mock_dependencies_for_my_workflows
+    
+    test_date_str = "2023-01-15"
+    test_date_obj = date(2023, 1, 15)
+
+    response = client.get(f"/my-workflows?created_at={test_date_str}")
+    assert response.status_code == 200
+
+    mock_service.list_instances_for_user.assert_called_once_with(
+        user_id=mock_user.user_id,
+        created_at_date=test_date_obj,
+        status=WorkflowStatus.active
+    )
+    mock_renderer.render.assert_called_once_with(
+        "my_workflows.html",
+        ANY,
+        {
+            "instances": [],
+            "selected_created_at": test_date_str,
+            "selected_status": "active",
+            "workflow_statuses": [s.value for s in WorkflowStatus]
+        }
+    )
+
+@pytest.mark.asyncio
+async def test_my_workflows_with_status(mock_dependencies_for_my_workflows):
+    client = TestClient(app)
+    mock_service, mock_renderer = mock_dependencies_for_my_workflows
+
+    response = client.get("/my-workflows?status=completed")
+    assert response.status_code == 200
+
+    mock_service.list_instances_for_user.assert_called_once_with(
+        user_id=mock_user.user_id,
+        created_at_date=date.today(),
+        status=WorkflowStatus.completed
+    )
+    mock_renderer.render.assert_called_once_with(
+        "my_workflows.html",
+        ANY,
+        {
+            "instances": [],
+            "selected_created_at": date.today().isoformat(),
+            "selected_status": "completed",
+            "workflow_statuses": [s.value for s in WorkflowStatus]
+        }
+    )
+
+@pytest.mark.asyncio
+async def test_my_workflows_with_all_statuses(mock_dependencies_for_my_workflows):
+    client = TestClient(app)
+    mock_service, mock_renderer = mock_dependencies_for_my_workflows
+
+    response = client.get("/my-workflows?status=") # Empty status for "All Statuses"
+    assert response.status_code == 200
+
+    mock_service.list_instances_for_user.assert_called_once_with(
+        user_id=mock_user.user_id,
+        created_at_date=date.today(),
+        status=None # Service receives None for "All Statuses"
+    )
+    mock_renderer.render.assert_called_once_with(
+        "my_workflows.html",
+        ANY,
+        {
+            "instances": [],
+            "selected_created_at": date.today().isoformat(),
+            "selected_status": "", # Template receives empty string
+            "workflow_statuses": [s.value for s in WorkflowStatus]
+        }
+    )
+
+@pytest.mark.asyncio
+async def test_my_workflows_with_created_at_and_status(mock_dependencies_for_my_workflows):
+    client = TestClient(app)
+    mock_service, mock_renderer = mock_dependencies_for_my_workflows
+
+    test_date_str = "2023-02-20"
+    test_date_obj = date(2023, 2, 20)
+
+    response = client.get(f"/my-workflows?created_at={test_date_str}&status=pending")
+    assert response.status_code == 200
+
+    mock_service.list_instances_for_user.assert_called_once_with(
+        user_id=mock_user.user_id,
+        created_at_date=test_date_obj,
+        status=WorkflowStatus.pending
+    )
+    mock_renderer.render.assert_called_once_with(
+        "my_workflows.html",
+        ANY,
+        {
+            "instances": [],
+            "selected_created_at": test_date_str,
+            "selected_status": "pending",
+            "workflow_statuses": [s.value for s in WorkflowStatus]
+        }
+    )
+
+@pytest.mark.asyncio
+async def test_my_workflows_invalid_created_at(mock_dependencies_for_my_workflows):
+    client = TestClient(app)
+    mock_service, mock_renderer = mock_dependencies_for_my_workflows
+
+    response = client.get("/my-workflows?created_at=invalid-date")
+    assert response.status_code == 200
+
+    # Defaults to today's date
+    mock_service.list_instances_for_user.assert_called_once_with(
+        user_id=mock_user.user_id,
+        created_at_date=date.today(),
+        status=WorkflowStatus.active
+    )
+    mock_renderer.render.assert_called_once_with(
+        "my_workflows.html",
+        ANY,
+        {
+            "instances": [],
+            "selected_created_at": date.today().isoformat(),
+            "selected_status": "active",
+            "workflow_statuses": [s.value for s in WorkflowStatus]
+        }
+    )
+
+@pytest.mark.asyncio
+async def test_my_workflows_invalid_status(mock_dependencies_for_my_workflows):
+    client = TestClient(app)
+    mock_service, mock_renderer = mock_dependencies_for_my_workflows
+
+    response = client.get("/my-workflows?status=invalidstatus")
+    assert response.status_code == 200
+
+    # Defaults to active status
+    mock_service.list_instances_for_user.assert_called_once_with(
+        user_id=mock_user.user_id,
+        created_at_date=date.today(),
+        status=WorkflowStatus.active # Default for invalid status string
+    )
+    mock_renderer.render.assert_called_once_with(
+        "my_workflows.html",
+        ANY,
+        {
+            "instances": [],
+            "selected_created_at": date.today().isoformat(),
+            "selected_status": "active", # Reflects the default used
+            "workflow_statuses": [s.value for s in WorkflowStatus]
+        }
+    )

@@ -446,6 +446,88 @@ async def test_list_instances_for_user(workflow_service, mock_repositories):
     assert len(result) == 2
     assert result[0].user_id == "test_user"
     assert result[1].user_id == "test_user"
+    # Verify the call to the repository method, specifically that default Nones are passed
+    instance_repo.list_workflow_instances_by_user.assert_called_once_with(
+        user_id="test_user",
+        created_at_date=None,
+        status=None
+    )
+
+
+# Tests for list_instances_for_user with filters
+from datetime import date as DateObject
+
+@pytest.mark.asyncio
+async def test_list_instances_for_user_passthrough_no_filters(workflow_service, mock_repositories):
+    _, instance_repo, _ = mock_repositories
+    expected_result = [MagicMock(spec=WorkflowInstance)]
+    instance_repo.list_workflow_instances_by_user = AsyncMock(return_value=expected_result)
+
+    user_id = "test_user_no_filters"
+    result = await workflow_service.list_instances_for_user(user_id=user_id)
+
+    instance_repo.list_workflow_instances_by_user.assert_called_once_with(
+        user_id=user_id,
+        created_at_date=None,
+        status=None
+    )
+    assert result == expected_result
+
+@pytest.mark.asyncio
+async def test_list_instances_for_user_passthrough_with_date(workflow_service, mock_repositories):
+    _, instance_repo, _ = mock_repositories
+    expected_result = [MagicMock(spec=WorkflowInstance)]
+    instance_repo.list_workflow_instances_by_user = AsyncMock(return_value=expected_result)
+
+    user_id = "test_user_date_filter"
+    test_date = DateObject(2023, 1, 15)
+    result = await workflow_service.list_instances_for_user(user_id=user_id, created_at_date=test_date)
+
+    instance_repo.list_workflow_instances_by_user.assert_called_once_with(
+        user_id=user_id,
+        created_at_date=test_date,
+        status=None
+    )
+    assert result == expected_result
+
+@pytest.mark.asyncio
+async def test_list_instances_for_user_passthrough_with_status(workflow_service, mock_repositories):
+    _, instance_repo, _ = mock_repositories
+    expected_result = [MagicMock(spec=WorkflowInstance)]
+    instance_repo.list_workflow_instances_by_user = AsyncMock(return_value=expected_result)
+
+    user_id = "test_user_status_filter"
+    test_status = WorkflowStatus.pending
+    result = await workflow_service.list_instances_for_user(user_id=user_id, status=test_status)
+
+    instance_repo.list_workflow_instances_by_user.assert_called_once_with(
+        user_id=user_id,
+        created_at_date=None,
+        status=test_status
+    )
+    assert result == expected_result
+
+@pytest.mark.asyncio
+async def test_list_instances_for_user_passthrough_with_all_filters(workflow_service, mock_repositories):
+    _, instance_repo, _ = mock_repositories
+    expected_result = [MagicMock(spec=WorkflowInstance)]
+    instance_repo.list_workflow_instances_by_user = AsyncMock(return_value=expected_result)
+
+    user_id = "test_user_all_filters"
+    test_date = DateObject(2023, 3, 20)
+    test_status = WorkflowStatus.completed
+    result = await workflow_service.list_instances_for_user(
+        user_id=user_id,
+        created_at_date=test_date,
+        status=test_status
+    )
+
+    instance_repo.list_workflow_instances_by_user.assert_called_once_with(
+        user_id=user_id,
+        created_at_date=test_date,
+        status=test_status
+    )
+    assert result == expected_result
 
 
 USER_ID = "test_user_123"
