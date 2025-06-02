@@ -7,6 +7,11 @@ from app.core.security import AuthenticatedUser, get_current_active_user
 
 router = APIRouter(prefix="/api", tags=["api"])
 
+@router.get("/healthz", status_code=status.HTTP_200_OK)
+async def healthcheck():
+    """API endpoint for health check."""
+    return {"status": "ok"}
+
 @router.get("/workflow-definitions", response_model=List[WorkflowDefinition])
 async def list_workflow_definitions(
         service: WorkflowService = Depends(get_workflow_service)

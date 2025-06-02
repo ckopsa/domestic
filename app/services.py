@@ -132,11 +132,11 @@ class WorkflowService:
             # For now, returning None as per subtask description ("return None")
             return None
         
-        if instance.status == WorkflowStatus.ARCHIVED:
+        if instance.status == WorkflowStatus.archived:
             # Already archived, return the instance as is
             return instance
 
-        instance.status = WorkflowStatus.ARCHIVED
+        instance.status = WorkflowStatus.archived
         updated_instance = await self.instance_repo.update_workflow_instance(instance.id, instance)
         return updated_instance
 

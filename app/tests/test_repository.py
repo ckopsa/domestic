@@ -11,6 +11,7 @@ from app.db_models import Base
 from app.repository import PostgreSQLWorkflowRepository, DefinitionNotFoundError, DefinitionInUseError
 from app.models import WorkflowDefinition, TaskInstance, WorkflowInstance
 from app.db_models.enums import WorkflowStatus, TaskStatus
+from app.db_models import WorkflowInstance as WorkflowInstanceORM
 
 import unittest
 from unittest.mock import MagicMock, call, PropertyMock
