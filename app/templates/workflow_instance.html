@@ -18,6 +18,10 @@
                             <form action="/task-instances/{{ task.id }}/complete" method="post" style="display:inline; margin-left:10px;">
                                 <button type="submit" class="action-button submit">Mark Complete</button>
                             </form>
+                        {% elif task.status == "completed" %}
+                            <form action="/task-instances/{{ task.id }}/undo-complete" method="post" style="display:inline; margin-left:10px;">
+                                <button type="submit" class="button is-info is-small">Undo Complete</button>
+                            </form>
                         {% endif %}
                     </li>
                 {% endfor %}
