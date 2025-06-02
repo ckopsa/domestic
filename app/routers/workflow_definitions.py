@@ -1,14 +1,17 @@
 from typing import Optional
+
 from fastapi import APIRouter, Request, Form, Depends, Query
-from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi import status
-from app.services import WorkflowService
+from fastapi.responses import HTMLResponse, RedirectResponse
+
 from app.core.html_renderer import HtmlRendererInterface
 from app.core.security import AuthenticatedUser, get_current_active_user
 from app.dependencies import get_workflow_service, get_html_renderer
+from app.services import WorkflowService
 from app.utils import create_message_page
 
 router = APIRouter(prefix="/workflow-definitions", tags=["workflow_definitions"])
+
 
 @router.get("", response_class=HTMLResponse)
 async def list_workflow_definitions_page(
@@ -24,6 +27,7 @@ async def list_workflow_definitions_page(
         {"definitions": definitions, "current_filter_name": name}
     )
 
+
 @router.get("/create", response_class=HTMLResponse)
 async def create_workflow_definition_page(
         request: Request,
@@ -35,15 +39,16 @@ async def create_workflow_definition_page(
         return current_user
     return await renderer.render("create_workflow_definition.html", request, {})
 
+
 @router.post("/create", response_class=RedirectResponse)
 async def create_workflow_definition_handler(
-    request: Request,
-    name: str = Form(...),
-    description: str = Form(default=""),
-    task_names_str: str = Form(...),
-    service: WorkflowService = Depends(get_workflow_service),
-    current_user: AuthenticatedUser = Depends(get_current_active_user),
-    renderer: HtmlRendererInterface = Depends(get_html_renderer)
+        request: Request,
+        name: str = Form(...),
+        description: str = Form(default=""),
+        task_names_str: str = Form(...),
+        service: WorkflowService = Depends(get_workflow_service),
+        current_user: AuthenticatedUser = Depends(get_current_active_user),
+        renderer: HtmlRendererInterface = Depends(get_html_renderer)
 ):
     """Handles the submission of a new workflow definition."""
     if isinstance(current_user, RedirectResponse):
@@ -55,21 +60,23 @@ async def create_workflow_definition_handler(
     except ValueError as e:
         return await create_message_page(
             request,
-            "Creation Failed", 
-            "Error", 
+            "Creation Failed",
+            "Error",
             str(e),
-            [("← Back to Create Template", "/workflow-definitions/create"), ("← Back to Definitions", "/workflow-definitions")],
+            [("← Back to Create Template", "/workflow-definitions/create"),
+             ("← Back to Definitions", "/workflow-definitions")],
             status_code=400,
             renderer=renderer
         )
 
+
 @router.get("/edit/{definition_id}", response_class=HTMLResponse)
 async def edit_workflow_definition_page(
-    request: Request, 
-    definition_id: str, 
-    service: WorkflowService = Depends(get_workflow_service),
-    current_user: AuthenticatedUser = Depends(get_current_active_user),
-    renderer: HtmlRendererInterface = Depends(get_html_renderer)
+        request: Request,
+        definition_id: str,
+        service: WorkflowService = Depends(get_workflow_service),
+        current_user: AuthenticatedUser = Depends(get_current_active_user),
+        renderer: HtmlRendererInterface = Depends(get_html_renderer)
 ):
     """Serves a page for editing an existing workflow definition."""
     if isinstance(current_user, RedirectResponse):
@@ -78,38 +85,40 @@ async def edit_workflow_definition_page(
     if not definition:
         return await create_message_page(
             request,
-            "Not Found", 
-            "Error 404", 
+            "Not Found",
+            "Error 404",
             f"Workflow Definition with ID '{definition_id}' not found.",
             [("← Back to Definitions", "/workflow-definitions")],
             status_code=404,
             renderer=renderer
         )
-    
+
     return await renderer.render("edit_workflow_definition.html", request, {"definition": definition})
+
 
 @router.post("/edit/{definition_id}", response_class=RedirectResponse)
 async def edit_workflow_definition_handler(
-    request: Request,
-    definition_id: str,
-    name: str = Form(...),
-    description: str = Form(default=""),
-    task_names_str: str = Form(...),
-    service: WorkflowService = Depends(get_workflow_service),
-    current_user: AuthenticatedUser = Depends(get_current_active_user),
-    renderer: HtmlRendererInterface = Depends(get_html_renderer)
+        request: Request,
+        definition_id: str,
+        name: str = Form(...),
+        description: str = Form(default=""),
+        task_names_str: str = Form(...),
+        service: WorkflowService = Depends(get_workflow_service),
+        current_user: AuthenticatedUser = Depends(get_current_active_user),
+        renderer: HtmlRendererInterface = Depends(get_html_renderer)
 ):
     """Handles the submission of updates to an existing workflow definition."""
     if isinstance(current_user, RedirectResponse):
         return current_user
     try:
         task_names = [task.strip() for task in task_names_str.split('\n') if task.strip()]
-        updated_definition = await service.update_definition(definition_id=definition_id, name=name, description=description, task_names=task_names)
+        updated_definition = await service.update_definition(definition_id=definition_id, name=name,
+                                                             description=description, task_names=task_names)
         if not updated_definition:
             return await create_message_page(
                 request,
-                "Update Failed", 
-                "Error 404", 
+                "Update Failed",
+                "Error 404",
                 f"Workflow Definition with ID '{definition_id}' not found.",
                 [("← Back to Definitions", "/workflow-definitions")],
                 status_code=404,
@@ -119,21 +128,23 @@ async def edit_workflow_definition_handler(
     except ValueError as e:
         return await create_message_page(
             request,
-            "Update Failed", 
-            "Error", 
+            "Update Failed",
+            "Error",
             str(e),
-            [("← Back to Edit Template", f"/workflow-definitions/edit/{definition_id}"), ("← Back to Definitions", "/workflow-definitions")],
+            [("← Back to Edit Template", f"/workflow-definitions/edit/{definition_id}"),
+             ("← Back to Definitions", "/workflow-definitions")],
             status_code=400,
             renderer=renderer
         )
 
+
 @router.get("/confirm-delete-workflow-definition/{definition_id}", response_class=HTMLResponse)
 async def confirm_delete_workflow_definition_page(
-    request: Request, 
-    definition_id: str, 
-    service: WorkflowService = Depends(get_workflow_service),
-    current_user: AuthenticatedUser = Depends(get_current_active_user),
-    renderer: HtmlRendererInterface = Depends(get_html_renderer)
+        request: Request,
+        definition_id: str,
+        service: WorkflowService = Depends(get_workflow_service),
+        current_user: AuthenticatedUser = Depends(get_current_active_user),
+        renderer: HtmlRendererInterface = Depends(get_html_renderer)
 ):
     """Serves a confirmation page for deleting a workflow definition."""
     if isinstance(current_user, RedirectResponse):
@@ -142,23 +153,24 @@ async def confirm_delete_workflow_definition_page(
     if not definition:
         return await create_message_page(
             request,
-            "Not Found", 
-            "Error 404", 
+            "Not Found",
+            "Error 404",
             f"Workflow Definition with ID '{definition_id}' not found.",
             [("← Back to Definitions", "/workflow-definitions")],
             status_code=404,
             renderer=renderer
         )
-    
+
     return await renderer.render("confirm_delete_workflow_definition.html", request, {"definition": definition})
+
 
 @router.post("/delete-workflow-definition/{definition_id}", response_class=RedirectResponse)
 async def delete_workflow_definition_handler(
-    request: Request,
-    definition_id: str,
-    service: WorkflowService = Depends(get_workflow_service),
-    current_user: AuthenticatedUser = Depends(get_current_active_user),
-    renderer: HtmlRendererInterface = Depends(get_html_renderer)
+        request: Request,
+        definition_id: str,
+        service: WorkflowService = Depends(get_workflow_service),
+        current_user: AuthenticatedUser = Depends(get_current_active_user),
+        renderer: HtmlRendererInterface = Depends(get_html_renderer)
 ):
     """Handles the deletion of a workflow definition."""
     if isinstance(current_user, RedirectResponse):
@@ -173,8 +185,8 @@ async def delete_workflow_definition_handler(
             status_code = 404
         return await create_message_page(
             request,
-            "Deletion Failed", 
-            "Error" + ( " 404" if status_code == 404 else "" ),
+            "Deletion Failed",
+            "Error" + (" 404" if status_code == 404 else ""),
             error_message,
             [("← Back to Definitions", "/workflow-definitions")],
             status_code=status_code,

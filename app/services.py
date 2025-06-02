@@ -1,12 +1,14 @@
 # services.py
+from datetime import date as DateObject
 from typing import List, Optional, Dict, Any
 
-from app.models import WorkflowDefinition, WorkflowInstance, TaskInstance
+from app.models import WorkflowDefinition, WorkflowInstance, TaskInstance, TaskStatus, WorkflowStatus
 from app.repository import WorkflowDefinitionRepository, WorkflowInstanceRepository, TaskInstanceRepository
 
 
 class WorkflowService:
-    def __init__(self, definition_repo: WorkflowDefinitionRepository, instance_repo: WorkflowInstanceRepository, task_repo: TaskInstanceRepository):
+    def __init__(self, definition_repo: WorkflowDefinitionRepository, instance_repo: WorkflowInstanceRepository,
+                 task_repo: TaskInstanceRepository):
         self.definition_repo = definition_repo
         self.instance_repo = instance_repo
         self.task_repo = task_repo
@@ -65,15 +67,18 @@ class WorkflowService:
                     await self.instance_repo.update_workflow_instance(workflow_instance.id, workflow_instance)
         return updated_task
 
-    async def list_instances_for_user(self, user_id: str) -> List[WorkflowInstance]:
-        return await self.instance_repo.list_workflow_instances_by_user(user_id)
+    async def list_instances_for_user(self, user_id: str, created_at_date: Optional[DateObject] = None,
+                                      status: Optional[WorkflowStatus] = None) -> List[WorkflowInstance]:
+        return await self.instance_repo.list_workflow_instances_by_user(user_id, created_at_date=created_at_date,
+                                                                        status=status)
 
-    async def create_new_definition(self, name: str, description: Optional[str], task_names: List[str]) -> WorkflowDefinition:
+    async def create_new_definition(self, name: str, description: Optional[str],
+                                    task_names: List[str]) -> WorkflowDefinition:
         if not name.strip():
             raise ValueError("Definition name cannot be empty.")
         if not task_names:
             raise ValueError("A definition must have at least one task name.")
-        
+
         definition = WorkflowDefinition(
             name=name,
             description=description,
@@ -81,12 +86,13 @@ class WorkflowService:
         )
         return await self.definition_repo.create_workflow_definition(definition)
 
-    async def update_definition(self, definition_id: str, name: str, description: Optional[str], task_names: List[str]) -> Optional[WorkflowDefinition]:
+    async def update_definition(self, definition_id: str, name: str, description: Optional[str],
+                                task_names: List[str]) -> Optional[WorkflowDefinition]:
         if not name.strip():
             raise ValueError("Definition name cannot be empty.")
         if not task_names:
             raise ValueError("A definition must have at least one task name.")
-        
+
         return await self.definition_repo.update_workflow_definition(definition_id, name, description, task_names)
 
     async def delete_definition(self, definition_id: str) -> None:
@@ -97,3 +103,61 @@ class WorkflowService:
             raise ValueError(str(e)) from e
         except DefinitionInUseError as e:
             raise ValueError(str(e)) from e
+
+    async def undo_complete_task(self, task_id: str, user_id: str) -> Optional[TaskInstance]:
+        task = await self.task_repo.get_task_instance_by_id(task_id)
+        if not task or task.status != TaskStatus.completed:
+            return None
+
+        workflow_instance = await self.instance_repo.get_workflow_instance_by_id(task.workflow_instance_id)
+        if not workflow_instance or workflow_instance.user_id != user_id:
+            return None
+
+        task.status = TaskStatus.pending
+        updated_task = await self.task_repo.update_task_instance(task_id, task)
+
+        if updated_task and workflow_instance.status == WorkflowStatus.completed:
+            workflow_instance.status = WorkflowStatus.active
+            await self.instance_repo.update_workflow_instance(workflow_instance.id, workflow_instance)
+
+        return updated_task
+
+    async def archive_workflow_instance(self, instance_id: str, user_id: str) -> Optional[WorkflowInstance]:
+        instance = await self.instance_repo.get_workflow_instance_by_id(instance_id)
+
+        if not instance:
+            return None  # Or raise InstanceNotFoundError
+
+        if instance.user_id != user_id:
+            # Consider raising an authorization error or just returning None
+            return None
+
+        if instance.status == WorkflowStatus.completed:
+            # Cannot archive a completed instance, return None or raise error
+            # For now, returning None as per subtask description ("return None")
+            return None
+
+        if instance.status == WorkflowStatus.archived:
+            # Already archived, return the instance as is
+            return instance
+
+        instance.status = WorkflowStatus.archived
+        updated_instance = await self.instance_repo.update_workflow_instance(instance.id, instance)
+        return updated_instance
+
+    async def unarchive_workflow_instance(self, instance_id: str, user_id: str) -> Optional[WorkflowInstance]:
+        instance = await self.instance_repo.get_workflow_instance_by_id(instance_id)
+
+        if not instance:
+            return None  # Instance not found
+
+        if instance.user_id != user_id:
+            return None  # User does not own this instance
+
+        if instance.status != WorkflowStatus.archived:
+            # Can only unarchive instances that are currently archived
+            return None
+
+        instance.status = WorkflowStatus.active  # Set status to active
+        updated_instance = await self.instance_repo.update_workflow_instance(instance.id, instance)
+        return updated_instance

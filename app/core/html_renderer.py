@@ -1,12 +1,15 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Any
-from fastapi.templating import Jinja2Templates
+
 from fastapi.requests import Request
+from fastapi.templating import Jinja2Templates
+
 
 class HtmlRendererInterface(ABC):
     @abstractmethod
     async def render(self, template_name: str, request: Request, context: Dict[str, Any]) -> str:
         pass
+
 
 class Jinja2HtmlRenderer(HtmlRendererInterface):
     def __init__(self, templates: Jinja2Templates):

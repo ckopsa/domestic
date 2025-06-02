@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from app.db_models.enums import WorkflowStatus, TaskStatus
 
+
 class WorkflowDefinition(BaseModel):
     id: str = Field(default_factory=lambda: "def_" + str(uuid.uuid4())[:8])
     name: str
@@ -22,6 +23,7 @@ class WorkflowDefinition(BaseModel):
     @classmethod
     def from_dict(cls, data: dict):
         return cls(**data)
+
 
 class TaskInstance(BaseModel):
     id: str = Field(default_factory=lambda: "task_" + str(uuid.uuid4())[:8])
@@ -39,6 +41,7 @@ class TaskInstance(BaseModel):
     @classmethod
     def from_dict(cls, data: dict):
         return cls(**data)
+
 
 class WorkflowInstance(BaseModel):
     id: str = Field(default_factory=lambda: "wf_" + str(uuid.uuid4())[:8])

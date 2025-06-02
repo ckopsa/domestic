@@ -1,20 +1,21 @@
-import pytest
-import sys
 import os
+import sys
 from datetime import date as DateObject
+
+import pytest
 
 # Add the project root to sys.path to ensure 'app' module can be found
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 from app.db_models import Base
 from app.repository import PostgreSQLWorkflowRepository, DefinitionNotFoundError, DefinitionInUseError
 from app.models import WorkflowDefinition, TaskInstance, WorkflowInstance
 from app.db_models.enums import WorkflowStatus, TaskStatus
+from app.db_models import WorkflowInstance as WorkflowInstanceORM
 
+from unittest.mock import MagicMock
 # Setup for PostgreSQL database for testing
 # Use environment variables or a test-specific configuration for the database connection
-import os
+from datetime import datetime  # Added for mock ORM objects
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from app.config import DB_USER, DB_PASS, DB_HOST, DB_PORT, DB_NAME
@@ -41,6 +42,7 @@ SQLALCHEMY_DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}
 engine = create_engine(SQLALCHEMY_DATABASE_URL, echo=True)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+
 @pytest.fixture(scope="function")
 def db_session():
     # Create the test database tables
@@ -51,6 +53,7 @@ def db_session():
     session.close()
     # Optionally drop tables after tests if needed, though this can be slow
     Base.metadata.drop_all(bind=engine)
+
 
 @pytest.mark.asyncio
 async def test_list_workflow_definitions(db_session):
@@ -83,6 +86,7 @@ async def test_list_workflow_definitions(db_session):
     assert result[0].task_names == ["Task 1", "Task 2"]
     assert result[1].task_names == ["Task 3", "Task 4"]
 
+
 @pytest.mark.asyncio
 async def test_get_workflow_definition_by_id(db_session):
     # Arrange
@@ -107,6 +111,7 @@ async def test_get_workflow_definition_by_id(db_session):
     assert result.description == "A test workflow definition"
     assert result.task_names == ["Task 1", "Task 2"]
 
+
 @pytest.mark.asyncio
 async def test_get_workflow_definition_by_id_not_found(db_session):
     # Arrange
@@ -117,6 +122,211 @@ async def test_get_workflow_definition_by_id_not_found(db_session):
 
     # Assert
     assert result is None
+
+
+# Unit tests for PostgreSQLWorkflowRepository.list_workflow_instances_by_user
+# These tests will mock the db_session and verify query construction
+class TestUnitPostgreSQLListWorkflowInstancesByUser:
+
+    @pytest.mark.asyncio
+    async def test_list_without_filters(self):
+        mock_db_session = MagicMock()
+        mock_query_chain = MagicMock()
+
+        # Configure the chain of mocks
+        mock_db_session.query.return_value = mock_query_chain
+        mock_query_chain.filter.return_value = mock_query_chain
+        mock_query_chain.order_by.return_value = mock_query_chain
+
+        # Mock ORM instance data
+        mock_orm_instance = WorkflowInstanceORM(
+            id="wf1",
+            user_id="user123",
+            name="Test Workflow Instance",
+            status=WorkflowStatus.active,
+            created_at=datetime(2023, 1, 1, 12, 0, 0),
+            workflow_definition_id="def1"
+        )
+        mock_query_chain.all.return_value = [mock_orm_instance]
+
+        repo = PostgreSQLWorkflowRepository(db_session=mock_db_session)
+        results = await repo.list_workflow_instances_by_user(user_id="user123")
+
+        # Assertions
+        mock_db_session.query.assert_called_once_with(WorkflowInstanceORM)
+
+        # Check filter calls
+        # The first filter is for user_id
+        # No other filters should be applied for this test case
+        # We need to inspect the calls to mock_query_chain.filter
+        # call_args_list[0] should be the user_id filter
+        # and there should be only one call to filter in this specific scenario setup (before order_by)
+        # However, the implementation applies filters sequentially.
+
+        # Let's verify the structure of the calls.
+        # The actual filter calls are on the instance returned by query.filter().filter()...
+        # So, mock_query_chain.filter is called.
+
+        # First call to filter is for user_id
+        actual_call = mock_query_chain.filter.call_args_list[0]
+        # The argument to filter is a SQLAlchemy binary expression.
+        # We need to compare its string representation or structure.
+        # This is the tricky part with SQLAlchemy expressions.
+        # For now, let's check it was called. A more robust check would compare the expression.
+        assert str(actual_call[0][0]) == str(WorkflowInstanceORM.user_id == "user123")
+        assert mock_query_chain.filter.call_count == 1  # Only user_id filter
+
+        # Ensure order_by is called correctly
+        # This also involves comparing SQLAlchemy expressions.
+        # WorkflowInstanceORM.created_at.desc()
+        mock_query_chain.order_by.assert_called_once()
+        order_by_call_arg = mock_query_chain.order_by.call_args[0][0]
+        assert str(order_by_call_arg) == str(WorkflowInstanceORM.created_at.desc())
+
+        mock_query_chain.all.assert_called_once()
+
+        assert len(results) == 1
+        assert isinstance(results[0], WorkflowInstance)
+        assert results[0].id == "wf1"
+        assert results[0].user_id == "user123"
+
+    @pytest.mark.asyncio
+    async def test_list_with_created_at_filter(self):
+        mock_db_session = MagicMock()
+        mock_query_chain = MagicMock()
+        mock_db_session.query.return_value = mock_query_chain
+        mock_query_chain.filter.return_value = mock_query_chain
+        mock_query_chain.order_by.return_value = mock_query_chain
+        mock_query_chain.all.return_value = []  # Actual data not important for filter assertion
+
+        repo = PostgreSQLWorkflowRepository(db_session=mock_db_session)
+        test_date = DateObject(2023, 5, 15)
+        await repo.list_workflow_instances_by_user(user_id="user123", created_at_date=test_date)
+
+        # Assertions
+        # filter calls: user_id filter, then created_at filter
+        assert mock_query_chain.filter.call_count == 2
+        user_id_filter_call = mock_query_chain.filter.call_args_list[0]
+        created_at_filter_call = mock_query_chain.filter.call_args_list[1]
+
+        assert str(user_id_filter_call[0][0]) == str(WorkflowInstanceORM.user_id == "user123")
+        assert str(created_at_filter_call[0][0]) == str(WorkflowInstanceORM.created_at == test_date)
+        mock_query_chain.order_by.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_list_with_status_filter(self):
+        mock_db_session = MagicMock()
+        mock_query_chain = MagicMock()
+        mock_db_session.query.return_value = mock_query_chain
+        mock_query_chain.filter.return_value = mock_query_chain
+        mock_query_chain.order_by.return_value = mock_query_chain
+        mock_query_chain.all.return_value = []
+
+        repo = PostgreSQLWorkflowRepository(db_session=mock_db_session)
+        test_status = WorkflowStatus.completed
+        await repo.list_workflow_instances_by_user(user_id="user123", status=test_status)
+
+        # Assertions
+        # filter calls: user_id filter, then status filter
+        assert mock_query_chain.filter.call_count == 2
+        user_id_filter_call = mock_query_chain.filter.call_args_list[0]
+        status_filter_call = mock_query_chain.filter.call_args_list[1]
+
+        assert str(user_id_filter_call[0][0]) == str(WorkflowInstanceORM.user_id == "user123")
+        assert str(status_filter_call[0][0]) == str(WorkflowInstanceORM.status == test_status)
+        mock_query_chain.order_by.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_list_with_all_filters(self):
+        mock_db_session = MagicMock()
+        mock_query_chain = MagicMock()
+        mock_db_session.query.return_value = mock_query_chain
+        mock_query_chain.filter.return_value = mock_query_chain
+        mock_query_chain.order_by.return_value = mock_query_chain
+        mock_query_chain.all.return_value = []
+
+        repo = PostgreSQLWorkflowRepository(db_session=mock_db_session)
+        test_date = DateObject(2023, 6, 20)
+        test_status = WorkflowStatus.active
+        await repo.list_workflow_instances_by_user(user_id="user123", created_at_date=test_date, status=test_status)
+
+        # Assertions
+        # filter calls: user_id, then created_at, then status
+        assert mock_query_chain.filter.call_count == 3
+        user_id_filter_call = mock_query_chain.filter.call_args_list[0]
+        created_at_filter_call = mock_query_chain.filter.call_args_list[1]
+        status_filter_call = mock_query_chain.filter.call_args_list[2]
+
+        assert str(user_id_filter_call[0][0]) == str(WorkflowInstanceORM.user_id == "user123")
+        assert str(created_at_filter_call[0][0]) == str(WorkflowInstanceORM.created_at == test_date)
+        assert str(status_filter_call[0][0]) == str(WorkflowInstanceORM.status == test_status)
+        mock_query_chain.order_by.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_user_isolation_with_filters(self):
+        # This test ensures the user_id filter is always primary.
+        # It's effectively covered by asserting the first filter call in other tests,
+        # but we can make it explicit.
+        mock_db_session = MagicMock()
+        mock_query_chain = MagicMock()
+        mock_db_session.query.return_value = mock_query_chain
+        mock_query_chain.filter.return_value = mock_query_chain  # filter returns itself
+        mock_query_chain.order_by.return_value = mock_query_chain
+
+        mock_orm_instance = WorkflowInstanceORM(
+            id="wf2", user_id="isolated_user", name="Isolated Workflow",
+            status=WorkflowStatus.active, created_at=datetime(2023, 1, 2, 12, 0, 0), workflow_definition_id="def2"
+        )
+        mock_query_chain.all.return_value = [mock_orm_instance]
+
+        repo = PostgreSQLWorkflowRepository(db_session=mock_db_session)
+        test_date = DateObject(2023, 7, 1)
+        test_status = WorkflowStatus.pending
+
+        results = await repo.list_workflow_instances_by_user(
+            user_id="isolated_user",
+            created_at_date=test_date,
+            status=test_status
+        )
+
+        mock_db_session.query.assert_called_once_with(WorkflowInstanceORM)
+
+        # Ensure the very first filter applied is for the user_id
+        assert mock_query_chain.filter.call_count == 3  # user_id, created_at, status
+        first_filter_call_arg = mock_query_chain.filter.call_args_list[0][0][0]
+        assert str(first_filter_call_arg) == str(WorkflowInstanceORM.user_id == "isolated_user")
+
+        # Check other filters are also applied
+        second_filter_call_arg = mock_query_chain.filter.call_args_list[1][0][0]
+        assert str(second_filter_call_arg) == str(WorkflowInstanceORM.created_at == test_date)
+
+        third_filter_call_arg = mock_query_chain.filter.call_args_list[2][0][0]
+        assert str(third_filter_call_arg) == str(WorkflowInstanceORM.status == test_status)
+
+        mock_query_chain.order_by.assert_called_once()
+
+        assert len(results) == 1
+        assert results[0].id == "wf2"
+        assert results[0].user_id == "isolated_user"
+
+    @pytest.mark.asyncio
+    async def test_returns_empty_list_if_no_matches(self):
+        mock_db_session = MagicMock()
+        mock_query_chain = MagicMock()
+        mock_db_session.query.return_value = mock_query_chain
+        mock_query_chain.filter.return_value = mock_query_chain
+        mock_query_chain.order_by.return_value = mock_query_chain
+        mock_query_chain.all.return_value = []  # No ORM objects returned
+
+        repo = PostgreSQLWorkflowRepository(db_session=mock_db_session)
+        results = await repo.list_workflow_instances_by_user(user_id="user_with_no_workflows")
+
+        assert results == []
+        mock_db_session.query.assert_called_once_with(WorkflowInstanceORM)
+        mock_query_chain.filter.assert_called_once()  # User ID filter
+        mock_query_chain.order_by.assert_called_once()
+        mock_query_chain.all.assert_called_once()
+
 
 @pytest.mark.asyncio
 async def test_create_workflow_definition(db_session):
@@ -145,6 +355,7 @@ async def test_create_workflow_definition(db_session):
     assert db_defn is not None
     assert db_defn.name == "Test Workflow"
     assert db_defn.task_names == ["Task 1", "Task 2"]
+
 
 @pytest.mark.asyncio
 async def test_update_workflow_definition(db_session):
@@ -180,6 +391,7 @@ async def test_update_workflow_definition(db_session):
     assert db_defn.name == "Updated Workflow"
     assert db_defn.task_names == ["Updated Task 1", "Updated Task 2"]
 
+
 @pytest.mark.asyncio
 async def test_update_workflow_definition_not_found(db_session):
     # Arrange
@@ -195,6 +407,7 @@ async def test_update_workflow_definition_not_found(db_session):
 
     # Assert
     assert result is None
+
 
 @pytest.mark.asyncio
 async def test_delete_workflow_definition(db_session):
@@ -217,6 +430,7 @@ async def test_delete_workflow_definition(db_session):
     db_defn = db_session.query(WorkflowDefinitionORM).filter(WorkflowDefinitionORM.id == "test_def_1").first()
     assert db_defn is None
 
+
 @pytest.mark.asyncio
 async def test_delete_workflow_definition_not_found(db_session):
     # Arrange
@@ -225,6 +439,7 @@ async def test_delete_workflow_definition_not_found(db_session):
     # Act & Assert
     with pytest.raises(DefinitionNotFoundError, match="Workflow Definition with ID 'non_existent_id' not found."):
         await repo.delete_workflow_definition("non_existent_id")
+
 
 @pytest.mark.asyncio
 async def test_delete_workflow_definition_in_use(db_session):
@@ -240,7 +455,7 @@ async def test_delete_workflow_definition_in_use(db_session):
     )
     db_session.add(defn)
     db_session.commit()
-    
+
     instance = WorkflowInstanceORM(
         id="test_wf_1",
         workflow_definition_id="test_def_1",
@@ -253,8 +468,10 @@ async def test_delete_workflow_definition_in_use(db_session):
     db_session.commit()
 
     # Act & Assert
-    with pytest.raises(DefinitionInUseError, match="Cannot delete definition: It is currently used by 1 workflow instance\\(s\\)."):
+    with pytest.raises(DefinitionInUseError,
+                       match="Cannot delete definition: It is currently used by 1 workflow instance\\(s\\)."):
         await repo.delete_workflow_definition("test_def_1")
+
 
 @pytest.mark.asyncio
 async def test_get_workflow_instance_by_id(db_session):
@@ -270,7 +487,7 @@ async def test_get_workflow_instance_by_id(db_session):
     )
     db_session.add(definition)
     db_session.commit()
-    
+
     instance = WorkflowInstanceORM(
         id="test_wf_1",
         workflow_definition_id="test_def_1",
@@ -293,6 +510,7 @@ async def test_get_workflow_instance_by_id(db_session):
     assert result.status == WorkflowStatus.active
     assert result.user_id == "test_user"
 
+
 @pytest.mark.asyncio
 async def test_get_workflow_instance_by_id_not_found(db_session):
     # Arrange
@@ -303,6 +521,7 @@ async def test_get_workflow_instance_by_id_not_found(db_session):
 
     # Assert
     assert result is None
+
 
 @pytest.mark.asyncio
 async def test_create_workflow_instance(db_session):
@@ -317,7 +536,7 @@ async def test_create_workflow_instance(db_session):
     )
     db_session.add(definition)
     db_session.commit()
-    
+
     instance_data = WorkflowInstance(
         id="test_wf_1",
         workflow_definition_id="test_def_1",
@@ -345,6 +564,7 @@ async def test_create_workflow_instance(db_session):
     assert db_instance.user_id == "test_user"
     assert db_instance.status == WorkflowStatus.active
 
+
 @pytest.mark.asyncio
 async def test_update_workflow_instance(db_session):
     # Arrange
@@ -359,7 +579,7 @@ async def test_update_workflow_instance(db_session):
     )
     db_session.add(definition)
     db_session.commit()
-    
+
     instance = WorkflowInstanceORM(
         id="test_wf_1",
         workflow_definition_id="test_def_1",
@@ -394,6 +614,7 @@ async def test_update_workflow_instance(db_session):
     assert db_instance.name == "Updated Workflow Instance"
     assert db_instance.status == WorkflowStatus.completed
 
+
 @pytest.mark.asyncio
 async def test_update_workflow_instance_not_found(db_session):
     # Arrange
@@ -412,6 +633,7 @@ async def test_update_workflow_instance_not_found(db_session):
 
     # Assert
     assert result is None
+
 
 @pytest.mark.asyncio
 async def test_list_workflow_instances_by_user(db_session):
@@ -441,7 +663,7 @@ async def test_list_workflow_instances_by_user(db_session):
     db_session.add(def2)
     db_session.add(def3)
     db_session.commit()
-    
+
     instance1 = WorkflowInstanceORM(
         id="test_wf_1",
         workflow_definition_id="test_def_1",
@@ -480,6 +702,7 @@ async def test_list_workflow_instances_by_user(db_session):
     assert result[1].id == "test_wf_1"
     assert all(instance.user_id == "test_user" for instance in result)
 
+
 @pytest.mark.asyncio
 async def test_create_task_instance(db_session):
     # Arrange
@@ -494,7 +717,7 @@ async def test_create_task_instance(db_session):
     )
     db_session.add(definition)
     db_session.commit()
-    
+
     workflow_instance = WorkflowInstanceORM(
         id="test_wf_1",
         workflow_definition_id="test_def_1",
@@ -532,6 +755,7 @@ async def test_create_task_instance(db_session):
     assert db_task.name == "Test Task"
     assert db_task.status == TaskStatus.pending
 
+
 @pytest.mark.asyncio
 async def test_get_tasks_for_workflow_instance(db_session):
     # Arrange
@@ -547,7 +771,7 @@ async def test_get_tasks_for_workflow_instance(db_session):
     )
     db_session.add(definition)
     db_session.commit()
-    
+
     workflow_instance = WorkflowInstanceORM(
         id="test_wf_1",
         workflow_definition_id="test_def_1",
@@ -584,6 +808,7 @@ async def test_get_tasks_for_workflow_instance(db_session):
         assert task.order == i
         assert task.status == TaskStatus.pending
 
+
 @pytest.mark.asyncio
 async def test_get_tasks_for_workflow_instance_no_tasks(db_session):
     # Arrange
@@ -598,7 +823,7 @@ async def test_get_tasks_for_workflow_instance_no_tasks(db_session):
     )
     db_session.add(definition)
     db_session.commit()
-    
+
     workflow_instance = WorkflowInstanceORM(
         id="test_wf_1",
         workflow_definition_id="test_def_1",
@@ -616,6 +841,7 @@ async def test_get_tasks_for_workflow_instance_no_tasks(db_session):
     # Assert
     assert len(result) == 0
 
+
 @pytest.mark.asyncio
 async def test_get_task_instance_by_id(db_session):
     # Arrange
@@ -631,7 +857,7 @@ async def test_get_task_instance_by_id(db_session):
     )
     db_session.add(definition)
     db_session.commit()
-    
+
     workflow_instance = WorkflowInstanceORM(
         id="test_wf_1",
         workflow_definition_id="test_def_1",
@@ -664,6 +890,7 @@ async def test_get_task_instance_by_id(db_session):
     assert result.order == 0
     assert result.status == TaskStatus.pending
 
+
 @pytest.mark.asyncio
 async def test_get_task_instance_by_id_not_found(db_session):
     # Arrange
@@ -674,6 +901,7 @@ async def test_get_task_instance_by_id_not_found(db_session):
 
     # Assert
     assert result is None
+
 
 @pytest.mark.asyncio
 async def test_update_task_instance(db_session):
@@ -690,7 +918,7 @@ async def test_update_task_instance(db_session):
     )
     db_session.add(definition)
     db_session.commit()
-    
+
     workflow_instance = WorkflowInstanceORM(
         id="test_wf_1",
         workflow_definition_id="test_def_1",
@@ -735,6 +963,7 @@ async def test_update_task_instance(db_session):
     db_task = db_session.query(TaskInstanceORM).filter(TaskInstanceORM.id == "test_task_1").first()
     assert db_task.name == "Updated Test Task"
     assert db_task.status == TaskStatus.completed
+
 
 @pytest.mark.asyncio
 async def test_update_task_instance_not_found(db_session):

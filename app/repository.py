@@ -1,11 +1,12 @@
 # repository.py
 from abc import ABC, abstractmethod
-from typing import List, Optional, Dict
 from datetime import date as DateObject
+from typing import List, Optional, Dict
 
-from app.models import WorkflowDefinition, WorkflowInstance, TaskInstance
-from app.db_models.workflow import WorkflowDefinition as WorkflowDefinitionORM, WorkflowInstance as WorkflowInstanceORM
+from app.db_models.enums import WorkflowStatus
 from app.db_models.task import TaskInstance as TaskInstanceORM
+from app.db_models.workflow import WorkflowDefinition as WorkflowDefinitionORM, WorkflowInstance as WorkflowInstanceORM
+from app.models import WorkflowDefinition, WorkflowInstance, TaskInstance
 
 # In-memory stores
 _workflow_definitions_db: Dict[str, WorkflowDefinition] = {}
@@ -27,7 +28,8 @@ class WorkflowDefinitionRepository(ABC):
         pass
 
     @abstractmethod
-    async def update_workflow_definition(self, definition_id: str, name: str, description: Optional[str], task_names: List[str]) -> Optional[WorkflowDefinition]:
+    async def update_workflow_definition(self, definition_id: str, name: str, description: Optional[str],
+                                         task_names: List[str]) -> Optional[WorkflowDefinition]:
         pass
 
     @abstractmethod
@@ -45,7 +47,8 @@ class WorkflowInstanceRepository(ABC):
         pass
 
     @abstractmethod
-    async def update_workflow_instance(self, instance_id: str, instance_update: WorkflowInstance) -> Optional[WorkflowInstance]:
+    async def update_workflow_instance(self, instance_id: str, instance_update: WorkflowInstance) -> Optional[
+        WorkflowInstance]:
         pass
 
     @abstractmethod
@@ -76,17 +79,21 @@ class DefinitionNotFoundError(Exception):
     """Raised when a workflow definition is not found."""
     pass
 
+
 class DefinitionInUseError(ValueError):
     """Raised when a workflow definition cannot be deleted because it's in use."""
     pass
+
 
 class InstanceNotFoundError(Exception):
     """Raised when a workflow instance is not found."""
     pass
 
+
 class TaskNotFoundError(Exception):
     """Raised when a task instance is not found."""
     pass
+
 
 class PostgreSQLWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanceRepository, TaskInstanceRepository):
     def __init__(self, db_session):
@@ -114,7 +121,8 @@ class PostgreSQLWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanc
         self.db_session.refresh(instance)
         return WorkflowInstance.model_validate(instance, from_attributes=True)
 
-    async def update_workflow_instance(self, instance_id: str, instance_update: WorkflowInstance) -> Optional[WorkflowInstance]:
+    async def update_workflow_instance(self, instance_id: str, instance_update: WorkflowInstance) -> Optional[
+        WorkflowInstance]:
         instance = self.db_session.query(WorkflowInstanceORM).filter(WorkflowInstanceORM.id == instance_id).first()
         if instance:
             for key, value in instance_update.model_dump(mode='json').items():
@@ -144,11 +152,18 @@ class PostgreSQLWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanc
         return None
 
     async def get_tasks_for_workflow_instance(self, instance_id: str) -> List[TaskInstance]:
-        tasks = self.db_session.query(TaskInstanceORM).filter(TaskInstanceORM.workflow_instance_id == instance_id).order_by(TaskInstanceORM.order).all()
+        tasks = self.db_session.query(TaskInstanceORM).filter(
+            TaskInstanceORM.workflow_instance_id == instance_id).order_by(TaskInstanceORM.order).all()
         return [TaskInstance.model_validate(task, from_attributes=True) for task in tasks]
 
-    async def list_workflow_instances_by_user(self, user_id: str) -> List[WorkflowInstance]:
-        instances = self.db_session.query(WorkflowInstanceORM).filter(WorkflowInstanceORM.user_id == user_id).order_by(WorkflowInstanceORM.created_at.desc()).all()
+    async def list_workflow_instances_by_user(self, user_id: str, created_at_date: Optional[DateObject] = None,
+                                              status: Optional[WorkflowStatus] = None) -> List[WorkflowInstance]:
+        query = self.db_session.query(WorkflowInstanceORM).filter(WorkflowInstanceORM.user_id == user_id)
+        if created_at_date:
+            query = query.filter(WorkflowInstanceORM.created_at == created_at_date)
+        if status:
+            query = query.filter(WorkflowInstanceORM.status == status)
+        instances = query.order_by(WorkflowInstanceORM.created_at.desc()).all()
         return [WorkflowInstance.model_validate(instance, from_attributes=True) for instance in instances]
 
     async def create_workflow_definition(self, definition_data: WorkflowDefinition) -> WorkflowDefinition:
@@ -158,8 +173,10 @@ class PostgreSQLWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanc
         self.db_session.refresh(definition)
         return WorkflowDefinition.model_validate(definition, from_attributes=True)
 
-    async def update_workflow_definition(self, definition_id: str, name: str, description: Optional[str], task_names: List[str]) -> Optional[WorkflowDefinition]:
-        db_definition = self.db_session.query(WorkflowDefinitionORM).filter(WorkflowDefinitionORM.id == definition_id).first()
+    async def update_workflow_definition(self, definition_id: str, name: str, description: Optional[str],
+                                         task_names: List[str]) -> Optional[WorkflowDefinition]:
+        db_definition = self.db_session.query(WorkflowDefinitionORM).filter(
+            WorkflowDefinitionORM.id == definition_id).first()
         if db_definition:
             db_definition.name = name
             db_definition.description = description
@@ -170,14 +187,17 @@ class PostgreSQLWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanc
         return None
 
     async def delete_workflow_definition(self, definition_id: str) -> None:
-        db_definition = self.db_session.query(WorkflowDefinitionORM).filter(WorkflowDefinitionORM.id == definition_id).first()
+        db_definition = self.db_session.query(WorkflowDefinitionORM).filter(
+            WorkflowDefinitionORM.id == definition_id).first()
         if not db_definition:
             raise DefinitionNotFoundError(f"Workflow Definition with ID '{definition_id}' not found.")
-        
-        linked_instances_count = self.db_session.query(WorkflowInstanceORM).filter(WorkflowInstanceORM.workflow_definition_id == definition_id).count()
+
+        linked_instances_count = self.db_session.query(WorkflowInstanceORM).filter(
+            WorkflowInstanceORM.workflow_definition_id == definition_id).count()
         if linked_instances_count > 0:
-            raise DefinitionInUseError(f"Cannot delete definition: It is currently used by {linked_instances_count} workflow instance(s).")
-            
+            raise DefinitionInUseError(
+                f"Cannot delete definition: It is currently used by {linked_instances_count} workflow instance(s).")
+
         self.db_session.delete(db_definition)
         self.db_session.commit()
 
@@ -222,7 +242,8 @@ class InMemoryWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanceR
         _workflow_instances_db[new_instance.id] = new_instance
         return new_instance.model_copy(deep=True)
 
-    async def update_workflow_instance(self, instance_id: str, instance_update: WorkflowInstance) -> Optional[WorkflowInstance]:
+    async def update_workflow_instance(self, instance_id: str, instance_update: WorkflowInstance) -> Optional[
+        WorkflowInstance]:
         if instance_id in _workflow_instances_db:
             _workflow_instances_db[instance_id] = instance_update.model_copy(deep=True)
             return _workflow_instances_db[instance_id].model_copy(deep=True)
@@ -250,11 +271,16 @@ class InMemoryWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanceR
         ]
         return sorted(tasks, key=lambda t: t.order)
 
-    async def list_workflow_instances_by_user(self, user_id: str) -> List[WorkflowInstance]:
+    async def list_workflow_instances_by_user(self, user_id: str, created_at_date: Optional[DateObject] = None,
+                                              status: Optional[WorkflowStatus] = None) -> List[WorkflowInstance]:
         instances = [
             instance.model_copy(deep=True) for instance in _workflow_instances_db.values()
             if instance.user_id == user_id
         ]
+        if created_at_date:
+            instances = [instance for instance in instances if instance.created_at.date() == created_at_date]
+        if status:
+            instances = [instance for instance in instances if instance.status == status]
         return sorted(instances, key=lambda i: i.created_at, reverse=True)
 
     async def create_workflow_definition(self, definition_data: WorkflowDefinition) -> WorkflowDefinition:
@@ -262,7 +288,8 @@ class InMemoryWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanceR
         _workflow_definitions_db[new_definition.id] = new_definition
         return new_definition.model_copy(deep=True)
 
-    async def update_workflow_definition(self, definition_id: str, name: str, description: Optional[str], task_names: List[str]) -> Optional[WorkflowDefinition]:
+    async def update_workflow_definition(self, definition_id: str, name: str, description: Optional[str],
+                                         task_names: List[str]) -> Optional[WorkflowDefinition]:
         if definition_id in _workflow_definitions_db:
             updated_definition = WorkflowDefinition(
                 id=definition_id,
@@ -277,9 +304,11 @@ class InMemoryWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanceR
     async def delete_workflow_definition(self, definition_id: str) -> None:
         if definition_id not in _workflow_definitions_db:
             raise DefinitionNotFoundError(f"Workflow Definition with ID '{definition_id}' not found.")
-            
-        linked_instances = any(instance.workflow_definition_id == definition_id for instance in _workflow_instances_db.values())
+
+        linked_instances = any(
+            instance.workflow_definition_id == definition_id for instance in _workflow_instances_db.values())
         if linked_instances:
-            raise DefinitionInUseError("Cannot delete definition: It is currently used by one or more workflow instances.")
-            
+            raise DefinitionInUseError(
+                "Cannot delete definition: It is currently used by one or more workflow instances.")
+
         del _workflow_definitions_db[definition_id]

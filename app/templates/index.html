@@ -1,17 +1,18 @@
 {% extends "base.html" %}
 
 {% block content %}
-    <h1>Simple Checklist MVP</h1>
-    <p>Manage your simple checklist workflows.</p>
-    <h2>Workflows:</h2>
-    <ul>
-        <li><a href="/workflow-definitions" class="action-button">Available Workflow Definitions</a></li>
-        {% if current_user %}
-            <li><a href="/workflow-instances/dashboard" class="action-button">My Workflows Dashboard</a></li>
-            <li><a href="#" class="action-button disabled" style="pointer-events: none;">Logged in as: {{ current_user.username }}</a></li>
-            <li><a href="/logout" class="action-button">Logout</a></li>
-        {% else %}
-            <li><a href="/login" class="action-button">Login to View/Create Workflows</a></li>
-        {% endif %}
-    </ul>
+<h1>Simple Checklist MVP</h1>
+<p>Manage your simple checklist workflows.</p>
+<h2>Workflows:</h2>
+<ul>
+    <li><a href="/workflow-definitions" class="action-button">Available Workflow Definitions</a></li>
+    {% if current_user %}
+    <li><a href="/my-workflows" class="action-button">My Workflows</a></li>
+    <li><a href="#" class="action-button disabled" style="pointer-events: none;">Logged in as: {{ current_user.username
+        }}</a></li>
+    <li><a href="/logout" class="action-button">Logout</a></li>
+    {% else %}
+    <li><a href="/login" class="action-button">Login to View/Create Workflows</a></li>
+    {% endif %}
+</ul>
 {% endblock %}

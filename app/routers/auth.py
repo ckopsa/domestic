@@ -1,12 +1,16 @@
-from fastapi import APIRouter, Request, HTTPException, Depends
-from fastapi.responses import RedirectResponse
-from fastapi import status
-import requests
 import os
-from app.config import KEYCLOAK_SERVER_URL, KEYCLOAK_REALM, KEYCLOAK_API_CLIENT_ID, KEYCLOAK_API_CLIENT_SECRET, KEYCLOAK_REDIRECT_URI
 from urllib.parse import quote_plus
 
+import requests
+from fastapi import APIRouter, Request, HTTPException
+from fastapi import status
+from fastapi.responses import RedirectResponse
+
+from app.config import KEYCLOAK_SERVER_URL, KEYCLOAK_REALM, KEYCLOAK_API_CLIENT_ID, KEYCLOAK_API_CLIENT_SECRET, \
+    KEYCLOAK_REDIRECT_URI
+
 router = APIRouter(tags=["auth"])
+
 
 @router.get("/login", response_class=RedirectResponse)
 async def redirect_to_keycloak_login(request: Request, redirect: str = None):
@@ -18,6 +22,7 @@ async def redirect_to_keycloak_login(request: Request, redirect: str = None):
         f"&state={original_url}"
     )
     return RedirectResponse(url=login_url)
+
 
 @router.get("/callback", response_class=RedirectResponse)
 async def handle_keycloak_callback(code: str, state: str = None):
@@ -56,6 +61,7 @@ async def handle_keycloak_callback(code: str, state: str = None):
 
     return redirect_response
 
+
 @router.post("/token")
 async def token_placeholder():
     """Placeholder for token endpoint - actual authentication handled by Keycloak."""
@@ -64,10 +70,12 @@ async def token_placeholder():
         detail="Authentication handled by Keycloak. Use /login endpoint or configure client to use Keycloak directly."
     )
 
+
 @router.get("/logout", response_class=RedirectResponse)
 async def logout():
     """Logout user by clearing cookies and redirecting to Keycloak logout."""
-    post_logout_redirect_to_app = os.getenv("KEYCLOAK_POST_LOGOUT_REDIRECT_URI", f"{KEYCLOAK_REDIRECT_URI.split('/callback')[0]}/login")
+    post_logout_redirect_to_app = os.getenv("KEYCLOAK_POST_LOGOUT_REDIRECT_URI",
+                                            f"{KEYCLOAK_REDIRECT_URI.split('/callback')[0]}/login")
     encoded_post_logout_redirect = quote_plus(post_logout_redirect_to_app)
 
     keycloak_logout_url = (
