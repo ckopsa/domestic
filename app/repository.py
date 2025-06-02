@@ -256,11 +256,15 @@ class InMemoryWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanceR
         ]
         return sorted(tasks, key=lambda t: t.order)
 
-    async def list_workflow_instances_by_user(self, user_id: str) -> List[WorkflowInstance]:
+    async def list_workflow_instances_by_user(self, user_id: str, created_at_date: Optional[DateObject] = None, status: Optional[WorkflowStatus] = None) -> List[WorkflowInstance]:
         instances = [
             instance.model_copy(deep=True) for instance in _workflow_instances_db.values()
             if instance.user_id == user_id
         ]
+        if created_at_date:
+            instances = [instance for instance in instances if instance.created_at.date() == created_at_date]
+        if status:
+            instances = [instance for instance in instances if instance.status == status]
         return sorted(instances, key=lambda i: i.created_at, reverse=True)
 
     async def create_workflow_definition(self, definition_data: WorkflowDefinition) -> WorkflowDefinition:

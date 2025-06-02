@@ -406,6 +406,206 @@ async def test_my_workflows_no_query_parameters(mock_dependencies_for_my_workflo
         }
     )
 
+
+# --- Tests for /workflow-instances/{instance_id}/archive ---
+
+# Constants for archive API tests
+OWNER_USER_ID_FOR_ARCHIVE = "owner_archive_api"
+OTHER_USER_ID_FOR_ARCHIVE = "other_archive_api"
+
+@pytest.fixture
+def client_as_user_archive(monkeypatch): # Renamed to avoid conflict if other client_as_user exists
+    clients_created = []
+    original_override = app.dependency_overrides.get(get_current_active_user)
+
+    def _client_as_user(user: AuthenticatedUser = None):
+        if user:
+            monkeypatch.setitem(app.dependency_overrides, get_current_active_user, lambda: user)
+        else: # No user / unauthenticated
+            if get_current_active_user in app.dependency_overrides:
+                monkeypatch.delitem(app.dependency_overrides, get_current_active_user)
+        
+        client = TestClient(app)
+        clients_created.append(client) # Keep track if needed, though TestClient instances are independent
+        return client
+
+    yield _client_as_user
+    
+    # Cleanup: restore original override or remove if it was added by this fixture
+    if original_override:
+        monkeypatch.setitem(app.dependency_overrides, get_current_active_user, original_override)
+    elif get_current_active_user in app.dependency_overrides:
+        monkeypatch.delitem(app.dependency_overrides, get_current_active_user)
+
+
+# Helper to create a workflow definition and instance for testing archive functionality
+# Uses direct DB manipulation for status to simplify setup and avoid complex API chaining for status changes.
+def create_test_workflow_instance_for_archive(
+    client_for_creation: TestClient, # Client authenticated as the user who should own the instance
+    owner_user_id: str, 
+    status: WorkflowStatus = WorkflowStatus.active,
+    def_name_suffix: str = "" 
+) -> dict:
+    definition_data = {
+        "name": f"Archive Test Def {def_name_suffix}",
+        "description": "Def for archive testing",
+        "task_names": ["Task 1"]
+    }
+    # client_for_creation is already authenticated as owner_user_id
+    create_def_response = client_for_creation.post("/api/workflow-definitions", json=definition_data)
+    assert create_def_response.status_code == 201
+    definition_id = create_def_response.json()["id"]
+
+    instance_data = {"definition_id": definition_id}
+    create_inst_response = client_for_creation.post("/api/workflow-instances", json=instance_data)
+    assert create_inst_response.status_code == 201
+    instance_id = create_inst_response.json()["id"]
+    created_instance = create_inst_response.json()
+    
+    # Manually update status in DB if needed, as API create defaults to 'active' and user_id from auth
+    # The instance created via API will have user_id from client_for_creation's auth.
+    # We need to ensure this matches owner_user_id passed.
+    assert created_instance["user_id"] == owner_user_id
+
+    if status != WorkflowStatus.active:
+        from app.db_models.workflow import WorkflowInstance as WorkflowInstanceORM
+        # Use a new DB session for this direct modification
+        temp_db_session = next(get_db())
+        try:
+            db_instance = temp_db_session.query(WorkflowInstanceORM).filter(WorkflowInstanceORM.id == instance_id).first()
+            assert db_instance is not None
+            db_instance.status = status # This should be the WorkflowStatus enum member, not string
+            temp_db_session.commit()
+            temp_db_session.refresh(db_instance)
+            # Update the created_instance dict with the new status
+            created_instance = client_for_creation.get(f"/api/workflow-instances/{instance_id}").json()["instance"]
+        finally:
+            temp_db_session.close()
+            
+    return created_instance
+
+
+@pytest.mark.asyncio
+async def test_archive_instance_success(db_session, client_as_user_archive, monkeypatch):
+    owner = AuthenticatedUser(user_id=OWNER_USER_ID_FOR_ARCHIVE, username="owner_archive", email="owner@archive.com")
+    
+    # Client for setup, authenticated as owner
+    monkeypatch.setitem(app.dependency_overrides, get_current_active_user, lambda: owner)
+    setup_client = TestClient(app)
+    instance = create_test_workflow_instance_for_archive(setup_client, owner.user_id, status=WorkflowStatus.active, def_name_suffix="success")
+    instance_id = instance["id"]
+    
+    # Client for the actual test call, also authenticated as owner
+    client = client_as_user_archive(owner) # This will re-apply the override via monkeypatch
+
+    response = client.post(f"/workflow-instances/{instance_id}/archive", follow_redirects=False)
+
+    assert response.status_code == 303 # Redirect
+    assert response.headers["location"] == f"/workflow-instances/{instance_id}"
+
+    # Verify status using the API (client is still authenticated as owner)
+    updated_instance_response = client.get(f"/api/workflow-instances/{instance_id}")
+    assert updated_instance_response.status_code == 200
+    assert updated_instance_response.json()["instance"]["status"] == WorkflowStatus.ARCHIVED.value
+
+
+@pytest.mark.asyncio
+async def test_archive_instance_not_authenticated(db_session, client_as_user_archive, monkeypatch):
+    owner = AuthenticatedUser(user_id=OWNER_USER_ID_FOR_ARCHIVE, username="owner_archive_auth", email="owner_auth@archive.com")
+    
+    # Setup client for creating instance (as owner)
+    monkeypatch.setitem(app.dependency_overrides, get_current_active_user, lambda: owner)
+    setup_client = TestClient(app)
+    instance = create_test_workflow_instance_for_archive(setup_client, owner.user_id, status=WorkflowStatus.active, def_name_suffix="notauth")
+    instance_id = instance["id"]
+
+    # Client for test is unauthenticated
+    client = client_as_user_archive(None) 
+    
+    response = client.post(f"/workflow-instances/{instance_id}/archive", follow_redirects=False)
+
+    assert response.status_code == 307 # Temporary Redirect to login as per FastAPI default for unauthenticated HTML form posts
+    assert "/login" in response.headers["location"].lower() 
+
+@pytest.mark.asyncio
+async def test_archive_instance_other_user(db_session, client_as_user_archive, monkeypatch):
+    owner = AuthenticatedUser(user_id=OWNER_USER_ID_FOR_ARCHIVE, username="owner_archive_other", email="owner_other@archive.com")
+    other = AuthenticatedUser(user_id=OTHER_USER_ID_FOR_ARCHIVE, username="other_archive", email="other@archive.com")
+
+    # Setup client for creating instance (as owner)
+    monkeypatch.setitem(app.dependency_overrides, get_current_active_user, lambda: owner)
+    setup_client = TestClient(app)
+    instance = create_test_workflow_instance_for_archive(setup_client, owner.user_id, status=WorkflowStatus.active, def_name_suffix="otheruser")
+    instance_id = instance["id"]
+
+    # Client for test is authenticated as other_user
+    client = client_as_user_archive(other)
+
+    response = client.post(f"/workflow-instances/{instance_id}/archive", follow_redirects=False)
+    
+    # Based on the endpoint logic, if service.archive_workflow_instance returns None (e.g. due to user mismatch)
+    # it then tries to fetch the instance (service.get_workflow_instance_with_tasks) which would also fail for other_user
+    # leading to a 404 from create_message_page.
+    assert response.status_code == 404 
+    assert "not found or you do not have permission to view it" in response.text.lower()
+
+    # Verify instance in DB is NOT archived (check via API as owner)
+    monkeypatch.setitem(app.dependency_overrides, get_current_active_user, lambda: owner) # Switch auth to owner
+    owner_client = TestClient(app) # New client with owner auth
+    original_instance_response = owner_client.get(f"/api/workflow-instances/{instance_id}")
+    assert original_instance_response.status_code == 200
+    assert original_instance_response.json()["instance"]["status"] == WorkflowStatus.active.value
+
+
+@pytest.mark.asyncio
+async def test_archive_instance_already_completed(db_session, client_as_user_archive, monkeypatch):
+    owner = AuthenticatedUser(user_id=OWNER_USER_ID_FOR_ARCHIVE, username="owner_archive_completed", email="owner_completed@archive.com")
+    
+    monkeypatch.setitem(app.dependency_overrides, get_current_active_user, lambda: owner)
+    setup_client = TestClient(app) # Client for setup, authenticated as owner
+    instance = create_test_workflow_instance_for_archive(setup_client, owner.user_id, status=WorkflowStatus.completed, def_name_suffix="completed")
+    instance_id = instance["id"]
+    
+    client = client_as_user_archive(owner) # Client for test, also as owner
+    response = client.post(f"/workflow-instances/{instance_id}/archive", follow_redirects=False)
+
+    assert response.status_code == 400 # Bad Request
+    assert "cannot archive a workflow instance that is already completed" in response.text.lower()
+
+@pytest.mark.asyncio
+async def test_archive_instance_non_existent(db_session, client_as_user_archive, monkeypatch):
+    owner = AuthenticatedUser(user_id=OWNER_USER_ID_FOR_ARCHIVE, username="owner_archive_nonexist", email="owner_nonexist@archive.com")
+    client = client_as_user_archive(owner)
+    instance_id = "non_existent_instance_id_12345abc"
+
+    response = client.post(f"/workflow-instances/{instance_id}/archive", follow_redirects=False)
+
+    assert response.status_code == 404 # Not Found
+    # Message comes from service.archive returning None, then router trying get_workflow_instance_with_tasks, which also fails for non-existent.
+    assert f"workflow instance with id '{instance_id}' not found or you do not have permission to view it" in response.text.lower()
+
+@pytest.mark.asyncio
+async def test_archive_instance_already_archived(db_session, client_as_user_archive, monkeypatch):
+    owner = AuthenticatedUser(user_id=OWNER_USER_ID_FOR_ARCHIVE, username="owner_archive_already", email="owner_already@archive.com")
+    
+    monkeypatch.setitem(app.dependency_overrides, get_current_active_user, lambda: owner)
+    setup_client = TestClient(app)
+    instance = create_test_workflow_instance_for_archive(setup_client, owner.user_id, status=WorkflowStatus.ARCHIVED, def_name_suffix="alreadyarchived")
+    instance_id = instance["id"]
+    
+    client = client_as_user_archive(owner)
+    response = client.post(f"/workflow-instances/{instance_id}/archive", follow_redirects=False)
+
+    # The service method `archive_workflow_instance` returns the instance if already archived.
+    # The router endpoint then treats this as a success and redirects.
+    assert response.status_code == 303 
+    assert response.headers["location"] == f"/workflow-instances/{instance_id}"
+
+    # Verify status is still ARCHIVED
+    updated_instance_response = client.get(f"/api/workflow-instances/{instance_id}")
+    assert updated_instance_response.status_code == 200
+    assert updated_instance_response.json()["instance"]["status"] == WorkflowStatus.ARCHIVED.value
+
 @pytest.mark.asyncio
 async def test_my_workflows_with_created_at(mock_dependencies_for_my_workflows):
     client = TestClient(app)

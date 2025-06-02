@@ -2,6 +2,7 @@ from fastapi import APIRouter, Request, Form, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi import status
 from app.services import WorkflowService
+from app.models import WorkflowStatus # Added import
 from app.core.html_renderer import HtmlRendererInterface
 from app.core.security import AuthenticatedUser, get_current_active_user
 from app.dependencies import get_workflow_service, get_html_renderer
@@ -52,3 +53,64 @@ async def read_workflow_instance_page(
         request,
         {"instance": instance, "tasks": tasks}
     )
+
+@router.post("/{instance_id}/archive", response_class=HTMLResponse)
+async def archive_workflow_instance_handler(
+        request: Request,
+        instance_id: str,
+        service: WorkflowService = Depends(get_workflow_service),
+        current_user: AuthenticatedUser = Depends(get_current_active_user),
+        renderer: HtmlRendererInterface = Depends(get_html_renderer)
+):
+    if isinstance(current_user, RedirectResponse): # Handles unauthenticated users
+        return current_user
+
+    # Attempt to archive the instance
+    # The service method already checks for user_id match and if instance is COMPLETED.
+    # It returns None if archiving is not possible or instance not found.
+    archived_instance_result = await service.archive_workflow_instance(instance_id, current_user.user_id)
+
+    if archived_instance_result:
+        # If successful and instance is now archived, redirect
+        # We assume archive_workflow_instance returns the updated instance which should have ARCHIVED status
+        return RedirectResponse(url=f"/workflow-instances/{instance_id}", status_code=status.HTTP_303_SEE_OTHER)
+    else:
+        # Archiving failed, determine why for a more specific error message.
+        # Re-fetch the instance details. Note: service.archive_workflow_instance might have returned None
+        # because the instance was not found OR because it was completed OR because it didn't belong to user.
+        instance_details = await service.get_workflow_instance_with_tasks(instance_id, current_user.user_id)
+
+        if not instance_details or not instance_details["instance"]:
+            # This implies instance_id is invalid or user does not own it.
+            # The service.archive_workflow_instance would have returned None.
+            return await create_message_page(
+                request, "Not Found", "Error 404", 
+                f"Workflow Instance with ID '{instance_id}' not found or you do not have permission to view it.",
+                [("← Back to Definitions", "/workflow-definitions")], 
+                status_code=404, renderer=renderer
+            )
+        
+        instance_obj = instance_details["instance"]
+
+        # If instance exists and belongs to user, but archiving failed, it's likely because it's completed.
+        if instance_obj.status == WorkflowStatus.completed:
+            return await create_message_page(
+                request, "Archiving Failed", "Error 400 - Bad Request", 
+                "Cannot archive a workflow instance that is already completed.",
+                [(f"← Back to Instance", f"/workflow-instances/{instance_id}")], 
+                status_code=status.HTTP_400_BAD_REQUEST, renderer=renderer
+            )
+        
+        # If it's already archived (should have been returned by archive_workflow_instance directly, but as a fallback)
+        if instance_obj.status == WorkflowStatus.ARCHIVED:
+             return RedirectResponse(url=f"/workflow-instances/{instance_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+        # Default error if none of the above specific conditions were met
+        # This could be due to some other unexpected state or error in the service layer.
+        return await create_message_page(
+            request, "Archiving Failed", "Error 500 - Server Error", 
+            "Could not archive the workflow instance due to an unexpected error.",
+            [(f"← Back to Instance", f"/workflow-instances/{instance_id}")], 
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, renderer=renderer
+        )
