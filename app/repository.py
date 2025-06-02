@@ -4,6 +4,7 @@ from typing import List, Optional, Dict
 from datetime import date as DateObject
 
 from app.models import WorkflowDefinition, WorkflowInstance, TaskInstance
+from app.db_models.enums import WorkflowStatus
 from app.db_models.workflow import WorkflowDefinition as WorkflowDefinitionORM, WorkflowInstance as WorkflowInstanceORM
 from app.db_models.task import TaskInstance as TaskInstanceORM
 
@@ -147,8 +148,13 @@ class PostgreSQLWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanc
         tasks = self.db_session.query(TaskInstanceORM).filter(TaskInstanceORM.workflow_instance_id == instance_id).order_by(TaskInstanceORM.order).all()
         return [TaskInstance.model_validate(task, from_attributes=True) for task in tasks]
 
-    async def list_workflow_instances_by_user(self, user_id: str) -> List[WorkflowInstance]:
-        instances = self.db_session.query(WorkflowInstanceORM).filter(WorkflowInstanceORM.user_id == user_id).order_by(WorkflowInstanceORM.created_at.desc()).all()
+    async def list_workflow_instances_by_user(self, user_id: str, created_at_date: Optional[DateObject] = None, status: Optional[WorkflowStatus] = None) -> List[WorkflowInstance]:
+        query = self.db_session.query(WorkflowInstanceORM).filter(WorkflowInstanceORM.user_id == user_id)
+        if created_at_date:
+            query = query.filter(WorkflowInstanceORM.created_at == created_at_date)
+        if status:
+            query = query.filter(WorkflowInstanceORM.status == status)
+        instances = query.order_by(WorkflowInstanceORM.created_at.desc()).all()
         return [WorkflowInstance.model_validate(instance, from_attributes=True) for instance in instances]
 
     async def create_workflow_definition(self, definition_data: WorkflowDefinition) -> WorkflowDefinition:

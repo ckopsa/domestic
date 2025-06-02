@@ -1,5 +1,6 @@
 # services.py
 from typing import List, Optional, Dict, Any
+from datetime import date as DateObject
 
 from app.models import WorkflowDefinition, WorkflowInstance, TaskInstance, TaskStatus, WorkflowStatus
 from app.repository import WorkflowDefinitionRepository, WorkflowInstanceRepository, TaskInstanceRepository
@@ -65,8 +66,8 @@ class WorkflowService:
                     await self.instance_repo.update_workflow_instance(workflow_instance.id, workflow_instance)
         return updated_task
 
-    async def list_instances_for_user(self, user_id: str) -> List[WorkflowInstance]:
-        return await self.instance_repo.list_workflow_instances_by_user(user_id)
+    async def list_instances_for_user(self, user_id: str, created_at_date: Optional[DateObject] = None, status: Optional[WorkflowStatus] = None) -> List[WorkflowInstance]:
+        return await self.instance_repo.list_workflow_instances_by_user(user_id, created_at_date=created_at_date, status=status)
 
     async def create_new_definition(self, name: str, description: Optional[str], task_names: List[str]) -> WorkflowDefinition:
         if not name.strip():
