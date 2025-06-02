@@ -1,46 +1,46 @@
 {% extends "base.html" %}
 
 {% block content %}
-    <h1>My Workflows</h1>
+<h1>My Workflows</h1>
 
-    <form method="GET" action="{{ request.url.path }}" class="filter-form">
-        <div class="filter-group">
-            <label for="created_at">Created Date:</label>
-            <input type="date" id="created_at" name="created_at" value="{{ selected_created_at }}">
-        </div>
-        <div class="filter-group">
-            <label for="status">Status:</label>
-            <select id="status" name="status">
-                <option value="">All Statuses</option>
-                {% for status_value in workflow_statuses %}
-                    <option value="{{ status_value }}" {% if status_value == selected_status %}selected{% endif %}>
-                        {{ status_value.replace('_', ' ').title() }}
-                    </option>
-                {% endfor %}
-            </select>
-        </div>
-        <button type="submit" class="action-button">Apply Filters</button>
-    </form>
-
-    {% if not instances %}
-        <p>You have no workflows yet.</p>
-    {% else %}
-        <ul>
-            {% for instance in instances %}
-                <li class="wip-list-item">
-                    <h2>{{ instance.name }}</h2>
-                    <p><strong>Status:</strong> {{ instance.status.value.replace('_', ' ').title() }}</p>
-                    <p><strong>Created:</strong> {{ instance.created_at.isoformat() }}</p>
-                    <a href="/workflow-instances/{{ instance.id }}" class="action-button">View Details</a>
-                </li>
-            {% endfor %}
-        </ul>
-    {% endif %}
-
-    <div class="page-actions">
-        <a href="/" class="back-link">← Back to Home</a>
-        <a href="/workflow-definitions" class="back-link">← Available Definitions</a>
-        <a href="/workflow-definitions/create" class="action-button">Create New Checklist Template</a>
-        <a href="/logout" class="back-link">Logout</a>
+<form method="GET" action="{{ request.url.path }}" class="filter-form">
+    <div class="filter-group">
+        <label for="created_at">Created Date:</label>
+        <input type="date" id="created_at" name="created_at" value="{{ selected_created_at }}">
     </div>
+    <div class="filter-group">
+        <label for="status">Status:</label>
+        <select id="status" name="status">
+            <option value="">All Statuses</option>
+            {% for status_value in workflow_statuses %}
+            <option value="{{ status_value }}" {% if status_value== selected_status %}selected{% endif %}>
+                {{ status_value.replace('_', ' ').title() }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+    <button type="submit" class="action-button">Apply Filters</button>
+</form>
+
+{% if not instances %}
+<p>You have no workflows yet.</p>
+{% else %}
+<ul>
+    {% for instance in instances %}
+    <li class="wip-list-item">
+        <h2>{{ instance.name }}</h2>
+        <p><strong>Status:</strong> {{ instance.status.value.replace('_', ' ').title() }}</p>
+        <p><strong>Created:</strong> {{ instance.created_at.isoformat() }}</p>
+        <a href="/workflow-instances/{{ instance.id }}" class="action-button">View Details</a>
+    </li>
+    {% endfor %}
+</ul>
+{% endif %}
+
+<div class="page-actions">
+    <a href="/" class="back-link">← Back to Home</a>
+    <a href="/workflow-definitions" class="back-link">← Available Definitions</a>
+    <a href="/workflow-definitions/create" class="action-button">Create New Checklist Template</a>
+    <a href="/logout" class="back-link">Logout</a>
+</div>
 {% endblock %}

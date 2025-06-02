@@ -1,14 +1,16 @@
 from fastapi import APIRouter, Request, Form, Depends
-from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi import status
-from app.services import WorkflowService
-from app.models import WorkflowStatus # Added import
+from fastapi.responses import HTMLResponse, RedirectResponse
+
 from app.core.html_renderer import HtmlRendererInterface
 from app.core.security import AuthenticatedUser, get_current_active_user
 from app.dependencies import get_workflow_service, get_html_renderer
+from app.models import WorkflowStatus  # Added import
+from app.services import WorkflowService
 from app.utils import create_message_page
 
 router = APIRouter(prefix="/workflow-instances", tags=["workflow_instances"])
+
 
 @router.post("", response_class=RedirectResponse)
 async def create_workflow_instance_handler(
@@ -27,6 +29,7 @@ async def create_workflow_instance_handler(
             [("← Definitions", "/workflow-definitions")], status_code=500, renderer=renderer
         )
     return RedirectResponse(url=f"/workflow-instances/{instance.id}", status_code=status.HTTP_303_SEE_OTHER)
+
 
 @router.get("/{instance_id}", response_class=HTMLResponse)
 async def read_workflow_instance_page(
@@ -54,6 +57,7 @@ async def read_workflow_instance_page(
         {"instance": instance, "tasks": tasks}
     )
 
+
 @router.post("/{instance_id}/archive", response_class=HTMLResponse)
 async def archive_workflow_instance_handler(
         request: Request,
@@ -62,7 +66,7 @@ async def archive_workflow_instance_handler(
         current_user: AuthenticatedUser = Depends(get_current_active_user),
         renderer: HtmlRendererInterface = Depends(get_html_renderer)
 ):
-    if isinstance(current_user, RedirectResponse): # Handles unauthenticated users
+    if isinstance(current_user, RedirectResponse):  # Handles unauthenticated users
         return current_user
 
     # Attempt to archive the instance
@@ -84,33 +88,82 @@ async def archive_workflow_instance_handler(
             # This implies instance_id is invalid or user does not own it.
             # The service.archive_workflow_instance would have returned None.
             return await create_message_page(
-                request, "Not Found", "Error 404", 
+                request, "Not Found", "Error 404",
                 f"Workflow Instance with ID '{instance_id}' not found or you do not have permission to view it.",
-                [("← Back to Definitions", "/workflow-definitions")], 
+                [("← Back to Definitions", "/workflow-definitions")],
                 status_code=404, renderer=renderer
             )
-        
+
         instance_obj = instance_details["instance"]
 
         # If instance exists and belongs to user, but archiving failed, it's likely because it's completed.
         if instance_obj.status == WorkflowStatus.completed:
             return await create_message_page(
-                request, "Archiving Failed", "Error 400 - Bad Request", 
+                request, "Archiving Failed", "Error 400 - Bad Request",
                 "Cannot archive a workflow instance that is already completed.",
-                [(f"← Back to Instance", f"/workflow-instances/{instance_id}")], 
+                [(f"← Back to Instance", f"/workflow-instances/{instance_id}")],
                 status_code=status.HTTP_400_BAD_REQUEST, renderer=renderer
             )
-        
+
         # If it's already archived (should have been returned by archive_workflow_instance directly, but as a fallback)
         if instance_obj.status == WorkflowStatus.archived:
-             return RedirectResponse(url=f"/workflow-instances/{instance_id}", status_code=status.HTTP_303_SEE_OTHER)
-
+            return RedirectResponse(url=f"/workflow-instances/{instance_id}", status_code=status.HTTP_303_SEE_OTHER)
 
         # Default error if none of the above specific conditions were met
         # This could be due to some other unexpected state or error in the service layer.
         return await create_message_page(
-            request, "Archiving Failed", "Error 500 - Server Error", 
+            request, "Archiving Failed", "Error 500 - Server Error",
             "Could not archive the workflow instance due to an unexpected error.",
-            [(f"← Back to Instance", f"/workflow-instances/{instance_id}")], 
+            [(f"← Back to Instance", f"/workflow-instances/{instance_id}")],
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, renderer=renderer
+        )
+
+
+@router.post("/{instance_id}/unarchive", response_class=HTMLResponse)
+async def unarchive_workflow_instance_handler(
+        request: Request,
+        instance_id: str,
+        service: WorkflowService = Depends(get_workflow_service),
+        current_user: AuthenticatedUser = Depends(get_current_active_user),
+        renderer: HtmlRendererInterface = Depends(get_html_renderer)
+):
+    if isinstance(current_user, RedirectResponse):  # Handles unauthenticated users
+        return current_user
+
+    unarchived_instance_result = await service.unarchive_workflow_instance(instance_id, current_user.user_id)
+
+    if unarchived_instance_result:
+        # If successful and instance is now active, redirect
+        return RedirectResponse(url=f"/workflow-instances/{instance_id}", status_code=status.HTTP_303_SEE_OTHER)
+    else:
+        # Unarchiving failed, determine why for a more specific error message.
+        # Re-fetch the instance details to provide accurate error feedback.
+        instance_details = await service.get_workflow_instance_with_tasks(instance_id, current_user.user_id)
+
+        if not instance_details or not instance_details["instance"]:
+            # Instance not found or user does not have permission.
+            return await create_message_page(
+                request, "Not Found", "Error 404",
+                f"Workflow Instance with ID '{instance_id}' not found or you do not have permission to view it.",
+                [("← Back to Definitions", "/workflow-definitions")],
+                status_code=status.HTTP_404_NOT_FOUND, renderer=renderer
+            )
+
+        instance_obj = instance_details["instance"]
+
+        # If instance exists and belongs to user, but unarchiving failed, it's likely because it's not archived.
+        if instance_obj.status != WorkflowStatus.archived:
+            return await create_message_page(
+                request, "Unarchiving Failed", "Error 400 - Bad Request",
+                "Cannot unarchive a workflow instance that is not currently archived.",
+                [(f"← Back to Instance", f"/workflow-instances/{instance_id}")],
+                status_code=status.HTTP_400_BAD_REQUEST, renderer=renderer
+            )
+
+        # Default error if none of the above specific conditions were met (e.g., unexpected service layer issue)
+        return await create_message_page(
+            request, "Unarchiving Failed", "Error 500 - Server Error",
+            "Could not unarchive the workflow instance due to an unexpected error.",
+            [(f"← Back to Instance", f"/workflow-instances/{instance_id}")],
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, renderer=renderer
         )
