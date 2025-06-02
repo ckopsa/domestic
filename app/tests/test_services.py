@@ -714,3 +714,214 @@ async def test_undo_complete_task_workflow_remains_active(workflow_service, mock
     
     # Crucially, update_workflow_instance should NOT be called if workflow was already active
     instance_repo.update_workflow_instance.assert_not_called()
+
+
+# Constants for archive tests
+ARCHIVE_USER_ID = "archive_user"
+ARCHIVE_INSTANCE_ID = "archive_instance_id"
+OTHER_USER_ID_ARCHIVE = "other_archive_user"
+
+@pytest.mark.asyncio
+async def test_archive_workflow_instance_success(workflow_service, mock_repositories):
+    # Arrange
+    _, instance_repo, _ = mock_repositories
+    active_instance = WorkflowInstance(
+        id=ARCHIVE_INSTANCE_ID,
+        user_id=ARCHIVE_USER_ID,
+        status=WorkflowStatus.active,
+        name="Test Archive",
+        workflow_definition_id="def_archive"
+    )
+    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=active_instance)
+    
+    async def mock_update_instance(instance_id, instance_data):
+        # Simulate the update operation by returning the instance_data passed
+        return instance_data
+    instance_repo.update_workflow_instance = AsyncMock(side_effect=mock_update_instance)
+
+    # Act
+    result = await workflow_service.archive_workflow_instance(ARCHIVE_INSTANCE_ID, ARCHIVE_USER_ID)
+
+    # Assert
+    assert result is not None
+    assert result.status == WorkflowStatus.ARCHIVED
+    instance_repo.get_workflow_instance_by_id.assert_called_once_with(ARCHIVE_INSTANCE_ID)
+    instance_repo.update_workflow_instance.assert_called_once()
+    # Check that the correct data was passed to update
+    updated_data = instance_repo.update_workflow_instance.call_args[0][1]
+    assert updated_data.status == WorkflowStatus.ARCHIVED
+    assert updated_data.id == ARCHIVE_INSTANCE_ID
+
+@pytest.mark.asyncio
+async def test_archive_workflow_instance_not_owned_by_user(workflow_service, mock_repositories):
+    # Arrange
+    _, instance_repo, _ = mock_repositories
+    instance_other_user = WorkflowInstance(
+        id=ARCHIVE_INSTANCE_ID,
+        user_id=OTHER_USER_ID_ARCHIVE, # Belongs to a different user
+        status=WorkflowStatus.active,
+        name="Test Archive Other User",
+        workflow_definition_id="def_archive"
+    )
+    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=instance_other_user)
+
+    # Act
+    result = await workflow_service.archive_workflow_instance(ARCHIVE_INSTANCE_ID, ARCHIVE_USER_ID)
+
+    # Assert
+    assert result is None
+    instance_repo.get_workflow_instance_by_id.assert_called_once_with(ARCHIVE_INSTANCE_ID)
+    instance_repo.update_workflow_instance.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_archive_workflow_instance_already_completed(workflow_service, mock_repositories):
+    # Arrange
+    _, instance_repo, _ = mock_repositories
+    completed_instance = WorkflowInstance(
+        id=ARCHIVE_INSTANCE_ID,
+        user_id=ARCHIVE_USER_ID,
+        status=WorkflowStatus.completed, # Already completed
+        name="Test Archive Completed",
+        workflow_definition_id="def_archive"
+    )
+    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=completed_instance)
+
+    # Act
+    result = await workflow_service.archive_workflow_instance(ARCHIVE_INSTANCE_ID, ARCHIVE_USER_ID)
+
+    # Assert
+    assert result is None
+    instance_repo.get_workflow_instance_by_id.assert_called_once_with(ARCHIVE_INSTANCE_ID)
+    instance_repo.update_workflow_instance.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_archive_workflow_instance_non_existent(workflow_service, mock_repositories):
+    # Arrange
+    _, instance_repo, _ = mock_repositories
+    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=None) # Instance does not exist
+
+    # Act
+    result = await workflow_service.archive_workflow_instance("non_existent_id", ARCHIVE_USER_ID)
+
+    # Assert
+    assert result is None
+    instance_repo.get_workflow_instance_by_id.assert_called_once_with("non_existent_id")
+    instance_repo.update_workflow_instance.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_archive_workflow_instance_already_archived(workflow_service, mock_repositories):
+    # Arrange
+    _, instance_repo, _ = mock_repositories
+    archived_instance = WorkflowInstance(
+        id=ARCHIVE_INSTANCE_ID,
+        user_id=ARCHIVE_USER_ID,
+        status=WorkflowStatus.ARCHIVED, # Already archived
+        name="Test Archive Already Archived",
+        workflow_definition_id="def_archive"
+    )
+    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=archived_instance)
+
+    # Act
+    result = await workflow_service.archive_workflow_instance(ARCHIVE_INSTANCE_ID, ARCHIVE_USER_ID)
+
+    # Assert
+    assert result is not None
+    assert result.status == WorkflowStatus.ARCHIVED
+    assert result.id == ARCHIVE_INSTANCE_ID # Ensure it's the same instance
+    instance_repo.get_workflow_instance_by_id.assert_called_once_with(ARCHIVE_INSTANCE_ID)
+    instance_repo.update_workflow_instance.assert_not_called() # Should not call update if already archived
+
+
+# Tests for list_instances_for_user focusing on ARCHIVED status
+LIST_USER_ID = "list_test_user"
+
+@pytest.mark.asyncio
+async def test_list_instances_for_user_filters_archived_status(workflow_service, mock_repositories):
+    # Arrange
+    _, instance_repo, _ = mock_repositories
+    
+    archived_instance_mock = WorkflowInstance(
+        id="inst_archived_1", user_id=LIST_USER_ID, status=WorkflowStatus.ARCHIVED, 
+        name="Archived Wf", workflow_definition_id="def_1"
+    )
+    # Simulate that the repository method, when called with status=ARCHIVED, returns only archived instances.
+    instance_repo.list_workflow_instances_by_user = AsyncMock(return_value=[archived_instance_mock])
+
+    # Act: Call the service method requesting ARCHIVED instances
+    result = await workflow_service.list_instances_for_user(
+        user_id=LIST_USER_ID, 
+        status=WorkflowStatus.ARCHIVED
+    )
+
+    # Assert: Service should return what the repository returned.
+    assert len(result) == 1
+    assert result[0].id == "inst_archived_1"
+    assert result[0].status == WorkflowStatus.ARCHIVED
+    
+    # Verify the repository was called correctly by the service
+    instance_repo.list_workflow_instances_by_user.assert_called_once_with(
+        user_id=LIST_USER_ID,
+        created_at_date=None, # Default if not provided
+        status=WorkflowStatus.ARCHIVED
+    )
+
+@pytest.mark.asyncio
+async def test_list_instances_for_user_active_status_excludes_archived(workflow_service, mock_repositories):
+    # Arrange
+    _, instance_repo, _ = mock_repositories
+    
+    active_instance_mock = WorkflowInstance(
+        id="inst_active_1", user_id=LIST_USER_ID, status=WorkflowStatus.active,
+        name="Active Wf", workflow_definition_id="def_2"
+    )
+    # Simulate repository returning only active instances when filtered by active status
+    instance_repo.list_workflow_instances_by_user = AsyncMock(return_value=[active_instance_mock])
+
+    # Act: Call the service method requesting ACTIVE instances
+    result = await workflow_service.list_instances_for_user(
+        user_id=LIST_USER_ID, 
+        status=WorkflowStatus.active
+    )
+
+    # Assert: Service returns only active instances, implying archived ones are excluded by the repo filter
+    assert len(result) == 1
+    assert result[0].id == "inst_active_1"
+    assert result[0].status == WorkflowStatus.active
+    
+    instance_repo.list_workflow_instances_by_user.assert_called_once_with(
+        user_id=LIST_USER_ID,
+        created_at_date=None,
+        status=WorkflowStatus.active
+    )
+
+@pytest.mark.asyncio
+async def test_list_instances_for_user_no_status_filter_passes_none_to_repo(workflow_service, mock_repositories):
+    # Arrange
+    _, instance_repo, _ = mock_repositories
+    
+    active_instance_mock = WorkflowInstance(
+        id="inst_active_2", user_id=LIST_USER_ID, status=WorkflowStatus.active,
+        name="Active Wf 2", workflow_definition_id="def_3"
+    )
+    archived_instance_mock = WorkflowInstance(
+        id="inst_archived_2", user_id=LIST_USER_ID, status=WorkflowStatus.ARCHIVED,
+        name="Archived Wf 2", workflow_definition_id="def_4"
+    )
+    # Simulate repository returning a mix of instances if status is None (behavior of repo)
+    mixed_instances = [active_instance_mock, archived_instance_mock]
+    instance_repo.list_workflow_instances_by_user = AsyncMock(return_value=mixed_instances)
+
+    # Act: Call the service method with no status filter (status=None)
+    result = await workflow_service.list_instances_for_user(user_id=LIST_USER_ID, status=None)
+
+    # Assert: Service returns the mixed list from the repository
+    assert len(result) == 2
+    assert any(inst.status == WorkflowStatus.ARCHIVED for inst in result)
+    assert any(inst.status == WorkflowStatus.active for inst in result)
+    
+    # Crucially, verify that status=None was passed to the repository
+    instance_repo.list_workflow_instances_by_user.assert_called_once_with(
+        user_id=LIST_USER_ID,
+        created_at_date=None,
+        status=None # This is the key assertion for this test
+    )

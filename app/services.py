@@ -116,3 +116,26 @@ class WorkflowService:
             await self.instance_repo.update_workflow_instance(workflow_instance.id, workflow_instance)
 
         return updated_task
+
+    async def archive_workflow_instance(self, instance_id: str, user_id: str) -> Optional[WorkflowInstance]:
+        instance = await self.instance_repo.get_workflow_instance_by_id(instance_id)
+
+        if not instance:
+            return None  # Or raise InstanceNotFoundError
+
+        if instance.user_id != user_id:
+            # Consider raising an authorization error or just returning None
+            return None
+
+        if instance.status == WorkflowStatus.completed:
+            # Cannot archive a completed instance, return None or raise error
+            # For now, returning None as per subtask description ("return None")
+            return None
+        
+        if instance.status == WorkflowStatus.ARCHIVED:
+            # Already archived, return the instance as is
+            return instance
+
+        instance.status = WorkflowStatus.ARCHIVED
+        updated_instance = await self.instance_repo.update_workflow_instance(instance.id, instance)
+        return updated_instance
