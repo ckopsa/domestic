@@ -279,6 +279,47 @@ async def test_get_workflow_instance_not_found(db_session):
     assert response.status_code == 404  # Not found
 
 @pytest.mark.asyncio
+async def test_get_workflow_dashboard_page(db_session):
+    # Arrange: Create a definition
+    definition_data = {
+        "name": "Dashboard Test Workflow",
+        "description": "Workflow for dashboard test",
+        "task_names": ["Task Alpha"]
+    }
+    # Ensure the API endpoint for creating definitions is correct
+    create_def_response = client.post("/api/workflow-definitions", json=definition_data)
+    assert create_def_response.status_code == 201
+    definition_id = create_def_response.json()["id"]
+
+    # Arrange: Create an instance for the mock_user
+    # The user_id for the instance will be 'test_user' due to override_get_current_active_user
+    instance_data = {
+        "definition_id": definition_id
+    }
+    # The mock_user's ID 'test_user' will be associated with this instance by the service.
+    create_inst_response = client.post(f"/api/workflow-instances", json={"definition_id": definition_id})
+    assert create_inst_response.status_code == 201
+    instance_json = create_inst_response.json()
+    instance_id = instance_json["id"]
+    instance_name = instance_json["name"] # Should be "Dashboard Test Workflow"
+
+    # Act: Get the dashboard page
+    response = client.get("/workflow-instances/dashboard")
+
+    # Assert: Basic page structure and content
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    assert "My Workflows Dashboard" in response.text
+    assert "<th>Name</th>" in response.text
+    assert "<th>Status</th>" in response.text
+    assert "<th>Actions</th>" in response.text
+
+    # Assert: Check if the created instance is listed
+    assert instance_name in response.text
+    assert instance_id in response.text
+    assert f'<a href="/workflow-instances/{instance_id}" class="action-button">View Details</a>' in response.text
+
+@pytest.mark.asyncio
 async def test_complete_task(db_session):
     # Arrange: First create a definition and an instance with tasks
     definition_data = {

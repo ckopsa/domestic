@@ -9,6 +9,24 @@ from app.utils import create_message_page
 
 router = APIRouter(prefix="/workflow-instances", tags=["workflow_instances"])
 
+@router.get("/dashboard", response_class=HTMLResponse)
+async def workflow_dashboard_page(
+        request: Request,
+        service: WorkflowService = Depends(get_workflow_service),
+        current_user: AuthenticatedUser = Depends(get_current_active_user),
+        renderer: HtmlRendererInterface = Depends(get_html_renderer)
+):
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+
+    instances = await service.list_instances_for_user(current_user.user_id)
+
+    return await renderer.render(
+        "workflow_dashboard.html",
+        request,
+        {"instances": instances}
+    )
+
 @router.post("", response_class=RedirectResponse)
 async def create_workflow_instance_handler(
         request: Request,
