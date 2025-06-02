@@ -1,7 +1,7 @@
 # services.py
 from typing import List, Optional, Dict, Any
 
-from app.models import WorkflowDefinition, WorkflowInstance, TaskInstance
+from app.models import WorkflowDefinition, WorkflowInstance, TaskInstance, TaskStatus, WorkflowStatus
 from app.repository import WorkflowDefinitionRepository, WorkflowInstanceRepository, TaskInstanceRepository
 
 
@@ -97,3 +97,21 @@ class WorkflowService:
             raise ValueError(str(e)) from e
         except DefinitionInUseError as e:
             raise ValueError(str(e)) from e
+
+    async def undo_complete_task(self, task_id: str, user_id: str) -> Optional[TaskInstance]:
+        task = await self.task_repo.get_task_instance_by_id(task_id)
+        if not task or task.status != TaskStatus.completed:
+            return None
+
+        workflow_instance = await self.instance_repo.get_workflow_instance_by_id(task.workflow_instance_id)
+        if not workflow_instance or workflow_instance.user_id != user_id:
+            return None
+
+        task.status = TaskStatus.pending
+        updated_task = await self.task_repo.update_task_instance(task_id, task)
+
+        if updated_task and workflow_instance.status == WorkflowStatus.completed:
+            workflow_instance.status = WorkflowStatus.active
+            await self.instance_repo.update_workflow_instance(workflow_instance.id, workflow_instance)
+
+        return updated_task

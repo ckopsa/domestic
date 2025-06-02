@@ -446,3 +446,189 @@ async def test_list_instances_for_user(workflow_service, mock_repositories):
     assert len(result) == 2
     assert result[0].user_id == "test_user"
     assert result[1].user_id == "test_user"
+
+
+USER_ID = "test_user_123"
+OTHER_USER_ID = "other_user_456"
+WF_INSTANCE_ID = "wf_inst_abc"
+TASK_ID_1 = "task_def_123"
+
+@pytest.mark.asyncio
+async def test_undo_complete_task_success_workflow_becomes_active(workflow_service, mock_repositories):
+    # Arrange
+    _, instance_repo, task_repo = mock_repositories
+
+    completed_task = TaskInstance(
+        id=TASK_ID_1,
+        workflow_instance_id=WF_INSTANCE_ID,
+        name="Test Task 1",
+        order=0,
+        status=TaskStatus.completed
+    )
+    workflow_instance = WorkflowInstance(
+        id=WF_INSTANCE_ID,
+        workflow_definition_id="def_id_1",
+        name="Test Workflow",
+        user_id=USER_ID,
+        status=WorkflowStatus.completed # Workflow was completed
+    )
+
+    task_repo.get_task_instance_by_id = AsyncMock(return_value=completed_task)
+    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=workflow_instance)
+    
+    # Mock the update methods to return the object passed to them, modified
+    async def update_task_side_effect(task_id, task_data):
+        # In a real scenario, this would update and return the updated object.
+        # For the mock, we'll just reflect the change.
+        completed_task.status = task_data.status
+        return completed_task
+    
+    async def update_workflow_side_effect(wf_id, wf_data):
+        workflow_instance.status = wf_data.status
+        return workflow_instance
+
+    task_repo.update_task_instance = AsyncMock(side_effect=update_task_side_effect)
+    instance_repo.update_workflow_instance = AsyncMock(side_effect=update_workflow_side_effect)
+
+    # Act
+    result = await workflow_service.undo_complete_task(TASK_ID_1, USER_ID)
+
+    # Assert
+    assert result is not None
+    assert result.id == TASK_ID_1
+    assert result.status == TaskStatus.pending
+    task_repo.update_task_instance.assert_called_once()
+    assert task_repo.update_task_instance.call_args[0][1].status == TaskStatus.pending
+    
+    instance_repo.update_workflow_instance.assert_called_once()
+    assert instance_repo.update_workflow_instance.call_args[0][1].status == WorkflowStatus.active
+
+@pytest.mark.asyncio
+async def test_undo_complete_task_task_not_found(workflow_service, mock_repositories):
+    # Arrange
+    _, _, task_repo = mock_repositories
+    task_repo.get_task_instance_by_id = AsyncMock(return_value=None)
+
+    # Act
+    result = await workflow_service.undo_complete_task("non_existent_task_id", USER_ID)
+
+    # Assert
+    assert result is None
+    task_repo.update_task_instance.assert_not_called()
+    mock_repositories[1].update_workflow_instance.assert_not_called() # instance_repo
+
+@pytest.mark.asyncio
+async def test_undo_complete_task_task_not_completed(workflow_service, mock_repositories):
+    # Arrange
+    _, _, task_repo = mock_repositories
+    pending_task = TaskInstance(
+        id=TASK_ID_1,
+        workflow_instance_id=WF_INSTANCE_ID,
+        name="Test Task 1",
+        order=0,
+        status=TaskStatus.pending # Task is not completed
+    )
+    task_repo.get_task_instance_by_id = AsyncMock(return_value=pending_task)
+
+    # Act
+    result = await workflow_service.undo_complete_task(TASK_ID_1, USER_ID)
+
+    # Assert
+    assert result is None
+    task_repo.update_task_instance.assert_not_called()
+    mock_repositories[1].update_workflow_instance.assert_not_called() # instance_repo
+
+@pytest.mark.asyncio
+async def test_undo_complete_task_workflow_not_found(workflow_service, mock_repositories):
+    # Arrange
+    _, instance_repo, task_repo = mock_repositories
+    completed_task = TaskInstance(
+        id=TASK_ID_1,
+        workflow_instance_id="non_existent_wf_id", # Points to a non-existent workflow
+        name="Test Task 1",
+        order=0,
+        status=TaskStatus.completed
+    )
+    task_repo.get_task_instance_by_id = AsyncMock(return_value=completed_task)
+    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=None) # Workflow not found
+
+    # Act
+    result = await workflow_service.undo_complete_task(TASK_ID_1, USER_ID)
+
+    # Assert
+    assert result is None
+    task_repo.update_task_instance.assert_not_called()
+    instance_repo.update_workflow_instance.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_undo_complete_task_user_unauthorized(workflow_service, mock_repositories):
+    # Arrange
+    _, instance_repo, task_repo = mock_repositories
+    completed_task = TaskInstance(
+        id=TASK_ID_1,
+        workflow_instance_id=WF_INSTANCE_ID,
+        name="Test Task 1",
+        order=0,
+        status=TaskStatus.completed
+    )
+    workflow_instance = WorkflowInstance(
+        id=WF_INSTANCE_ID,
+        workflow_definition_id="def_id_1",
+        name="Test Workflow",
+        user_id=OTHER_USER_ID, # Belongs to a different user
+        status=WorkflowStatus.completed
+    )
+    task_repo.get_task_instance_by_id = AsyncMock(return_value=completed_task)
+    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=workflow_instance)
+
+    # Act
+    result = await workflow_service.undo_complete_task(TASK_ID_1, USER_ID) # Current user is USER_ID
+
+    # Assert
+    assert result is None
+    task_repo.update_task_instance.assert_not_called()
+    instance_repo.update_workflow_instance.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_undo_complete_task_workflow_remains_active(workflow_service, mock_repositories):
+    # Arrange
+    _, instance_repo, task_repo = mock_repositories
+
+    completed_task_to_undo = TaskInstance(
+        id=TASK_ID_1,
+        workflow_instance_id=WF_INSTANCE_ID,
+        name="Test Task 1",
+        order=0,
+        status=TaskStatus.completed
+    )
+    # This workflow is active because other tasks might still be pending, or it was never completed.
+    workflow_instance = WorkflowInstance(
+        id=WF_INSTANCE_ID,
+        workflow_definition_id="def_id_1",
+        name="Test Workflow",
+        user_id=USER_ID,
+        status=WorkflowStatus.active # Workflow is already active
+    )
+
+    task_repo.get_task_instance_by_id = AsyncMock(return_value=completed_task_to_undo)
+    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=workflow_instance)
+    
+    async def update_task_side_effect(task_id, task_data):
+        completed_task_to_undo.status = task_data.status
+        return completed_task_to_undo
+
+    task_repo.update_task_instance = AsyncMock(side_effect=update_task_side_effect)
+
+    # Act
+    result = await workflow_service.undo_complete_task(TASK_ID_1, USER_ID)
+
+    # Assert
+    assert result is not None
+    assert result.id == TASK_ID_1
+    assert result.status == TaskStatus.pending
+    
+    task_repo.update_task_instance.assert_called_once()
+    assert task_repo.update_task_instance.call_args[0][1].status == TaskStatus.pending
+    
+    # Crucially, update_workflow_instance should NOT be called if workflow was already active
+    instance_repo.update_workflow_instance.assert_not_called()
