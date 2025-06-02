@@ -139,3 +139,20 @@ class WorkflowService:
         instance.status = WorkflowStatus.ARCHIVED
         updated_instance = await self.instance_repo.update_workflow_instance(instance.id, instance)
         return updated_instance
+
+    async def unarchive_workflow_instance(self, instance_id: str, user_id: str) -> Optional[WorkflowInstance]:
+        instance = await self.instance_repo.get_workflow_instance_by_id(instance_id)
+
+        if not instance:
+            return None # Instance not found
+
+        if instance.user_id != user_id:
+            return None # User does not own this instance
+
+        if instance.status != WorkflowStatus.ARCHIVED:
+            # Can only unarchive instances that are currently archived
+            return None 
+        
+        instance.status = WorkflowStatus.active # Set status to active
+        updated_instance = await self.instance_repo.update_workflow_instance(instance.id, instance)
+        return updated_instance

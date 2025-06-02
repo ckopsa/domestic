@@ -606,6 +606,111 @@ async def test_archive_instance_already_archived(db_session, client_as_user_arch
     assert updated_instance_response.status_code == 200
     assert updated_instance_response.json()["instance"]["status"] == WorkflowStatus.ARCHIVED.value
 
+
+# --- Tests for /workflow-instances/{instance_id}/unarchive ---
+
+# Constants for unarchive API tests
+OWNER_USER_ID_FOR_UNARCHIVE = "owner_unarchive_api"
+OTHER_USER_ID_FOR_UNARCHIVE = "other_unarchive_api"
+
+@pytest.mark.asyncio
+async def test_unarchive_instance_success(db_session, client_as_user_archive, monkeypatch):
+    owner = AuthenticatedUser(user_id=OWNER_USER_ID_FOR_UNARCHIVE, username="owner_unarchive", email="owner@unarchive.com")
+    
+    monkeypatch.setitem(app.dependency_overrides, get_current_active_user, lambda: owner)
+    setup_client = TestClient(app)
+    instance = create_test_workflow_instance_for_archive(setup_client, owner.user_id, status=WorkflowStatus.ARCHIVED, def_name_suffix="unarchive_success")
+    instance_id = instance["id"]
+    
+    client = client_as_user_archive(owner)
+    response = client.post(f"/workflow-instances/{instance_id}/unarchive", follow_redirects=False)
+
+    assert response.status_code == 303 # Redirect
+    assert response.headers["location"] == f"/workflow-instances/{instance_id}"
+
+    updated_instance_response = client.get(f"/api/workflow-instances/{instance_id}")
+    assert updated_instance_response.status_code == 200
+    assert updated_instance_response.json()["instance"]["status"] == WorkflowStatus.active.value
+
+@pytest.mark.asyncio
+async def test_unarchive_instance_not_authenticated(db_session, client_as_user_archive, monkeypatch):
+    owner = AuthenticatedUser(user_id=OWNER_USER_ID_FOR_UNARCHIVE, username="owner_unarchive_auth", email="owner_unauth@unarchive.com")
+    
+    monkeypatch.setitem(app.dependency_overrides, get_current_active_user, lambda: owner)
+    setup_client = TestClient(app)
+    instance = create_test_workflow_instance_for_archive(setup_client, owner.user_id, status=WorkflowStatus.ARCHIVED, def_name_suffix="unarchive_notauth")
+    instance_id = instance["id"]
+
+    client = client_as_user_archive(None) # Unauthenticated client
+    response = client.post(f"/workflow-instances/{instance_id}/unarchive", follow_redirects=False)
+
+    assert response.status_code == 307 # Redirect to login
+    assert "/login" in response.headers["location"].lower()
+
+@pytest.mark.asyncio
+async def test_unarchive_instance_other_user(db_session, client_as_user_archive, monkeypatch):
+    owner = AuthenticatedUser(user_id=OWNER_USER_ID_FOR_UNARCHIVE, username="owner_unarchive_other", email="owner_other@unarchive.com")
+    other = AuthenticatedUser(user_id=OTHER_USER_ID_FOR_UNARCHIVE, username="other_unarchive", email="other@unarchive.com")
+
+    monkeypatch.setitem(app.dependency_overrides, get_current_active_user, lambda: owner)
+    setup_client = TestClient(app)
+    instance = create_test_workflow_instance_for_archive(setup_client, owner.user_id, status=WorkflowStatus.ARCHIVED, def_name_suffix="unarchive_other_user")
+    instance_id = instance["id"]
+
+    client = client_as_user_archive(other) # Authenticated as 'other' user
+    response = client.post(f"/workflow-instances/{instance_id}/unarchive", follow_redirects=False)
+    
+    assert response.status_code == 404 # Service returns None, router shows 404 if instance not found for user
+    assert "not found or you do not have permission to view it" in response.text.lower()
+
+    monkeypatch.setitem(app.dependency_overrides, get_current_active_user, lambda: owner)
+    owner_client = TestClient(app)
+    original_instance_response = owner_client.get(f"/api/workflow-instances/{instance_id}")
+    assert original_instance_response.json()["instance"]["status"] == WorkflowStatus.ARCHIVED.value # Should still be archived
+
+@pytest.mark.asyncio
+async def test_unarchive_instance_not_archived_state_active(db_session, client_as_user_archive, monkeypatch):
+    owner = AuthenticatedUser(user_id=OWNER_USER_ID_FOR_UNARCHIVE, username="owner_unarchive_active", email="owner_active@unarchive.com")
+    
+    monkeypatch.setitem(app.dependency_overrides, get_current_active_user, lambda: owner)
+    setup_client = TestClient(app)
+    instance = create_test_workflow_instance_for_archive(setup_client, owner.user_id, status=WorkflowStatus.active, def_name_suffix="unarchive_already_active")
+    instance_id = instance["id"]
+    
+    client = client_as_user_archive(owner)
+    response = client.post(f"/workflow-instances/{instance_id}/unarchive", follow_redirects=False)
+
+    assert response.status_code == 400 # Bad Request
+    assert "cannot unarchive a workflow instance that is not currently archived" in response.text.lower()
+
+@pytest.mark.asyncio
+async def test_unarchive_instance_not_archived_state_completed(db_session, client_as_user_archive, monkeypatch):
+    owner = AuthenticatedUser(user_id=OWNER_USER_ID_FOR_UNARCHIVE, username="owner_unarchive_completed", email="owner_completed@unarchive.com")
+    
+    monkeypatch.setitem(app.dependency_overrides, get_current_active_user, lambda: owner)
+    setup_client = TestClient(app)
+    instance = create_test_workflow_instance_for_archive(setup_client, owner.user_id, status=WorkflowStatus.completed, def_name_suffix="unarchive_already_completed")
+    instance_id = instance["id"]
+    
+    client = client_as_user_archive(owner)
+    response = client.post(f"/workflow-instances/{instance_id}/unarchive", follow_redirects=False)
+
+    assert response.status_code == 400 # Bad Request
+    assert "cannot unarchive a workflow instance that is not currently archived" in response.text.lower()
+
+
+@pytest.mark.asyncio
+async def test_unarchive_instance_non_existent(db_session, client_as_user_archive, monkeypatch):
+    owner = AuthenticatedUser(user_id=OWNER_USER_ID_FOR_UNARCHIVE, username="owner_unarchive_nonexist", email="owner_nonexist@unarchive.com")
+    client = client_as_user_archive(owner)
+    instance_id = "non_existent_instance_for_unarchive"
+
+    response = client.post(f"/workflow-instances/{instance_id}/unarchive", follow_redirects=False)
+
+    assert response.status_code == 404 # Not Found
+    assert f"workflow instance with id '{instance_id}' not found or you do not have permission to view it" in response.text.lower()
+
+
 @pytest.mark.asyncio
 async def test_my_workflows_with_created_at(mock_dependencies_for_my_workflows):
     client = TestClient(app)

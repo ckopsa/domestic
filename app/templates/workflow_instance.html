@@ -36,6 +36,12 @@
                 <button type="submit" class="action-button">Archive Workflow</button>
             </form>
         {% endif %}
+
+        {% if instance.status == "archived" %}
+            <form action="/workflow-instances/{{ instance.id }}/unarchive" method="post" style="margin-top:15px;">
+                <button type="submit" class="action-button">Unarchive Workflow</button>
+            </form>
+        {% endif %}
     </div>
     <a href="/workflow-definitions" class="back-link" style="margin-top:20px; display:inline-block;">← Back to Workflow Definitions</a>
     <a href="/" class="back-link" style="margin-top:20px; display:inline-block; margin-left:15px;">← Back to Home</a>

@@ -925,3 +925,114 @@ async def test_list_instances_for_user_no_status_filter_passes_none_to_repo(work
         created_at_date=None,
         status=None # This is the key assertion for this test
     )
+
+# Constants for unarchive tests (can reuse some from archive or define new ones for clarity)
+UNARCHIVE_USER_ID = "unarchive_user"
+UNARCHIVE_INSTANCE_ID = "unarchive_instance_id"
+OTHER_USER_ID_UNARCHIVE = "other_unarchive_user"
+
+@pytest.mark.asyncio
+async def test_unarchive_workflow_instance_success(workflow_service, mock_repositories):
+    # Arrange
+    _, instance_repo, _ = mock_repositories
+    archived_instance = WorkflowInstance(
+        id=UNARCHIVE_INSTANCE_ID,
+        user_id=UNARCHIVE_USER_ID,
+        status=WorkflowStatus.ARCHIVED, # Instance is archived
+        name="Test Unarchive Success",
+        workflow_definition_id="def_unarchive_succ"
+    )
+    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=archived_instance)
+    
+    async def mock_update_instance(instance_id, instance_data):
+        return instance_data # Simulate update by returning the passed data
+    instance_repo.update_workflow_instance = AsyncMock(side_effect=mock_update_instance)
+
+    # Act
+    result = await workflow_service.unarchive_workflow_instance(UNARCHIVE_INSTANCE_ID, UNARCHIVE_USER_ID)
+
+    # Assert
+    assert result is not None
+    assert result.status == WorkflowStatus.active # Status should now be active
+    instance_repo.get_workflow_instance_by_id.assert_called_once_with(UNARCHIVE_INSTANCE_ID)
+    instance_repo.update_workflow_instance.assert_called_once()
+    updated_data = instance_repo.update_workflow_instance.call_args[0][1]
+    assert updated_data.status == WorkflowStatus.active
+    assert updated_data.id == UNARCHIVE_INSTANCE_ID
+
+@pytest.mark.asyncio
+async def test_unarchive_workflow_instance_not_archived_active(workflow_service, mock_repositories):
+    # Arrange
+    _, instance_repo, _ = mock_repositories
+    active_instance = WorkflowInstance(
+        id=UNARCHIVE_INSTANCE_ID,
+        user_id=UNARCHIVE_USER_ID,
+        status=WorkflowStatus.active, # Instance is active, not archived
+        name="Test Unarchive Not Archived - Active",
+        workflow_definition_id="def_unarchive_active"
+    )
+    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=active_instance)
+
+    # Act
+    result = await workflow_service.unarchive_workflow_instance(UNARCHIVE_INSTANCE_ID, UNARCHIVE_USER_ID)
+
+    # Assert
+    assert result is None # Should not unarchive if not currently archived
+    instance_repo.get_workflow_instance_by_id.assert_called_once_with(UNARCHIVE_INSTANCE_ID)
+    instance_repo.update_workflow_instance.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_unarchive_workflow_instance_not_archived_completed(workflow_service, mock_repositories):
+    # Arrange
+    _, instance_repo, _ = mock_repositories
+    completed_instance = WorkflowInstance(
+        id=UNARCHIVE_INSTANCE_ID,
+        user_id=UNARCHIVE_USER_ID,
+        status=WorkflowStatus.completed, # Instance is completed, not archived
+        name="Test Unarchive Not Archived - Completed",
+        workflow_definition_id="def_unarchive_completed"
+    )
+    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=completed_instance)
+
+    # Act
+    result = await workflow_service.unarchive_workflow_instance(UNARCHIVE_INSTANCE_ID, UNARCHIVE_USER_ID)
+
+    # Assert
+    assert result is None # Should not unarchive if not currently archived
+    instance_repo.get_workflow_instance_by_id.assert_called_once_with(UNARCHIVE_INSTANCE_ID)
+    instance_repo.update_workflow_instance.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_unarchive_workflow_instance_not_owned_by_user(workflow_service, mock_repositories):
+    # Arrange
+    _, instance_repo, _ = mock_repositories
+    instance_other_user = WorkflowInstance(
+        id=UNARCHIVE_INSTANCE_ID,
+        user_id=OTHER_USER_ID_UNARCHIVE, # Belongs to a different user
+        status=WorkflowStatus.ARCHIVED,
+        name="Test Unarchive Other User",
+        workflow_definition_id="def_unarchive_other"
+    )
+    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=instance_other_user)
+
+    # Act
+    result = await workflow_service.unarchive_workflow_instance(UNARCHIVE_INSTANCE_ID, UNARCHIVE_USER_ID)
+
+    # Assert
+    assert result is None
+    instance_repo.get_workflow_instance_by_id.assert_called_once_with(UNARCHIVE_INSTANCE_ID)
+    instance_repo.update_workflow_instance.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_unarchive_workflow_instance_non_existent(workflow_service, mock_repositories):
+    # Arrange
+    _, instance_repo, _ = mock_repositories
+    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=None) # Instance does not exist
+
+    # Act
+    result = await workflow_service.unarchive_workflow_instance("non_existent_unarchive_id", UNARCHIVE_USER_ID)
+
+    # Assert
+    assert result is None
+    instance_repo.get_workflow_instance_by_id.assert_called_once_with("non_existent_unarchive_id")
+    instance_repo.update_workflow_instance.assert_not_called()
