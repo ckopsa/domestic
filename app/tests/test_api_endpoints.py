@@ -516,7 +516,7 @@ async def test_archive_instance_success(db_session, client_as_user_archive, monk
     # Verify status using the API (client is still authenticated as owner)
     updated_instance_response = client.get(f"/api/workflow-instances/{instance_id}")
     assert updated_instance_response.status_code == 200
-    assert updated_instance_response.json()["instance"]["status"] == WorkflowStatus.ARCHIVED.value
+    assert updated_instance_response.json()["instance"]["status"] == WorkflowStatus.archived.value
 
 
 @pytest.mark.asyncio
@@ -600,7 +600,7 @@ async def test_archive_instance_already_archived(db_session, client_as_user_arch
     
     monkeypatch.setitem(app.dependency_overrides, get_current_active_user, lambda: owner)
     setup_client = TestClient(app)
-    instance = create_test_workflow_instance_for_archive(setup_client, owner.user_id, status=WorkflowStatus.ARCHIVED, def_name_suffix="alreadyarchived")
+    instance = create_test_workflow_instance_for_archive(setup_client, owner.user_id, status=WorkflowStatus.archived, def_name_suffix="alreadyarchived")
     instance_id = instance["id"]
     
     client = client_as_user_archive(owner)
@@ -614,7 +614,7 @@ async def test_archive_instance_already_archived(db_session, client_as_user_arch
     # Verify status is still ARCHIVED
     updated_instance_response = client.get(f"/api/workflow-instances/{instance_id}")
     assert updated_instance_response.status_code == 200
-    assert updated_instance_response.json()["instance"]["status"] == WorkflowStatus.ARCHIVED.value
+    assert updated_instance_response.json()["instance"]["status"] == WorkflowStatus.archived.value
 
 @pytest.mark.asyncio
 async def test_my_workflows_with_created_at(mock_dependencies_for_my_workflows):

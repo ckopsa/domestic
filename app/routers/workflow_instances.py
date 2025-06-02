@@ -102,7 +102,7 @@ async def archive_workflow_instance_handler(
             )
         
         # If it's already archived (should have been returned by archive_workflow_instance directly, but as a fallback)
-        if instance_obj.status == WorkflowStatus.ARCHIVED:
+        if instance_obj.status == WorkflowStatus.archived:
              return RedirectResponse(url=f"/workflow-instances/{instance_id}", status_code=status.HTTP_303_SEE_OTHER)
 
 
