@@ -1,11 +1,12 @@
 import uuid
+
 from sqlalchemy import Column, String, Text, Date, Enum as SQLAlchemyEnum, ForeignKey
-from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB
-from typing import List
+from sqlalchemy.orm import relationship
 
 from app.db_models.base import Base
 from app.db_models.enums import WorkflowStatus
+
 
 class WorkflowDefinition(Base):
     __tablename__ = "workflow_definitions"
@@ -16,6 +17,7 @@ class WorkflowDefinition(Base):
     task_names = Column(JSONB, nullable=False, default=lambda: [])  # Stored as JSONB for proper list handling
 
     instances = relationship("WorkflowInstance", back_populates="definition")
+
 
 class WorkflowInstance(Base):
     __tablename__ = "workflow_instances"

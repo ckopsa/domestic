@@ -1,8 +1,11 @@
 from typing import List
+
 from fastapi import Request, Depends
 from fastapi.responses import HTMLResponse
+
 from app.core.html_renderer import HtmlRendererInterface
 from app.dependencies import get_html_renderer
+
 
 async def create_message_page(
         request: Request,
@@ -19,7 +22,7 @@ async def create_message_page(
         heading_style = "color: #ef4444;"
     elif "warn" in title.lower():
         heading_style = "color: #f6ad55;"
-    
+
     response = await renderer.render(
         "message.html",
         request,

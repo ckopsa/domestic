@@ -1,28 +1,30 @@
 {% extends "base.html" %}
 
 {% block content %}
-    <h1>Available Workflow Definitions</h1>
-    {% if not definitions %}
-        <p>No workflow definitions available.</p>
-    {% else %}
-        <ul>
-            {% for defn in definitions %}
-                <li class="wip-list-item">
-                    <h2>{{ defn.name }}</h2>
-                    <p>{{ defn.description or "No description." }}</p>
-                    <p><strong>Tasks:</strong> {{ ", ".join(defn.task_names) or "None" }}</p>
-                    <form action="/workflow-instances" method="post" style="margin-top:10px;" data-secure="true">
-                        <input type="hidden" name="definition_id" value="{{ defn.id }}">
-                        <button type="submit" class="action-button create-wip-link">Start '{{ defn.name }}'</button>
-                    </form>
-                    <a href="/workflow-definitions/edit/{{ defn.id }}" class="action-button" style="background-color: #f6ad55; margin-left: 10px;">Edit</a>
-                    <form action="/workflow-definitions/confirm-delete-workflow-definition/{{ defn.id }}" method="get" style="display:inline; margin-left: 10px;">
-                        <button type="submit" class="action-button cancel">Delete</button>
-                    </form>
-                </li>
-            {% endfor %}
-        </ul>
-    {% endif %}
-    <a href="/" class="back-link" style="margin-top:20px;">← Back to Home</a>
-    <a href="/workflow-definitions/create" class="action-button" style="margin-top:20px;">Create New Checklist Template</a>
+<h1>Available Workflow Definitions</h1>
+{% if not definitions %}
+<p>No workflow definitions available.</p>
+{% else %}
+<ul>
+    {% for defn in definitions %}
+    <li class="wip-list-item">
+        <h2>{{ defn.name }}</h2>
+        <p>{{ defn.description or "No description." }}</p>
+        <p><strong>Tasks:</strong> {{ ", ".join(defn.task_names) or "None" }}</p>
+        <form action="/workflow-instances" method="post" style="margin-top:10px;" data-secure="true">
+            <input type="hidden" name="definition_id" value="{{ defn.id }}">
+            <button type="submit" class="action-button create-wip-link">Start '{{ defn.name }}'</button>
+        </form>
+        <a href="/workflow-definitions/edit/{{ defn.id }}" class="action-button"
+           style="background-color: #f6ad55; margin-left: 10px;">Edit</a>
+        <form action="/workflow-definitions/confirm-delete-workflow-definition/{{ defn.id }}" method="get"
+              style="display:inline; margin-left: 10px;">
+            <button type="submit" class="action-button cancel">Delete</button>
+        </form>
+    </li>
+    {% endfor %}
+</ul>
+{% endif %}
+<a href="/" class="back-link" style="margin-top:20px;">← Back to Home</a>
+<a href="/workflow-definitions/create" class="action-button" style="margin-top:20px;">Create New Checklist Template</a>
 {% endblock %}

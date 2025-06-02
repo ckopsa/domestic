@@ -1,48 +1,51 @@
 {% extends "base.html" %}
 
 {% block content %}
-    <h1>Workflow: {{ instance.name }}</h1>
-    <div class="workflow-details">
-        <p><strong>ID:</strong> {{ instance.id }}</p>
-        <p><strong>Status:</strong> {{ instance.status.upper() }}</p>
-        <p><strong>Created At:</strong> {{ instance.created_at.isoformat() }}</p>
-        <h2>Tasks:</h2>
-        {% if not tasks %}
-            <p>No tasks available for this workflow.</p>
-        {% else %}
-            <ul>
-                {% for task in tasks %}
-                    <li class="task-item" style="margin-bottom:10px;">
-                        <p><strong>Task:</strong> {{ task.name }} - {{ task.status.upper() }}</p>
-                        {% if task.status == "pending" %}
-                            <form action="/task-instances/{{ task.id }}/complete" method="post" style="display:inline; margin-left:10px;">
-                                <button type="submit" class="action-button submit">Mark Complete</button>
-                            </form>
-                        {% elif task.status == "completed" %}
-                            <form action="/task-instances/{{ task.id }}/undo-complete" method="post" style="display:inline; margin-left:10px;">
-                                <button type="submit" class="button is-info is-small">Undo Complete</button>
-                            </form>
-                        {% endif %}
-                    </li>
-                {% endfor %}
-            </ul>
-        {% endif %}
-        {% if instance.status == "completed" %}
-            <p style="color: green; font-weight: bold; font-size:1.2em; margin-top:15px;">🎉 Workflow Complete!</p>
-        {% endif %}
-
-        {% if instance.status == "active" %}
-            <form action="/workflow-instances/{{ instance.id }}/archive" method="post" style="margin-top:15px;">
-                <button type="submit" class="action-button">Archive Workflow</button>
+<h1>Workflow: {{ instance.name }}</h1>
+<div class="workflow-details">
+    <p><strong>ID:</strong> {{ instance.id }}</p>
+    <p><strong>Status:</strong> {{ instance.status.upper() }}</p>
+    <p><strong>Created At:</strong> {{ instance.created_at.isoformat() }}</p>
+    <h2>Tasks:</h2>
+    {% if not tasks %}
+    <p>No tasks available for this workflow.</p>
+    {% else %}
+    <ul>
+        {% for task in tasks %}
+        <li class="task-item" style="margin-bottom:10px;">
+            <p><strong>Task:</strong> {{ task.name }} - {{ task.status.upper() }}</p>
+            {% if task.status == "pending" %}
+            <form action="/task-instances/{{ task.id }}/complete" method="post"
+                  style="display:inline; margin-left:10px;">
+                <button type="submit" class="action-button submit">Mark Complete</button>
             </form>
-        {% endif %}
-
-        {% if instance.status == "archived" %}
-            <form action="/workflow-instances/{{ instance.id }}/unarchive" method="post" style="margin-top:15px;">
-                <button type="submit" class="action-button">Unarchive Workflow</button>
+            {% elif task.status == "completed" %}
+            <form action="/task-instances/{{ task.id }}/undo-complete" method="post"
+                  style="display:inline; margin-left:10px;">
+                <button type="submit" class="button is-info is-small">Undo Complete</button>
             </form>
-        {% endif %}
-    </div>
-    <a href="/workflow-definitions" class="back-link" style="margin-top:20px; display:inline-block;">← Back to Workflow Definitions</a>
-    <a href="/" class="back-link" style="margin-top:20px; display:inline-block; margin-left:15px;">← Back to Home</a>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+    {% if instance.status == "completed" %}
+    <p style="color: green; font-weight: bold; font-size:1.2em; margin-top:15px;">🎉 Workflow Complete!</p>
+    {% endif %}
+
+    {% if instance.status == "active" %}
+    <form action="/workflow-instances/{{ instance.id }}/archive" method="post" style="margin-top:15px;">
+        <button type="submit" class="action-button">Archive Workflow</button>
+    </form>
+    {% endif %}
+
+    {% if instance.status == "archived" %}
+    <form action="/workflow-instances/{{ instance.id }}/unarchive" method="post" style="margin-top:15px;">
+        <button type="submit" class="action-button">Unarchive Workflow</button>
+    </form>
+    {% endif %}
+</div>
+<a href="/workflow-definitions" class="back-link" style="margin-top:20px; display:inline-block;">← Back to Workflow
+    Definitions</a>
+<a href="/" class="back-link" style="margin-top:20px; display:inline-block; margin-left:15px;">← Back to Home</a>
 {% endblock %}
