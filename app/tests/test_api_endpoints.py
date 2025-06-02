@@ -431,6 +431,162 @@ async def test_my_workflows_no_query_parameters(mock_dependencies_for_my_workflo
         }
     )
 
+# --- Tests for Shareable Link API Endpoints ---
+
+MOCK_INSTANCE_ID_SHARE = "share_inst_001"
+MOCK_SHARE_TOKEN = "public_share_token_xyz"
+OWNER_USER_SHARE = AuthenticatedUser(user_id="owner_of_share_instance", username="shareowner", email="share@owner.com")
+NON_OWNER_USER_SHARE = AuthenticatedUser(user_id="non_owner_of_share_instance", username="sharenotowner", email="sharenon@owner.com")
+
+@pytest.fixture
+def mock_workflow_service_for_share(monkeypatch):
+    mock_service = MagicMock(spec=WorkflowService)
+    monkeypatch.setitem(app.dependency_overrides, get_workflow_service, lambda: mock_service)
+    yield mock_service # Use yield to allow cleanup if monkeypatch needs it, though setitem is usually fine
+    monkeypatch.delitem(app.dependency_overrides, get_workflow_service, raising=False)
+
+
+# Tests for POST /workflow-instances/{instance_id}/share
+@pytest.mark.asyncio
+async def test_generate_share_link_authenticated_owner(client_as_user_archive, mock_workflow_service_for_share, monkeypatch):
+    # client_as_user_archive fixture can be reused; it sets current_user via monkeypatch
+    client = client_as_user_archive(OWNER_USER_SHARE) # Authenticate as owner
+
+    # Mock service method
+    mock_workflow_service_for_share.generate_shareable_link = AsyncMock(
+        return_value=MagicMock(share_token=MOCK_SHARE_TOKEN) # Return a mock instance with a share_token
+    )
+
+    response = client.post(f"/workflow-instances/{MOCK_INSTANCE_ID_SHARE}/share", follow_redirects=False)
+
+    assert response.status_code == 303 # Redirect
+    assert response.headers["location"] == f"/workflow-instances/{MOCK_INSTANCE_ID_SHARE}"
+    mock_workflow_service_for_share.generate_shareable_link.assert_called_once_with(
+        MOCK_INSTANCE_ID_SHARE, OWNER_USER_SHARE.user_id
+    )
+
+@pytest.mark.asyncio
+async def test_generate_share_link_service_returns_none(client_as_user_archive, mock_workflow_service_for_share, monkeypatch):
+    client = client_as_user_archive(OWNER_USER_SHARE) # Authenticate as owner
+    mock_workflow_service_for_share.generate_shareable_link = AsyncMock(return_value=None) # Simulate instance not found or not owner
+
+    response = client.post(f"/workflow-instances/{MOCK_INSTANCE_ID_SHARE}/share", follow_redirects=False)
+
+    assert response.status_code == 303 # Still redirects back
+    assert response.headers["location"] == f"/workflow-instances/{MOCK_INSTANCE_ID_SHARE}"
+    mock_workflow_service_for_share.generate_shareable_link.assert_called_once_with(
+        MOCK_INSTANCE_ID_SHARE, OWNER_USER_SHARE.user_id
+    )
+
+@pytest.mark.asyncio
+async def test_generate_share_link_unauthenticated(client_as_user_archive, mock_workflow_service_for_share, monkeypatch):
+    client = client_as_user_archive(None) # Unauthenticated
+
+    response = client.post(f"/workflow-instances/{MOCK_INSTANCE_ID_SHARE}/share", follow_redirects=False)
+
+    assert response.status_code == 307 # Redirect to login
+    assert "/login" in response.headers["location"].lower()
+    mock_workflow_service_for_share.generate_shareable_link.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_generate_share_link_non_owner(client_as_user_archive, mock_workflow_service_for_share, monkeypatch):
+    client = client_as_user_archive(NON_OWNER_USER_SHARE) # Authenticated as non-owner
+    # Service should handle non-owner logic and return None
+    mock_workflow_service_for_share.generate_shareable_link = AsyncMock(return_value=None)
+
+    response = client.post(f"/workflow-instances/{MOCK_INSTANCE_ID_SHARE}/share", follow_redirects=False)
+
+    assert response.status_code == 303 # Redirects back
+    assert response.headers["location"] == f"/workflow-instances/{MOCK_INSTANCE_ID_SHARE}"
+    mock_workflow_service_for_share.generate_shareable_link.assert_called_once_with(
+        MOCK_INSTANCE_ID_SHARE, NON_OWNER_USER_SHARE.user_id
+    )
+
+# Tests for GET /share/workflow/{share_token}
+@pytest.mark.asyncio
+async def test_view_shared_workflow_valid_token(client, mock_workflow_service_for_share, monkeypatch):
+    # For this public endpoint, ensure no authentication override is active from other fixtures like client_as_user_archive
+    # A clean way is to directly manage app.dependency_overrides for get_current_active_user here.
+    original_auth_override = app.dependency_overrides.pop(get_current_active_user, None)
+    
+    mock_instance_data = MagicMock(name="WorkflowInstanceData") # Using MagicMock to simulate Pydantic model
+    mock_instance_data.name = "My Shared Workflow"
+    # Add other fields if template uses them directly from instance, e.g. id, status, created_at
+    mock_instance_data.id = MOCK_INSTANCE_ID_SHARE 
+    mock_instance_data.status = WorkflowStatus.active 
+    from datetime import date
+    mock_instance_data.created_at = date.today()
+
+
+    mock_tasks_data = [MagicMock(name="Task1"), MagicMock(name="Task2")]
+
+    mock_workflow_service_for_share.get_workflow_instance_by_share_token = AsyncMock(
+        return_value={"instance": mock_instance_data, "tasks": mock_tasks_data}
+    )
+    
+    mock_renderer_instance = MagicMock(spec=HtmlRendererInterface)
+    async def mock_render_func(template_name, request_obj, context):
+        mock_renderer_instance.last_template_name = template_name
+        mock_renderer_instance.last_context = context
+        from fastapi.responses import HTMLResponse
+        # Simulate checking for absence of action buttons by looking for a known button's text
+        # This is a simple check; more robust would be parsing HTML or specific sentinels
+        content_html = f"Mock render of {template_name}. Instance: {context['instance'].name}."
+        if context.get("is_shared_view"):
+            # Check if some known non-shared elements are NOT in a simple representation of context
+            # This is a proxy, real check would be on rendered HTML for specific button non-existence.
+            # For now, we rely on the is_shared_view flag being correctly used by the template.
+             pass # Test will check is_shared_view flag in context
+        return HTMLResponse(content_html)
+    mock_renderer_instance.render = AsyncMock(side_effect=mock_render_func)
+    monkeypatch.setitem(app.dependency_overrides, get_html_renderer, lambda: mock_renderer_instance)
+
+    response = client.get(f"/share/workflow/{MOCK_SHARE_TOKEN}")
+
+    assert response.status_code == 200
+    assert "My Shared Workflow" in response.text 
+    mock_workflow_service_for_share.get_workflow_instance_by_share_token.assert_called_once_with(MOCK_SHARE_TOKEN)
+    
+    assert mock_renderer_instance.last_template_name == "workflow_instance.html"
+    assert mock_renderer_instance.last_context["instance"] == mock_instance_data
+    assert mock_renderer_instance.last_context["tasks"] == mock_tasks_data
+    assert mock_renderer_instance.last_context["is_shared_view"] is True
+    
+    if original_auth_override: # Restore auth override
+        app.dependency_overrides[get_current_active_user] = original_auth_override
+    monkeypatch.delitem(app.dependency_overrides, get_html_renderer, raising=False)
+
+
+@pytest.mark.asyncio
+async def test_view_shared_workflow_invalid_token(client, mock_workflow_service_for_share, monkeypatch):
+    original_auth_override = app.dependency_overrides.pop(get_current_active_user, None)
+    mock_workflow_service_for_share.get_workflow_instance_by_share_token = AsyncMock(return_value=None)
+
+    mock_renderer_instance_error = MagicMock(spec=HtmlRendererInterface)
+    async def mock_render_error_func(template_name, request_obj, context):
+        mock_renderer_instance_error.last_template_name = template_name
+        mock_renderer_instance_error.last_context = context
+        from fastapi.responses import HTMLResponse
+        if template_name == "message.html" and context.get("title") == "Not Found":
+             response = HTMLResponse(f"Mock error page: {context.get('message')}", status_code=404)
+             # To make it behave like the actual create_message_page's response for status code
+             response.status_code = context.get("status_code", 404)
+             return response
+        return HTMLResponse("Unexpected template render for error", status_code=500)
+
+    mock_renderer_instance_error.render = AsyncMock(side_effect=mock_render_error_func)
+    monkeypatch.setitem(app.dependency_overrides, get_html_renderer, lambda: mock_renderer_instance_error)
+
+    response = client.get(f"/share/workflow/invalid_{MOCK_SHARE_TOKEN}")
+
+    assert response.status_code == 404
+    assert "Mock error page: The shared workflow link is invalid or the workflow was not found." in response.text
+    mock_workflow_service_for_share.get_workflow_instance_by_share_token.assert_called_once_with(f"invalid_{MOCK_SHARE_TOKEN}")
+
+    if original_auth_override:
+        app.dependency_overrides[get_current_active_user] = original_auth_override
+    monkeypatch.delitem(app.dependency_overrides, get_html_renderer, raising=False)
+
 
 # --- Tests for /workflow-instances/{instance_id}/archive ---
 

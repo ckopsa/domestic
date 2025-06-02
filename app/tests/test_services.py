@@ -1084,3 +1084,157 @@ async def test_unarchive_workflow_instance_non_existent(workflow_service, mock_r
     assert result is None
     instance_repo.get_workflow_instance_by_id.assert_called_once_with("non_existent_unarchive_id")
     instance_repo.update_workflow_instance.assert_not_called()
+
+
+# --- Tests for Shareable Link Functionality ---
+SHARE_USER_ID = "share_user_1"
+SHARE_INSTANCE_ID = "share_instance_1"
+SHARE_TOKEN = "test_share_token_123"
+
+@pytest.mark.asyncio
+async def test_generate_shareable_link_new_token(workflow_service, mock_repositories):
+    # Arrange
+    _, instance_repo, _ = mock_repositories
+    instance_no_token = WorkflowInstance(
+        id=SHARE_INSTANCE_ID,
+        user_id=SHARE_USER_ID,
+        name="Shareable Workflow",
+        workflow_definition_id="def_share",
+        status=WorkflowStatus.active,
+        share_token=None  # No token initially
+    )
+    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=instance_no_token)
+    
+    # Mock update_workflow_instance to reflect the change
+    async def mock_update(inst_id, inst_data):
+        # inst_data here is a Pydantic model
+        assert inst_id == SHARE_INSTANCE_ID
+        assert inst_data.share_token is not None # Token should be set
+        return inst_data # Return the updated Pydantic model
+
+    instance_repo.update_workflow_instance = AsyncMock(side_effect=mock_update)
+
+    # Act
+    result = await workflow_service.generate_shareable_link(SHARE_INSTANCE_ID, SHARE_USER_ID)
+
+    # Assert
+    assert result is not None
+    assert result.id == SHARE_INSTANCE_ID
+    assert result.share_token is not None
+    assert len(result.share_token) > 10 # Basic check for token format (uuid4().hex is 32 chars)
+    instance_repo.get_workflow_instance_by_id.assert_called_once_with(SHARE_INSTANCE_ID)
+    instance_repo.update_workflow_instance.assert_called_once()
+    # Check that the instance passed to update_workflow_instance had the token
+    call_args = instance_repo.update_workflow_instance.call_args[0]
+    assert call_args[0] == SHARE_INSTANCE_ID
+    assert call_args[1].share_token == result.share_token
+
+
+@pytest.mark.asyncio
+async def test_generate_shareable_link_existing_token(workflow_service, mock_repositories):
+    # Arrange
+    _, instance_repo, _ = mock_repositories
+    instance_with_token = WorkflowInstance(
+        id=SHARE_INSTANCE_ID,
+        user_id=SHARE_USER_ID,
+        name="Shareable Workflow",
+        workflow_definition_id="def_share",
+        status=WorkflowStatus.active,
+        share_token=SHARE_TOKEN # Existing token
+    )
+    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=instance_with_token)
+
+    # Act
+    result = await workflow_service.generate_shareable_link(SHARE_INSTANCE_ID, SHARE_USER_ID)
+
+    # Assert
+    assert result is not None
+    assert result.id == SHARE_INSTANCE_ID
+    assert result.share_token == SHARE_TOKEN # Should be the existing token
+    instance_repo.get_workflow_instance_by_id.assert_called_once_with(SHARE_INSTANCE_ID)
+    instance_repo.update_workflow_instance.assert_not_called() # Should NOT be called if token exists
+
+
+@pytest.mark.asyncio
+async def test_generate_shareable_link_not_owner(workflow_service, mock_repositories):
+    # Arrange
+    _, instance_repo, _ = mock_repositories
+    instance = WorkflowInstance(
+        id=SHARE_INSTANCE_ID,
+        user_id="another_user_id", # Owned by someone else
+        name="Shareable Workflow",
+        workflow_definition_id="def_share",
+        status=WorkflowStatus.active,
+        share_token=None
+    )
+    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=instance)
+
+    # Act
+    result = await workflow_service.generate_shareable_link(SHARE_INSTANCE_ID, SHARE_USER_ID) # Current user is SHARE_USER_ID
+
+    # Assert
+    assert result is None
+    instance_repo.get_workflow_instance_by_id.assert_called_once_with(SHARE_INSTANCE_ID)
+    instance_repo.update_workflow_instance.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_generate_shareable_link_instance_not_found(workflow_service, mock_repositories):
+    # Arrange
+    _, instance_repo, _ = mock_repositories
+    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=None) # Instance not found
+
+    # Act
+    result = await workflow_service.generate_shareable_link("non_existent_instance", SHARE_USER_ID)
+
+    # Assert
+    assert result is None
+    instance_repo.get_workflow_instance_by_id.assert_called_once_with("non_existent_instance")
+    instance_repo.update_workflow_instance.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_get_workflow_instance_by_share_token_success(workflow_service, mock_repositories):
+    # Arrange
+    _, instance_repo, task_repo = mock_repositories
+    shared_instance = WorkflowInstance(
+        id=SHARE_INSTANCE_ID,
+        user_id=SHARE_USER_ID, # Not relevant for public share token access
+        name="Shared Workflow",
+        workflow_definition_id="def_share",
+        status=WorkflowStatus.active,
+        share_token=SHARE_TOKEN
+    )
+    tasks_for_instance = [
+        TaskInstance(id="task1", name="Task 1", workflow_instance_id=SHARE_INSTANCE_ID, order=0, status=TaskStatus.pending),
+        TaskInstance(id="task2", name="Task 2", workflow_instance_id=SHARE_INSTANCE_ID, order=1, status=TaskStatus.completed)
+    ]
+    instance_repo.get_workflow_instance_by_share_token = AsyncMock(return_value=shared_instance)
+    task_repo.get_tasks_for_workflow_instance = AsyncMock(return_value=tasks_for_instance)
+
+    # Act
+    result = await workflow_service.get_workflow_instance_by_share_token(SHARE_TOKEN)
+
+    # Assert
+    assert result is not None
+    assert "instance" in result
+    assert "tasks" in result
+    assert result["instance"] == shared_instance
+    assert result["tasks"] == tasks_for_instance
+    instance_repo.get_workflow_instance_by_share_token.assert_called_once_with(SHARE_TOKEN)
+    task_repo.get_tasks_for_workflow_instance.assert_called_once_with(SHARE_INSTANCE_ID)
+
+
+@pytest.mark.asyncio
+async def test_get_workflow_instance_by_share_token_invalid_token(workflow_service, mock_repositories):
+    # Arrange
+    _, instance_repo, task_repo = mock_repositories
+    instance_repo.get_workflow_instance_by_share_token = AsyncMock(return_value=None) # No instance for this token
+
+    # Act
+    result = await workflow_service.get_workflow_instance_by_share_token("invalid_or_unknown_token")
+
+    # Assert
+    assert result is None
+    instance_repo.get_workflow_instance_by_share_token.assert_called_once_with("invalid_or_unknown_token")
+    task_repo.get_tasks_for_workflow_instance.assert_not_called() # Should not be called if instance not found

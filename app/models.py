@@ -50,6 +50,7 @@ class WorkflowInstance(BaseModel):
     user_id: str
     status: WorkflowStatus = WorkflowStatus.active
     created_at: DateObject = Field(default_factory=DateObject.today)
+    share_token: Optional[str] = None
 
     class Config:
         from_attributes = True

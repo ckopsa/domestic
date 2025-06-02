@@ -6,7 +6,7 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from app.routers import root, workflow_definitions, workflow_instances, tasks, auth, user_workflows, api
+from app.routers import root, workflow_definitions, workflow_instances, tasks, auth, user_workflows, api, share
 
 app = FastAPI(
     redirect_slashes=False,
@@ -23,3 +23,4 @@ app.include_router(tasks.router)
 app.include_router(auth.router)
 app.include_router(user_workflows.router)
 app.include_router(api.router)
+app.include_router(share.router)

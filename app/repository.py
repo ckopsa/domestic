@@ -55,6 +55,10 @@ class WorkflowInstanceRepository(ABC):
     async def list_workflow_instances_by_user(self, user_id: str) -> List[WorkflowInstance]:
         pass
 
+    @abstractmethod
+    async def get_workflow_instance_by_share_token(self, share_token: str) -> Optional[WorkflowInstance]:
+        pass
+
 
 class TaskInstanceRepository(ABC):
     @abstractmethod
@@ -201,6 +205,14 @@ class PostgreSQLWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanc
         self.db_session.delete(db_definition)
         self.db_session.commit()
 
+    async def get_workflow_instance_by_share_token(self, share_token: str) -> Optional[WorkflowInstance]:
+        # Ensure 'select' is imported if you use it, e.g., from sqlalchemy import select
+        # For consistency with existing methods, using self.db_session.query()
+        instance_orm = self.db_session.query(WorkflowInstanceORM).filter(WorkflowInstanceORM.share_token == share_token).first()
+        if instance_orm:
+            return WorkflowInstance.model_validate(instance_orm, from_attributes=True)
+        return None
+
 
 class InMemoryWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanceRepository, TaskInstanceRepository):
     def __init__(self):
@@ -282,6 +294,12 @@ class InMemoryWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanceR
         if status:
             instances = [instance for instance in instances if instance.status == status]
         return sorted(instances, key=lambda i: i.created_at, reverse=True)
+
+    async def get_workflow_instance_by_share_token(self, share_token: str) -> Optional[WorkflowInstance]:
+        for instance in _workflow_instances_db.values():
+            if instance.share_token == share_token:
+                return instance.model_copy(deep=True)
+        return None
 
     async def create_workflow_definition(self, definition_data: WorkflowDefinition) -> WorkflowDefinition:
         new_definition = definition_data.model_copy(deep=True)
