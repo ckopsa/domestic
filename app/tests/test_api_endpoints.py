@@ -16,7 +16,7 @@ from app.core.security import AuthenticatedUser, get_current_active_user
 from app.db_models.enums import WorkflowStatus # For test cases
 
 # Test client - can be initialized per test or per module if state is managed
-# client = TestClient(app) # Will re-initialize client in fixture for overrides
+client = TestClient(app) # Will re-initialize client in fixture for overrides
 
 # Mock user for authentication
 mock_user = AuthenticatedUser(user_id="test_user", username="testuser", email="test@example.com")
@@ -47,6 +47,16 @@ async def test_list_workflow_definitions(db_session):
     # Assert
     assert response.status_code == 200
     assert isinstance(response.json(), list)
+
+
+@pytest.mark.asyncio
+async def test_healthcheck():
+    # Act
+    response = client.get("/api/healthz")
+
+    # Assert
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
 
 
 @pytest.mark.asyncio
