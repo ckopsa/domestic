@@ -23,6 +23,7 @@
                         <td>{{ instance.created_at.isoformat() }}</td>
                         <td>
                             <a href="/workflow-instances/{{ instance.id }}" class="action-button">View Details</a>
+                            <a href="/workflow-instances/{{ instance.id }}/dashboard" class="action-button view-dashboard-button" style="margin-left: 5px;">View Dashboard</a>
                         </td>
                     </tr>
                 {% endfor %}

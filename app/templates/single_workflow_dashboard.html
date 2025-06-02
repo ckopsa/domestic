@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>Dashboard: {{ instance.name }}</h1>
+    <div class="workflow-details">
+        <p><strong>ID:</strong> {{ instance.id }}</p>
+        <p><strong>Status:</strong> {{ instance.status.value.upper() if instance.status.value else instance.status.upper() }}</p>
+        <p><strong>Created At:</strong> {{ instance.created_at.isoformat() }}</p>
+    </div>
+
+    <h2>Tasks Overview</h2>
+    {% if not tasks %}
+        <p>No tasks available for this workflow.</p>
+    {% else %}
+        {% set first_uncompleted_found = namespace(value=false) %}
+        <ul class="task-list-dashboard">
+            {% for task in tasks %}
+                {% set is_priority = not first_uncompleted_found.value and task.status.value != 'completed' %}
+                {% if is_priority %}
+                    {% set first_uncompleted_found.value = true %}
+                {% endif %}
+                <li class="task-item-dashboard {% if is_priority %}priority-task{% elif task.status.value == 'completed' %}completed-task{% else %}pending-task{% endif %}">
+                    <span class="task-order">{{ loop.index }}.</span> <span class="task-name">{{ task.name }}</span> - <span class="task-status">{{ task.status.value.upper() if task.status.value else task.status.upper() }}</span>{% if is_priority %}<span class="priority-tag"> (Next Up)</span>{% endif %}
+                </li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+
+    {% if instance.status.value == "completed" %}
+        <p style="color: green; font-weight: bold; font-size:1.2em; margin-top:15px;">🎉 Workflow Complete!</p>
+    {% endif %}
+
+    <div style="margin-top: 20px;">
+        <a href="/workflow-instances/{{ instance.id }}" class="action-button">View Interactive Workflow</a>
+        <a href="/workflow-instances/dashboard" class="back-link" style="margin-left:15px;">← Back to All Workflows Dashboard</a>
+        <a href="/" class="back-link" style="margin-left:15px;">← Back to Home</a>
+    </div>
+
+<style>
+.task-list-dashboard {
+    list-style-type: none;
+    padding-left: 0;
+}
+.task-item-dashboard {
+    padding: 8px;
+    margin-bottom: 5px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+}
+.completed-task {
+    background-color: #e6ffe6; /* Light green */
+    border-left: 5px solid #4CAF50; /* Green */
+}
+.pending-task {
+    background-color: #fff0e6; /* Light orange/yellow */
+    border-left: 5px solid #ffcc80; /* Orange/yellow */
+}
+.priority-task {
+    background-color: #e6f7ff; /* Light blue */
+    border-left: 5px solid #2196F3; /* Blue */
+    font-weight: bold;
+}
+.priority-tag {
+    margin-left: 10px;
+    font-style: italic;
+    color: #2196F3;
+}
+.task-order {
+    display: inline-block;
+    min-width: 20px;
+}
+.task-name {
+    font-weight: bold;
+}
+</style>
+{% endblock %}
