@@ -119,6 +119,38 @@ async def archive_workflow_instance_handler(
         )
 
 
+@router.post("/{instance_id}/share", response_class=RedirectResponse)
+async def generate_share_link_handler(
+    request: Request,
+    instance_id: str,
+    service: WorkflowService = Depends(get_workflow_service),
+    current_user: AuthenticatedUser = Depends(get_current_active_user)
+    # renderer: HtmlRendererInterface = Depends(get_html_renderer) # Not using for now
+):
+    if isinstance(current_user, RedirectResponse): # Handles unauthenticated users
+        return current_user
+
+    # The service method will handle logic like checking ownership 
+    # and if a token already exists (though it currently regenerates if called again,
+    # which is fine for this handler's purpose of ensuring a link is active).
+    # It returns the updated instance or None if instance not found / not owned.
+    updated_instance = await service.generate_shareable_link(instance_id, current_user.user_id)
+
+    # if not updated_instance:
+        # If generate_shareable_link returns None (e.g. instance not found, or user doesn't own it)
+        # For now, simply redirecting back. The instance page will either show the new link
+        # or not, based on whether updated_instance.share_token got set.
+        # A more sophisticated approach might involve flash messages or an error page.
+        # return RedirectResponse(url=f"/workflow-instances/{instance_id}", status_code=status.HTTP_303_SEE_OTHER)
+        # The above commented block is one way, but the service.generate_shareable_link as per previous
+        # subtask returns None if instance not found or user_id doesn't match.
+        # If it returns None, we still redirect. The UI will simply not show a share_token.
+
+    # Always redirect back to the instance page.
+    # The page will then re-query the instance and display the share link if available.
+    return RedirectResponse(url=f"/workflow-instances/{instance_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
 @router.post("/{instance_id}/unarchive", response_class=HTMLResponse)
 async def unarchive_workflow_instance_handler(
         request: Request,

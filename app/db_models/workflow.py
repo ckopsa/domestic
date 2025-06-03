@@ -28,6 +28,7 @@ class WorkflowInstance(Base):
     user_id = Column(String, index=True, nullable=False)
     status = Column(SQLAlchemyEnum(WorkflowStatus), nullable=False, default=WorkflowStatus.active)
     created_at = Column(Date, nullable=False)
+    share_token = Column(String, unique=True, index=True, nullable=True)
 
     definition = relationship("WorkflowDefinition", back_populates="instances")
     tasks = relationship("TaskInstance", back_populates="workflow_instance", order_by="TaskInstance.order")

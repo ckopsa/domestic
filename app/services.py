@@ -1,4 +1,5 @@
 # services.py
+import uuid
 from datetime import date as DateObject
 from typing import List, Optional, Dict, Any
 
@@ -161,3 +162,39 @@ class WorkflowService:
         instance.status = WorkflowStatus.active  # Set status to active
         updated_instance = await self.instance_repo.update_workflow_instance(instance.id, instance)
         return updated_instance
+
+    async def generate_shareable_link(self, instance_id: str, user_id: str) -> Optional[WorkflowInstance]:
+        instance = await self.instance_repo.get_workflow_instance_by_id(instance_id)
+
+        if not instance or instance.user_id != user_id:
+            return None
+
+        if instance.share_token:
+            return instance
+
+        new_token = uuid.uuid4().hex
+        instance.share_token = new_token
+        
+        # The Pydantic model 'instance' is updated here.
+        # We need to pass the updated Pydantic model to the repository.
+        updated_instance_pydantic = instance 
+        
+        await self.instance_repo.update_workflow_instance(instance_id, updated_instance_pydantic)
+        
+        # update_workflow_instance is expected to return the updated DB model object,
+        # which should then be converted back to Pydantic if needed by the caller,
+        # but here we are returning the Pydantic model we already have and just updated.
+        # This assumes update_workflow_instance doesn't change it further or return a different object.
+        return updated_instance_pydantic
+
+    async def get_workflow_instance_by_share_token(self, share_token: str) -> Optional[Dict[str, Any]]:
+        # This assumes instance_repo.get_workflow_instance_by_share_token returns a Pydantic model
+        instance = await self.instance_repo.get_workflow_instance_by_share_token(share_token)
+
+        if not instance:
+            return None
+
+        # This assumes task_repo.get_tasks_for_workflow_instance returns a list of Pydantic models
+        tasks = await self.task_repo.get_tasks_for_workflow_instance(instance.id)
+        
+        return {"instance": instance, "tasks": tasks}
