@@ -124,6 +124,77 @@ async def test_get_workflow_definition_by_id_not_found(db_session):
     assert result is None
 
 
+@pytest.mark.asyncio
+async def test_get_tasks_sorted_pending_first_then_order(db_session):
+    # Arrange
+    repo = PostgreSQLWorkflowRepository(db_session)
+    from app.db_models.workflow import WorkflowInstance as WorkflowInstanceORM
+    from app.db_models.task import TaskInstance as TaskInstanceORM
+    from app.db_models.enums import TaskStatus, WorkflowStatus
+    from datetime import datetime
+
+    # Create WorkflowInstance
+    workflow_instance_id = "wf_sort_test_001"
+    workflow_instance_orm = WorkflowInstanceORM(
+        id=workflow_instance_id,
+        name="Sort Test Workflow Instance",
+        user_id="test_user_sort",
+        status=WorkflowStatus.active,
+        created_at=datetime.utcnow(), # Use datetime.utcnow() for timestamp
+        workflow_definition_id="def_test_sort_tasks" # Not strictly needed to exist for this test
+    )
+    db_session.add(workflow_instance_orm)
+
+    # Create TaskInstances
+    task_data_list = [
+        {
+            "id": "task_c1", "name": "Completed Task, Order 1", "order": 1, "status": TaskStatus.completed,
+            "workflow_instance_id": workflow_instance_id
+        },
+        {
+            "id": "task_p2", "name": "Pending Task, Order 2", "order": 2, "status": TaskStatus.pending,
+            "workflow_instance_id": workflow_instance_id
+        },
+        {
+            "id": "task_c3", "name": "Completed Task, Order 3", "order": 3, "status": TaskStatus.completed,
+            "workflow_instance_id": workflow_instance_id
+        },
+        {
+            "id": "task_p4", "name": "Pending Task, Order 4", "order": 4, "status": TaskStatus.pending,
+            "workflow_instance_id": workflow_instance_id
+        }
+    ]
+
+    for task_data in task_data_list:
+        task_orm = TaskInstanceORM(**task_data)
+        db_session.add(task_orm)
+
+    db_session.commit()
+
+    # Act
+    result_tasks = await repo.get_tasks_for_workflow_instance(workflow_instance_id)
+
+    # Assert
+    assert len(result_tasks) == 4
+    # Expected order:
+    # 1. Pending Task, Order 2 (task_p2)
+    # 2. Pending Task, Order 4 (task_p4)
+    # 3. Completed Task, Order 1 (task_c1)
+    # 4. Completed Task, Order 3 (task_c3)
+
+    assert result_tasks[0].name == "Pending Task, Order 2"
+    assert result_tasks[0].id == "task_p2"
+
+    assert result_tasks[1].name == "Pending Task, Order 4"
+    assert result_tasks[1].id == "task_p4"
+
+    assert result_tasks[2].name == "Completed Task, Order 1"
+    assert result_tasks[2].id == "task_c1"
+
+    assert result_tasks[3].name == "Completed Task, Order 3"
+    assert result_tasks[3].id == "task_c3"
+
+
 # Unit tests for PostgreSQLWorkflowRepository.list_workflow_instances_by_user
 # These tests will mock the db_session and verify query construction
 class TestUnitPostgreSQLListWorkflowInstancesByUser:

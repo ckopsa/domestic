@@ -3,7 +3,9 @@ from abc import ABC, abstractmethod
 from datetime import date as DateObject
 from typing import List, Optional, Dict
 
-from app.db_models.enums import WorkflowStatus
+from sqlalchemy import case
+
+from app.db_models.enums import WorkflowStatus, TaskStatus
 from app.db_models.task import TaskInstance as TaskInstanceORM
 from app.db_models.workflow import WorkflowDefinition as WorkflowDefinitionORM, WorkflowInstance as WorkflowInstanceORM
 from app.models import WorkflowDefinition, WorkflowInstance, TaskInstance
@@ -156,8 +158,14 @@ class PostgreSQLWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanc
         return None
 
     async def get_tasks_for_workflow_instance(self, instance_id: str) -> List[TaskInstance]:
+        status_order = case(
+            (TaskInstanceORM.status == TaskStatus.pending, 0),
+            (TaskInstanceORM.status == TaskStatus.completed, 1),
+            else_=2  # Should not happen with current enum but good practice
+        )
         tasks = self.db_session.query(TaskInstanceORM).filter(
-            TaskInstanceORM.workflow_instance_id == instance_id).order_by(TaskInstanceORM.order).all()
+            TaskInstanceORM.workflow_instance_id == instance_id
+        ).order_by(status_order, TaskInstanceORM.order).all()
         return [TaskInstance.model_validate(task, from_attributes=True) for task in tasks]
 
     async def list_workflow_instances_by_user(self, user_id: str, created_at_date: Optional[DateObject] = None,
@@ -281,7 +289,8 @@ class InMemoryWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanceR
             task.model_copy(deep=True) for task in _task_instances_db.values()
             if task.workflow_instance_id == instance_id
         ]
-        return sorted(tasks, key=lambda t: t.order)
+        # Sort by status (pending first), then by order
+        return sorted(tasks, key=lambda t: (0 if t.status == TaskStatus.pending else 1, t.order))
 
     async def list_workflow_instances_by_user(self, user_id: str, created_at_date: Optional[DateObject] = None,
                                               status: Optional[WorkflowStatus] = None) -> List[WorkflowInstance]:
