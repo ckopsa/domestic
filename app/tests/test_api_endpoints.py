@@ -30,7 +30,7 @@ OWNER_USER_ID_FOR_UNARCHIVE = "owner_unarchive_user_id"
 OTHER_USER_ID_FOR_UNARCHIVE = "other_unarchive_user_id"
 
 # Test specific SQLAlchemy engine (SQLite in-memory, shared across connections)
-SQLALCHEMY_DATABASE_URL_TEST_API = "sqlite:///file::memory:?cache=shared"
+SQLALCHEMY_DATABASE_URL_TEST_API = "sqlite:///test.sqlite?cache=shared"
 engine_test_api = create_engine(
     SQLALCHEMY_DATABASE_URL_TEST_API, echo=False, connect_args={"check_same_thread": False}
 )
