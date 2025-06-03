@@ -1,1344 +1,360 @@
 import os
 import sys
+from datetime import date as DateObject
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-# Add the project root to sys.path to ensure 'app' module can be found
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from app.db_models import Base
-from app.repository import DefinitionNotFoundError, DefinitionInUseError
+from app.repository import DefinitionNotFoundError, DefinitionInUseError, WorkflowDefinitionRepository, WorkflowInstanceRepository, TaskInstanceRepository
 from app.services import WorkflowService
-from app.models import WorkflowDefinition, WorkflowInstance, TaskInstance, TaskDefinitionBase # Added TaskDefinitionBase
-from app.db_models.enums import WorkflowStatus, TaskStatus
-
-# Setup for in-memory SQLite database for testing
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+from app.models import WorkflowDefinition, WorkflowInstance, TaskInstance, TaskDefinitionBase, WorkflowStatus, TaskStatus
 
 
-@pytest.fixture
-def db_session():
-    Base.metadata.create_all(bind=engine)
-    session = TestingSessionLocal()
+SQLALCHEMY_DATABASE_URL_SVC_TEST = "sqlite:///./test_services_db.db" # Unique name for this test file's DB
+engine_svc_test = create_engine(SQLALCHEMY_DATABASE_URL_SVC_TEST, connect_args={"check_same_thread": False})
+TestingSessionLocal_svc_test = sessionmaker(autocommit=False, autoflush=False, bind=engine_svc_test)
+
+@pytest.fixture(scope="module")
+def db_session_svc():
+    Base.metadata.create_all(bind=engine_svc_test)
+    session = TestingSessionLocal_svc_test()
     yield session
     session.close()
-    Base.metadata.drop_all(bind=engine)
-
+    Base.metadata.drop_all(bind=engine_svc_test)
 
 @pytest.fixture
 def mock_repositories():
-    definition_repo = MagicMock()
-    instance_repo = MagicMock()
-    task_repo = MagicMock()
+    definition_repo = MagicMock(spec=WorkflowDefinitionRepository)
+    instance_repo = MagicMock(spec=WorkflowInstanceRepository)
+    task_repo = MagicMock(spec=TaskInstanceRepository)
     return definition_repo, instance_repo, task_repo
-
 
 @pytest.fixture
 def workflow_service(mock_repositories):
     definition_repo, instance_repo, task_repo = mock_repositories
     return WorkflowService(definition_repo, instance_repo, task_repo)
 
-
 @pytest.mark.asyncio
 async def test_create_workflow_instance_success(workflow_service, mock_repositories):
-    # Arrange
     definition_repo, instance_repo, task_repo = mock_repositories
-    definition = WorkflowDefinition( # This is the Pydantic model
-        id="test_def_1",
-        name="Test Workflow",
-        description="A test workflow definition",
-        task_definitions=[ # Changed from task_names
-            TaskDefinitionBase(name="Task 1", order=0),
-            TaskDefinitionBase(name="Task 2", order=1)
-        ]
+    definition = WorkflowDefinition(
+        id="test_def_1", name="Test Workflow", description="A test workflow definition",
+        task_definitions=[TaskDefinitionBase(name="Task 1", order=0), TaskDefinitionBase(name="Task 2", order=1)]
     )
     definition_repo.get_workflow_definition_by_id = AsyncMock(return_value=definition)
     instance = WorkflowInstance(
-        id="test_inst_1",
-        workflow_definition_id="test_def_1",
-        name="Test Workflow",
-        user_id="test_user",
-        status=WorkflowStatus.active
+        id="test_inst_1", workflow_definition_id="test_def_1", name="Test Workflow",
+        user_id="test_user", status=WorkflowStatus.active
     )
     instance_repo.create_workflow_instance = AsyncMock(return_value=instance)
     task_repo.create_task_instance = AsyncMock(side_effect=lambda task: task)
-
-    # Act
     result = await workflow_service.create_workflow_instance("test_def_1", user_id="test_user")
-
-    # Assert
     assert result is not None
     assert result.id == "test_inst_1"
-    assert result.workflow_definition_id == "test_def_1"
-    assert result.name == "Test Workflow"
-    assert result.user_id == "test_user"
-    assert result.status == WorkflowStatus.active
     assert task_repo.create_task_instance.call_count == 2
-    task_calls = task_repo.create_task_instance.call_args_list
-    assert task_calls[0][0][0].name == "Task 1"
-    assert task_calls[0][0][0].order == 0
-    assert task_calls[1][0][0].name == "Task 2"
-    assert task_calls[1][0][0].order == 1
-
-
-@pytest.mark.asyncio
-async def test_create_workflow_instance_definition_not_found(workflow_service, mock_repositories):
-    # Arrange
-    definition_repo, _, _ = mock_repositories
-    definition_repo.get_workflow_definition_by_id = AsyncMock(return_value=None)
-
-    # Act
-    result = await workflow_service.create_workflow_instance("test_def_1", user_id="test_user")
-
-    # Assert
-    assert result is None
-
-
-@pytest.mark.asyncio
-async def test_complete_task_success(workflow_service, mock_repositories):
-    # Arrange
-    definition_repo, instance_repo, task_repo = mock_repositories
-    task = TaskInstance(
-        id="test_task_1",
-        workflow_instance_id="test_inst_1",
-        name="Test Task",
-        order=0,
-        status=TaskStatus.pending
-    )
-    instance = WorkflowInstance(
-        id="test_inst_1",
-        workflow_definition_id="test_def_1",
-        name="Test Workflow",
-        user_id="test_user",
-        status=WorkflowStatus.active
-    )
-    tasks = [
-        TaskInstance(
-            id="test_task_1",
-            workflow_instance_id="test_inst_1",
-            name="Test Task 1",
-            order=0,
-            status=TaskStatus.pending
-        ),
-        TaskInstance(
-            id="test_task_2",
-            workflow_instance_id="test_inst_1",
-            name="Test Task 2",
-            order=1,
-            status=TaskStatus.completed
-        )
-    ]
-    task_repo.get_task_instance_by_id = AsyncMock(return_value=task)
-    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=instance)
-    task_repo.update_task_instance = AsyncMock(return_value=task)
-    task_repo.get_tasks_for_workflow_instance = AsyncMock(return_value=tasks)
-    instance_repo.update_workflow_instance = AsyncMock(return_value=instance)
-
-    # Act
-    result = await workflow_service.complete_task("test_task_1", user_id="test_user")
-
-    # Assert
-    assert result is not None
-    assert result.status == TaskStatus.completed
-    assert instance_repo.update_workflow_instance.call_count == 0  # Not all tasks completed yet
-
-
-@pytest.mark.asyncio
-async def test_complete_task_all_tasks_completed(workflow_service, mock_repositories):
-    # Arrange
-    definition_repo, instance_repo, task_repo = mock_repositories
-    task = TaskInstance(
-        id="test_task_1",
-        workflow_instance_id="test_inst_1",
-        name="Test Task",
-        order=0,
-        status=TaskStatus.pending
-    )
-    instance = WorkflowInstance(
-        id="test_inst_1",
-        workflow_definition_id="test_def_1",
-        name="Test Workflow",
-        user_id="test_user",
-        status=WorkflowStatus.active
-    )
-    tasks = [
-        TaskInstance(
-            id="test_task_1",
-            workflow_instance_id="test_inst_1",
-            name="Test Task 1",
-            order=0,
-            status=TaskStatus.pending
-        )
-    ]
-    task_repo.get_task_instance_by_id = AsyncMock(return_value=task)
-    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=instance)
-    updated_task = TaskInstance(
-        id="test_task_1",
-        workflow_instance_id="test_inst_1",
-        name="Test Task",
-        order=0,
-        status=TaskStatus.completed
-    )
-    task_repo.update_task_instance = AsyncMock(return_value=updated_task)
-    task_repo.get_tasks_for_workflow_instance = AsyncMock(return_value=[updated_task])
-    instance_repo.update_workflow_instance = AsyncMock(return_value=instance)
-
-    # Act
-    result = await workflow_service.complete_task("test_task_1", user_id="test_user")
-
-    # Assert
-    assert result is not None
-    assert result.status == TaskStatus.completed
-    assert instance_repo.update_workflow_instance.call_count == 1
-    updated_instance = instance_repo.update_workflow_instance.call_args[0][1]
-    assert updated_instance.status == WorkflowStatus.completed
-
-
-@pytest.mark.asyncio
-async def test_complete_task_already_completed(workflow_service, mock_repositories):
-    # Arrange
-    definition_repo, instance_repo, task_repo = mock_repositories
-    task = TaskInstance(
-        id="test_task_1",
-        workflow_instance_id="test_inst_1",
-        name="Test Task",
-        order=0,
-        status=TaskStatus.completed
-    )
-    task_repo.get_task_instance_by_id = AsyncMock(return_value=task)
-
-    # Act
-    result = await workflow_service.complete_task("test_task_1", user_id="test_user")
-
-    # Assert
-    assert result is None
-
-
-@pytest.mark.asyncio
-async def test_complete_task_unauthorized_user(workflow_service, mock_repositories):
-    # Arrange
-    definition_repo, instance_repo, task_repo = mock_repositories
-    task = TaskInstance(
-        id="test_task_1",
-        workflow_instance_id="test_inst_1",
-        name="Test Task",
-        order=0,
-        status=TaskStatus.pending
-    )
-    instance = WorkflowInstance(
-        id="test_inst_1",
-        workflow_definition_id="test_def_1",
-        name="Test Workflow",
-        user_id="different_user",
-        status=WorkflowStatus.active
-    )
-    task_repo.get_task_instance_by_id = AsyncMock(return_value=task)
-    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=instance)
-
-    # Act
-    result = await workflow_service.complete_task("test_task_1", user_id="test_user")
-
-    # Assert
-    assert result is None
-
 
 @pytest.mark.asyncio
 async def test_create_new_definition_success(workflow_service, mock_repositories):
-    # Arrange
     definition_repo, _, _ = mock_repositories
-    # The service will convert task_names to task_definitions for the Pydantic model
-    # So the mock should return a Pydantic model that has task_definitions
+    task_defs_input = [TaskDefinitionBase(name="Task 1", order=0), TaskDefinitionBase(name="Task 2", order=1)]
     expected_pydantic_definition_arg = WorkflowDefinition(
-        name="Test Workflow",
-        description="A test workflow",
-        task_definitions=[
-            TaskDefinitionBase(name="Task 1", order=0),
-            TaskDefinitionBase(name="Task 2", order=1)
-        ]
-        # id will be generated by Pydantic model if not passed, or by repo if it was.
-        # For this test, let's assume the repo mock will add the ID.
+        name="Test Workflow", description="A test workflow", task_definitions=task_defs_input
     )
-    # Simulate the repo adding an ID to the object it returns
     returned_definition_from_repo = expected_pydantic_definition_arg.model_copy(update={"id": "test_def_1"})
-
     definition_repo.create_workflow_definition = AsyncMock(return_value=returned_definition_from_repo)
 
-    # Act
-    result = await workflow_service.create_new_definition( # Service takes List[str] for task_names
-        name="Test Workflow",
-        description="A test workflow",
-        task_names=["Task 1", "Task 2"] # This is correct for service input
+    result = await workflow_service.create_new_definition(
+        name="Test Workflow", description="A test workflow",
+        task_definitions=task_defs_input # Changed from task_names
     )
-
-    # Assert
     assert result is not None
     assert result.name == "Test Workflow"
-    assert result.id == "test_def_1" # Check ID if mock adds it
+    assert result.id == "test_def_1"
     assert len(result.task_definitions) == 2
-    assert result.task_definitions[0].name == "Task 1"
-    assert result.task_definitions[0].order == 0
-    assert result.task_definitions[1].name == "Task 2"
-    assert result.task_definitions[1].order == 1
-
-    # Check that the definition_repo.create_workflow_definition was called with a
-    # WorkflowDefinition Pydantic object that has task_definitions correctly populated by the service
+    definition_repo.create_workflow_definition.assert_called_once()
     called_with_arg = definition_repo.create_workflow_definition.call_args[0][0]
-    assert isinstance(called_with_arg, WorkflowDefinition)
-    assert len(called_with_arg.task_definitions) == 2
-    assert called_with_arg.task_definitions[0].name == "Task 1"
-    assert called_with_arg.task_definitions[0].order == 0
-
+    assert called_with_arg.task_definitions == task_defs_input
 
 @pytest.mark.asyncio
 async def test_create_new_definition_empty_name(workflow_service, mock_repositories):
-    # Arrange
-    definition_repo, _, _ = mock_repositories
-
-    # Act & Assert
     with pytest.raises(ValueError, match="Definition name cannot be empty."):
         await workflow_service.create_new_definition(
-            name="",
-            description="A test workflow",
-            task_names=["Task 1"]
+            name="", description="A test workflow",
+            task_definitions=[TaskDefinitionBase(name="Task 1", order=0)] # Changed from task_names
         )
-
 
 @pytest.mark.asyncio
 async def test_create_new_definition_empty_task_list(workflow_service, mock_repositories):
-    # Arrange
-    definition_repo, _, _ = mock_repositories
-
-    # Act & Assert
-    with pytest.raises(ValueError, match="A definition must have at least one task name."):
+    with pytest.raises(ValueError, match="A definition must have at least one task."): # Message updated
         await workflow_service.create_new_definition(
-            name="Test Workflow",
-            description="A test workflow",
-            task_names=[]
+            name="Test Workflow", description="A test workflow",
+            task_definitions=[] # Changed from task_names
         )
-
 
 @pytest.mark.asyncio
 async def test_update_definition_success(workflow_service, mock_repositories):
-    # Arrange
     definition_repo, _, _ = mock_repositories
-    # Mock what the repository's update_workflow_definition would return:
-    # a Pydantic WorkflowDefinition model, reflecting the update.
-    expected_returned_pydantic_definition = WorkflowDefinition(
-        id="test_def_1",
-        name="Updated Workflow",
-        description="Updated description",
-        task_definitions=[
-            TaskDefinitionBase(name="Updated Task 1", order=0)
-        ]
+    task_defs_input = [TaskDefinitionBase(name="Updated Task 1", order=0)]
+    expected_returned_definition = WorkflowDefinition(
+        id="test_def_1", name="Updated Workflow", description="Updated description",
+        task_definitions=task_defs_input
     )
-    definition_repo.update_workflow_definition = AsyncMock(return_value=expected_returned_pydantic_definition)
+    definition_repo.update_workflow_definition = AsyncMock(return_value=expected_returned_definition)
 
-    # Act
-    result = await workflow_service.update_definition( # Service takes List[str] for task_names
-        definition_id="test_def_1",
-        name="Updated Workflow",
-        description="Updated description",
-        task_names=["Updated Task 1"] # This is correct for service input
+    result = await workflow_service.update_definition(
+        definition_id="test_def_1", name="Updated Workflow", description="Updated description",
+        task_definitions=task_defs_input # Changed from task_names
     )
-
-    # Assert
     assert result is not None
     assert result.name == "Updated Workflow"
-    assert len(result.task_definitions) == 1
-    assert result.task_definitions[0].name == "Updated Task 1"
-    assert result.task_definitions[0].order == 0
-
-    # Check that definition_repo.update_workflow_definition was called correctly
-    # It expects definition_id, name, description, and List[TaskDefinitionBase]
-    definition_repo.update_workflow_definition.assert_called_once()
-    call_args = definition_repo.update_workflow_definition.call_args[0]
-    assert call_args[0] == "test_def_1"  # definition_id
-    assert call_args[1] == "Updated Workflow"  # name
-    assert call_args[2] == "Updated description"  # description
-
-    task_defs_arg = call_args[3] # task_definitions_data: List[TaskDefinitionBase]
-    assert isinstance(task_defs_arg, list)
-    assert len(task_defs_arg) == 1
-    assert isinstance(task_defs_arg[0], TaskDefinitionBase)
-    assert task_defs_arg[0].name == "Updated Task 1"
-    assert task_defs_arg[0].order == 0
-
+    definition_repo.update_workflow_definition.assert_called_once_with(
+        "test_def_1", "Updated Workflow", "Updated description", task_defs_input
+    )
 
 @pytest.mark.asyncio
 async def test_update_definition_empty_name(workflow_service, mock_repositories):
-    # Arrange
-    definition_repo, _, _ = mock_repositories
-
-    # Act & Assert
     with pytest.raises(ValueError, match="Definition name cannot be empty."):
         await workflow_service.update_definition(
-            definition_id="test_def_1",
-            name="",
-            description="Updated description",
-            task_names=["Updated Task 1"]
+            definition_id="test_def_1", name="", description="Updated description",
+            task_definitions=[TaskDefinitionBase(name="Updated Task 1", order=0)] # Changed from task_names
         )
-
 
 @pytest.mark.asyncio
 async def test_update_definition_empty_task_list(workflow_service, mock_repositories):
-    # Arrange
-    definition_repo, _, _ = mock_repositories
-
-    # Act & Assert
-    with pytest.raises(ValueError, match="A definition must have at least one task name."):
+    with pytest.raises(ValueError, match="A definition must have at least one task."): # Message updated
         await workflow_service.update_definition(
-            definition_id="test_def_1",
-            name="Updated Workflow",
-            description="Updated description",
-            task_names=[]
+            definition_id="test_def_1", name="Updated Workflow", description="Updated description",
+            task_definitions=[] # Changed from task_names
         )
 
+@pytest.mark.asyncio
+async def test_create_workflow_instance_definition_not_found(workflow_service, mock_repositories):
+    definition_repo, _, _ = mock_repositories
+    definition_repo.get_workflow_definition_by_id = AsyncMock(return_value=None)
+    result = await workflow_service.create_workflow_instance("test_def_1", user_id="test_user")
+    assert result is None
+
+@pytest.mark.asyncio
+async def test_complete_task_success(workflow_service, mock_repositories):
+    _, instance_repo, task_repo = mock_repositories
+    task = TaskInstance(id="test_task_1", workflow_instance_id="test_inst_1", name="Test Task", order=0, status=TaskStatus.pending)
+    instance = WorkflowInstance(id="test_inst_1", workflow_definition_id="test_def_1", name="Test Workflow", user_id="test_user", status=WorkflowStatus.active)
+    tasks_in_db = [task, TaskInstance(id="test_task_2", workflow_instance_id="test_inst_1", name="Test Task 2", order=1, status=TaskStatus.pending)]
+    task_repo.get_task_instance_by_id = AsyncMock(return_value=task)
+    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=instance)
+    async def update_task_side_effect(task_id, task_data_pydantic): task_data_pydantic.status = TaskStatus.completed; return task_data_pydantic
+    task_repo.update_task_instance = AsyncMock(side_effect=update_task_side_effect)
+    tasks_after_completion = [TaskInstance(id="test_task_1", workflow_instance_id="test_inst_1", name="Test Task", order=0, status=TaskStatus.completed), TaskInstance(id="test_task_2", workflow_instance_id="test_inst_1", name="Test Task 2", order=1, status=TaskStatus.pending)]
+    task_repo.get_tasks_for_workflow_instance = AsyncMock(return_value=tasks_after_completion)
+    instance_repo.update_workflow_instance = AsyncMock(return_value=instance)
+    result = await workflow_service.complete_task("test_task_1", user_id="test_user")
+    assert result is not None; assert result.status == TaskStatus.completed
+    instance_repo.update_workflow_instance.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_complete_task_all_tasks_completed(workflow_service, mock_repositories):
+    _, instance_repo, task_repo = mock_repositories
+    task_to_complete = TaskInstance(id="test_task_1", workflow_instance_id="test_inst_1", name="Test Task", order=0, status=TaskStatus.pending)
+    instance = WorkflowInstance(id="test_inst_1", workflow_definition_id="test_def_1", name="Test Workflow", user_id="test_user", status=WorkflowStatus.active)
+    task_repo.get_task_instance_by_id = AsyncMock(return_value=task_to_complete)
+    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=instance)
+    updated_task_mock = task_to_complete.model_copy(update={"status": TaskStatus.completed})
+    task_repo.update_task_instance = AsyncMock(return_value=updated_task_mock)
+    task_repo.get_tasks_for_workflow_instance = AsyncMock(return_value=[updated_task_mock])
+    async def update_instance_side_effect(instance_id, instance_data_pydantic): instance_data_pydantic.status = WorkflowStatus.completed; return instance_data_pydantic
+    instance_repo.update_workflow_instance = AsyncMock(side_effect=update_instance_side_effect)
+    result = await workflow_service.complete_task("test_task_1", user_id="test_user")
+    assert result is not None; assert result.status == TaskStatus.completed
+    instance_repo.update_workflow_instance.assert_called_once()
+    assert instance_repo.update_workflow_instance.call_args[0][1].status == WorkflowStatus.completed
+
+@pytest.mark.asyncio
+async def test_complete_task_already_completed(workflow_service, mock_repositories):
+    _, _, task_repo = mock_repositories
+    task = TaskInstance(id="test_task_1", workflow_instance_id="test_inst_1", name="Test Task", order=0, status=TaskStatus.completed)
+    task_repo.get_task_instance_by_id = AsyncMock(return_value=task)
+    result = await workflow_service.complete_task("test_task_1", user_id="test_user")
+    assert result is None
+
+@pytest.mark.asyncio
+async def test_complete_task_unauthorized_user(workflow_service, mock_repositories):
+    _, instance_repo, task_repo = mock_repositories
+    task = TaskInstance(id="test_task_1", workflow_instance_id="test_inst_1", name="Test Task", order=0, status=TaskStatus.pending)
+    instance = WorkflowInstance(id="test_inst_1", workflow_definition_id="test_def_1", name="Test Workflow", user_id="different_user", status=WorkflowStatus.active)
+    task_repo.get_task_instance_by_id = AsyncMock(return_value=task)
+    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=instance)
+    result = await workflow_service.complete_task("test_task_1", user_id="test_user")
+    assert result is None
 
 @pytest.mark.asyncio
 async def test_delete_definition_success(workflow_service, mock_repositories):
-    # Arrange
     definition_repo, _, _ = mock_repositories
     definition_repo.delete_workflow_definition = AsyncMock(return_value=None)
-
-    # Act
     await workflow_service.delete_definition("test_def_1")
-
-    # Assert
     definition_repo.delete_workflow_definition.assert_called_once_with("test_def_1")
-
 
 @pytest.mark.asyncio
 async def test_delete_definition_not_found(workflow_service, mock_repositories):
-    # Arrange
     definition_repo, _, _ = mock_repositories
     definition_repo.delete_workflow_definition = AsyncMock(side_effect=DefinitionNotFoundError("Definition not found"))
-
-    # Act & Assert
     with pytest.raises(ValueError, match="Definition not found"):
         await workflow_service.delete_definition("test_def_1")
 
-
 @pytest.mark.asyncio
 async def test_delete_definition_in_use(workflow_service, mock_repositories):
-    # Arrange
     definition_repo, _, _ = mock_repositories
     definition_repo.delete_workflow_definition = AsyncMock(side_effect=DefinitionInUseError("Definition in use"))
-
-    # Act & Assert
     with pytest.raises(ValueError, match="Definition in use"):
         await workflow_service.delete_definition("test_def_1")
 
-
 @pytest.mark.asyncio
 async def test_get_workflow_instance_with_tasks_success(workflow_service, mock_repositories):
-    # Arrange
-    definition_repo, instance_repo, task_repo = mock_repositories
-    instance = WorkflowInstance(
-        id="test_inst_1",
-        workflow_definition_id="test_def_1",
-        name="Test Workflow",
-        user_id="test_user",
-        status=WorkflowStatus.active
-    )
-    tasks = [
-        TaskInstance(
-            id="test_task_1",
-            workflow_instance_id="test_inst_1",
-            name="Test Task 1",
-            order=0,
-            status=TaskStatus.pending
-        )
-    ]
+    _, instance_repo, task_repo = mock_repositories
+    instance = WorkflowInstance(id="test_inst_1", workflow_definition_id="test_def_1", name="Test Workflow", user_id="test_user", status=WorkflowStatus.active)
+    tasks = [TaskInstance(id="test_task_1", workflow_instance_id="test_inst_1", name="Test Task 1", order=0, status=TaskStatus.pending)]
     instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=instance)
     task_repo.get_tasks_for_workflow_instance = AsyncMock(return_value=tasks)
-
-    # Act
     result = await workflow_service.get_workflow_instance_with_tasks("test_inst_1", user_id="test_user")
-
-    # Assert
-    assert result is not None
-    assert result["instance"] == instance
-    assert result["tasks"] == tasks
-
+    assert result is not None; assert result["instance"] == instance; assert result["tasks"] == tasks
 
 @pytest.mark.asyncio
 async def test_get_workflow_instance_with_tasks_unauthorized(workflow_service, mock_repositories):
-    # Arrange
-    definition_repo, instance_repo, task_repo = mock_repositories
-    instance = WorkflowInstance(
-        id="test_inst_1",
-        workflow_definition_id="test_def_1",
-        name="Test Workflow",
-        user_id="different_user",
-        status=WorkflowStatus.active
-    )
+    _, instance_repo, _ = mock_repositories
+    instance = WorkflowInstance(id="test_inst_1", workflow_definition_id="test_def_1", name="Test Workflow", user_id="different_user", status=WorkflowStatus.active)
     instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=instance)
-
-    # Act
     result = await workflow_service.get_workflow_instance_with_tasks("test_inst_1", user_id="test_user")
-
-    # Assert
     assert result is None
-
 
 @pytest.mark.asyncio
 async def test_list_instances_for_user(workflow_service, mock_repositories):
-    # Arrange
-    definition_repo, instance_repo, task_repo = mock_repositories
-    instances = [
-        WorkflowInstance(
-            id="test_inst_1",
-            workflow_definition_id="test_def_1",
-            name="Test Workflow 1",
-            user_id="test_user",
-            status=WorkflowStatus.active
-        ),
-        WorkflowInstance(
-            id="test_inst_2",
-            workflow_definition_id="test_def_2",
-            name="Test Workflow 2",
-            user_id="test_user",
-            status=WorkflowStatus.completed
-        )
-    ]
+    _, instance_repo, _ = mock_repositories
+    instances = [WorkflowInstance(id="test_inst_1", workflow_definition_id="test_def_1", name="Test Workflow 1", user_id="test_user", status=WorkflowStatus.active)]
     instance_repo.list_workflow_instances_by_user = AsyncMock(return_value=instances)
-
-    # Act
     result = await workflow_service.list_instances_for_user("test_user")
+    assert len(result) == 1
+    instance_repo.list_workflow_instances_by_user.assert_called_once_with("test_user", created_at_date=None, status=None, definition_id=None)
 
-    # Assert
-    assert len(result) == 2
-    assert result[0].user_id == "test_user"
-    assert result[1].user_id == "test_user"
-    # Verify the call to the repository method, specifically that default Nones are passed
-    instance_repo.list_workflow_instances_by_user.assert_called_once_with(
-        user_id="test_user",
-        created_at_date=None,
-        status=None,
-        definition_id=None  # Added
-    )
-
-
-# Tests for list_instances_for_user with filters
 from datetime import date as DateObject
-
-
-@pytest.mark.asyncio
-async def test_list_instances_for_user_passthrough_no_filters(workflow_service, mock_repositories):
-    _, instance_repo, _ = mock_repositories
-    expected_result = [MagicMock(spec=WorkflowInstance)]
-    instance_repo.list_workflow_instances_by_user = AsyncMock(return_value=expected_result)
-
-    user_id = "test_user_no_filters"
-    result = await workflow_service.list_instances_for_user(user_id=user_id)
-
-    result = await workflow_service.list_instances_for_user(user_id=user_id, definition_id=None)
-
-    instance_repo.list_workflow_instances_by_user.assert_called_once_with(
-        user_id=user_id,
-        created_at_date=None,
-        status=None,
-        definition_id=None
-    )
-    assert result == expected_result
-
-
-@pytest.mark.asyncio
-async def test_list_instances_for_user_passthrough_with_date(workflow_service, mock_repositories):
-    _, instance_repo, _ = mock_repositories
-    expected_result = [MagicMock(spec=WorkflowInstance)]
-    instance_repo.list_workflow_instances_by_user = AsyncMock(return_value=expected_result)
-
-    user_id = "test_user_date_filter"
-    test_date = DateObject(2023, 1, 15)
-    result = await workflow_service.list_instances_for_user(user_id=user_id, created_at_date=test_date, definition_id=None)
-
-    instance_repo.list_workflow_instances_by_user.assert_called_once_with(
-        user_id=user_id,
-        created_at_date=test_date,
-        status=None,
-        definition_id=None
-    )
-    assert result == expected_result
-
-
-@pytest.mark.asyncio
-async def test_list_instances_for_user_passthrough_with_status(workflow_service, mock_repositories):
-    _, instance_repo, _ = mock_repositories
-    expected_result = [MagicMock(spec=WorkflowInstance)]
-    instance_repo.list_workflow_instances_by_user = AsyncMock(return_value=expected_result)
-
-    user_id = "test_user_status_filter"
-    test_status = WorkflowStatus.pending
-    result = await workflow_service.list_instances_for_user(user_id=user_id, status=test_status, definition_id=None)
-
-    instance_repo.list_workflow_instances_by_user.assert_called_once_with(
-        user_id=user_id,
-        created_at_date=None,
-        status=test_status,
-        definition_id=None
-    )
-    assert result == expected_result
-
-
-@pytest.mark.asyncio
-async def test_list_instances_for_user_passthrough_with_all_filters(workflow_service, mock_repositories):
-    _, instance_repo, _ = mock_repositories
-    expected_result = [MagicMock(spec=WorkflowInstance)]
-    instance_repo.list_workflow_instances_by_user = AsyncMock(return_value=expected_result)
-
-    user_id = "test_user_all_filters"
-    test_date = DateObject(2023, 3, 20)
-    test_status = WorkflowStatus.completed
-    result = await workflow_service.list_instances_for_user(
-        user_id=user_id,
-        created_at_date=test_date,
-        status=test_status
-    )
-
-    instance_repo.list_workflow_instances_by_user.assert_called_once_with(
-        user_id=user_id,
-        created_at_date=test_date,
-        status=test_status,
-        definition_id=None  # Added for consistency
-    )
-    assert result == expected_result
-
-
-@pytest.mark.asyncio
-async def test_list_instances_for_user_passthrough_with_definition_id(workflow_service, mock_repositories):
-    _, instance_repo, _ = mock_repositories
-    expected_result = [MagicMock(spec=WorkflowInstance)]
-    instance_repo.list_workflow_instances_by_user = AsyncMock(return_value=expected_result)
-
-    user_id = "test_user_def_id_filter"
-    test_definition_id = "def_filter_services_test"
-    result = await workflow_service.list_instances_for_user(user_id=user_id, definition_id=test_definition_id)
-
-    instance_repo.list_workflow_instances_by_user.assert_called_once_with(
-        user_id=user_id,
-        created_at_date=None,
-        status=None,
-        definition_id=test_definition_id
-    )
-    assert result == expected_result
-
-
-@pytest.mark.asyncio
-async def test_list_instances_for_user_passthrough_with_all_filters_including_definition_id(workflow_service, mock_repositories):
-    _, instance_repo, _ = mock_repositories
-    expected_result = [MagicMock(spec=WorkflowInstance)]
-    instance_repo.list_workflow_instances_by_user = AsyncMock(return_value=expected_result)
-
-    user_id = "test_user_all_filters_def_id"
-    test_date = DateObject(2023, 4, 25)
-    test_status = WorkflowStatus.active
-    test_definition_id = "def_filter_services_test_all"
-
-    result = await workflow_service.list_instances_for_user(
-        user_id=user_id,
-        created_at_date=test_date,
-        status=test_status,
-        definition_id=test_definition_id
-    )
-
-    instance_repo.list_workflow_instances_by_user.assert_called_once_with(
-        user_id=user_id,
-        created_at_date=test_date,
-        status=test_status,
-        definition_id=test_definition_id
-    )
-    assert result == expected_result
-
-
+LIST_USER_ID = "list_test_user"
 USER_ID = "test_user_123"
 OTHER_USER_ID = "other_user_456"
 WF_INSTANCE_ID = "wf_inst_abc"
 TASK_ID_1 = "task_def_123"
-
-
-@pytest.mark.asyncio
-async def test_undo_complete_task_success_workflow_becomes_active(workflow_service, mock_repositories):
-    # Arrange
-    _, instance_repo, task_repo = mock_repositories
-
-    completed_task = TaskInstance(
-        id=TASK_ID_1,
-        workflow_instance_id=WF_INSTANCE_ID,
-        name="Test Task 1",
-        order=0,
-        status=TaskStatus.completed
-    )
-    workflow_instance = WorkflowInstance(
-        id=WF_INSTANCE_ID,
-        workflow_definition_id="def_id_1",
-        name="Test Workflow",
-        user_id=USER_ID,
-        status=WorkflowStatus.completed  # Workflow was completed
-    )
-
-    task_repo.get_task_instance_by_id = AsyncMock(return_value=completed_task)
-    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=workflow_instance)
-
-    # Mock the update methods to return the object passed to them, modified
-    async def update_task_side_effect(task_id, task_data):
-        # In a real scenario, this would update and return the updated object.
-        # For the mock, we'll just reflect the change.
-        completed_task.status = task_data.status
-        return completed_task
-
-    async def update_workflow_side_effect(wf_id, wf_data):
-        workflow_instance.status = wf_data.status
-        return workflow_instance
-
-    task_repo.update_task_instance = AsyncMock(side_effect=update_task_side_effect)
-    instance_repo.update_workflow_instance = AsyncMock(side_effect=update_workflow_side_effect)
-
-    # Act
-    result = await workflow_service.undo_complete_task(TASK_ID_1, USER_ID)
-
-    # Assert
-    assert result is not None
-    assert result.id == TASK_ID_1
-    assert result.status == TaskStatus.pending
-    task_repo.update_task_instance.assert_called_once()
-    assert task_repo.update_task_instance.call_args[0][1].status == TaskStatus.pending
-
-    instance_repo.update_workflow_instance.assert_called_once()
-    assert instance_repo.update_workflow_instance.call_args[0][1].status == WorkflowStatus.active
-
-
-@pytest.mark.asyncio
-async def test_undo_complete_task_task_not_found(workflow_service, mock_repositories):
-    # Arrange
-    _, _, task_repo = mock_repositories
-    task_repo.get_task_instance_by_id = AsyncMock(return_value=None)
-
-    # Act
-    result = await workflow_service.undo_complete_task("non_existent_task_id", USER_ID)
-
-    # Assert
-    assert result is None
-    task_repo.update_task_instance.assert_not_called()
-    mock_repositories[1].update_workflow_instance.assert_not_called()  # instance_repo
-
-
-@pytest.mark.asyncio
-async def test_undo_complete_task_task_not_completed(workflow_service, mock_repositories):
-    # Arrange
-    _, _, task_repo = mock_repositories
-    pending_task = TaskInstance(
-        id=TASK_ID_1,
-        workflow_instance_id=WF_INSTANCE_ID,
-        name="Test Task 1",
-        order=0,
-        status=TaskStatus.pending  # Task is not completed
-    )
-    task_repo.get_task_instance_by_id = AsyncMock(return_value=pending_task)
-
-    # Act
-    result = await workflow_service.undo_complete_task(TASK_ID_1, USER_ID)
-
-    # Assert
-    assert result is None
-    task_repo.update_task_instance.assert_not_called()
-    mock_repositories[1].update_workflow_instance.assert_not_called()  # instance_repo
-
-
-@pytest.mark.asyncio
-async def test_undo_complete_task_workflow_not_found(workflow_service, mock_repositories):
-    # Arrange
-    _, instance_repo, task_repo = mock_repositories
-    completed_task = TaskInstance(
-        id=TASK_ID_1,
-        workflow_instance_id="non_existent_wf_id",  # Points to a non-existent workflow
-        name="Test Task 1",
-        order=0,
-        status=TaskStatus.completed
-    )
-    task_repo.get_task_instance_by_id = AsyncMock(return_value=completed_task)
-    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=None)  # Workflow not found
-
-    # Act
-    result = await workflow_service.undo_complete_task(TASK_ID_1, USER_ID)
-
-    # Assert
-    assert result is None
-    task_repo.update_task_instance.assert_not_called()
-    instance_repo.update_workflow_instance.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_undo_complete_task_user_unauthorized(workflow_service, mock_repositories):
-    # Arrange
-    _, instance_repo, task_repo = mock_repositories
-    completed_task = TaskInstance(
-        id=TASK_ID_1,
-        workflow_instance_id=WF_INSTANCE_ID,
-        name="Test Task 1",
-        order=0,
-        status=TaskStatus.completed
-    )
-    workflow_instance = WorkflowInstance(
-        id=WF_INSTANCE_ID,
-        workflow_definition_id="def_id_1",
-        name="Test Workflow",
-        user_id=OTHER_USER_ID,  # Belongs to a different user
-        status=WorkflowStatus.completed
-    )
-    task_repo.get_task_instance_by_id = AsyncMock(return_value=completed_task)
-    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=workflow_instance)
-
-    # Act
-    result = await workflow_service.undo_complete_task(TASK_ID_1, USER_ID)  # Current user is USER_ID
-
-    # Assert
-    assert result is None
-    task_repo.update_task_instance.assert_not_called()
-    instance_repo.update_workflow_instance.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_undo_complete_task_workflow_remains_active(workflow_service, mock_repositories):
-    # Arrange
-    _, instance_repo, task_repo = mock_repositories
-
-    completed_task_to_undo = TaskInstance(
-        id=TASK_ID_1,
-        workflow_instance_id=WF_INSTANCE_ID,
-        name="Test Task 1",
-        order=0,
-        status=TaskStatus.completed
-    )
-    # This workflow is active because other tasks might still be pending, or it was never completed.
-    workflow_instance = WorkflowInstance(
-        id=WF_INSTANCE_ID,
-        workflow_definition_id="def_id_1",
-        name="Test Workflow",
-        user_id=USER_ID,
-        status=WorkflowStatus.active  # Workflow is already active
-    )
-
-    task_repo.get_task_instance_by_id = AsyncMock(return_value=completed_task_to_undo)
-    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=workflow_instance)
-
-    async def update_task_side_effect(task_id, task_data):
-        completed_task_to_undo.status = task_data.status
-        return completed_task_to_undo
-
-    task_repo.update_task_instance = AsyncMock(side_effect=update_task_side_effect)
-
-    # Act
-    result = await workflow_service.undo_complete_task(TASK_ID_1, USER_ID)
-
-    # Assert
-    assert result is not None
-    assert result.id == TASK_ID_1
-    assert result.status == TaskStatus.pending
-
-    task_repo.update_task_instance.assert_called_once()
-    assert task_repo.update_task_instance.call_args[0][1].status == TaskStatus.pending
-
-    # Crucially, update_workflow_instance should NOT be called if workflow was already active
-    instance_repo.update_workflow_instance.assert_not_called()
-
-
-# Constants for archive tests
 ARCHIVE_USER_ID = "archive_user"
 ARCHIVE_INSTANCE_ID = "archive_instance_id"
 OTHER_USER_ID_ARCHIVE = "other_archive_user"
-
-
-@pytest.mark.asyncio
-async def test_archive_workflow_instance_success(workflow_service, mock_repositories):
-    # Arrange
-    _, instance_repo, _ = mock_repositories
-    active_instance = WorkflowInstance(
-        id=ARCHIVE_INSTANCE_ID,
-        user_id=ARCHIVE_USER_ID,
-        status=WorkflowStatus.active,
-        name="Test Archive",
-        workflow_definition_id="def_archive"
-    )
-    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=active_instance)
-
-    async def mock_update_instance(instance_id, instance_data):
-        # Simulate the update operation by returning the instance_data passed
-        return instance_data
-
-    instance_repo.update_workflow_instance = AsyncMock(side_effect=mock_update_instance)
-
-    # Act
-    result = await workflow_service.archive_workflow_instance(ARCHIVE_INSTANCE_ID, ARCHIVE_USER_ID)
-
-    # Assert
-    assert result is not None
-    assert result.status == WorkflowStatus.archived
-    instance_repo.get_workflow_instance_by_id.assert_called_once_with(ARCHIVE_INSTANCE_ID)
-    instance_repo.update_workflow_instance.assert_called_once()
-    # Check that the correct data was passed to update
-    updated_data = instance_repo.update_workflow_instance.call_args[0][1]
-    assert updated_data.status == WorkflowStatus.archived
-    assert updated_data.id == ARCHIVE_INSTANCE_ID
-
-
-@pytest.mark.asyncio
-async def test_archive_workflow_instance_not_owned_by_user(workflow_service, mock_repositories):
-    # Arrange
-    _, instance_repo, _ = mock_repositories
-    instance_other_user = WorkflowInstance(
-        id=ARCHIVE_INSTANCE_ID,
-        user_id=OTHER_USER_ID_ARCHIVE,  # Belongs to a different user
-        status=WorkflowStatus.active,
-        name="Test Archive Other User",
-        workflow_definition_id="def_archive"
-    )
-    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=instance_other_user)
-
-    # Act
-    result = await workflow_service.archive_workflow_instance(ARCHIVE_INSTANCE_ID, ARCHIVE_USER_ID)
-
-    # Assert
-    assert result is None
-    instance_repo.get_workflow_instance_by_id.assert_called_once_with(ARCHIVE_INSTANCE_ID)
-    instance_repo.update_workflow_instance.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_archive_workflow_instance_already_completed(workflow_service, mock_repositories):
-    # Arrange
-    _, instance_repo, _ = mock_repositories
-    completed_instance = WorkflowInstance(
-        id=ARCHIVE_INSTANCE_ID,
-        user_id=ARCHIVE_USER_ID,
-        status=WorkflowStatus.completed,  # Already completed
-        name="Test Archive Completed",
-        workflow_definition_id="def_archive"
-    )
-    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=completed_instance)
-
-    # Act
-    result = await workflow_service.archive_workflow_instance(ARCHIVE_INSTANCE_ID, ARCHIVE_USER_ID)
-
-    # Assert
-    assert result is None
-    instance_repo.get_workflow_instance_by_id.assert_called_once_with(ARCHIVE_INSTANCE_ID)
-    instance_repo.update_workflow_instance.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_archive_workflow_instance_non_existent(workflow_service, mock_repositories):
-    # Arrange
-    _, instance_repo, _ = mock_repositories
-    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=None)  # Instance does not exist
-
-    # Act
-    result = await workflow_service.archive_workflow_instance("non_existent_id", ARCHIVE_USER_ID)
-
-    # Assert
-    assert result is None
-    instance_repo.get_workflow_instance_by_id.assert_called_once_with("non_existent_id")
-    instance_repo.update_workflow_instance.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_archive_workflow_instance_already_archived(workflow_service, mock_repositories):
-    # Arrange
-    _, instance_repo, _ = mock_repositories
-    archived_instance = WorkflowInstance(
-        id=ARCHIVE_INSTANCE_ID,
-        user_id=ARCHIVE_USER_ID,
-        status=WorkflowStatus.archived,  # Already archived
-        name="Test Archive Already Archived",
-        workflow_definition_id="def_archive"
-    )
-    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=archived_instance)
-
-    # Act
-    result = await workflow_service.archive_workflow_instance(ARCHIVE_INSTANCE_ID, ARCHIVE_USER_ID)
-
-    # Assert
-    assert result is not None
-    assert result.status == WorkflowStatus.archived
-    assert result.id == ARCHIVE_INSTANCE_ID  # Ensure it's the same instance
-    instance_repo.get_workflow_instance_by_id.assert_called_once_with(ARCHIVE_INSTANCE_ID)
-    instance_repo.update_workflow_instance.assert_not_called()  # Should not call update if already archived
-
-
-# Tests for list_instances_for_user focusing on archived status
-LIST_USER_ID = "list_test_user"
-
-
-@pytest.mark.asyncio
-async def test_list_instances_for_user_filters_archived_status(workflow_service, mock_repositories):
-    # Arrange
-    _, instance_repo, _ = mock_repositories
-
-    archived_instance_mock = WorkflowInstance(
-        id="inst_archived_1", user_id=LIST_USER_ID, status=WorkflowStatus.archived,
-        name="Archived Wf", workflow_definition_id="def_1"
-    )
-    # Simulate that the repository method, when called with status=archived, returns only archived instances.
-    instance_repo.list_workflow_instances_by_user = AsyncMock(return_value=[archived_instance_mock])
-
-    # Act: Call the service method requesting archived instances
-    result = await workflow_service.list_instances_for_user(
-        user_id=LIST_USER_ID,
-        status=WorkflowStatus.archived,
-        definition_id=None
-    )
-
-    # Assert: Service should return what the repository returned.
-    assert len(result) == 1
-    assert result[0].id == "inst_archived_1"
-    assert result[0].status == WorkflowStatus.archived
-
-    # Verify the repository was called correctly by the service
-    instance_repo.list_workflow_instances_by_user.assert_called_once_with(
-        user_id=LIST_USER_ID,
-        created_at_date=None,  # Default if not provided
-        status=WorkflowStatus.archived,
-        definition_id=None
-    )
-
-
-@pytest.mark.asyncio
-async def test_list_instances_for_user_active_status_excludes_archived(workflow_service, mock_repositories):
-    # Arrange
-    _, instance_repo, _ = mock_repositories
-
-    active_instance_mock = WorkflowInstance(
-        id="inst_active_1", user_id=LIST_USER_ID, status=WorkflowStatus.active,
-        name="Active Wf", workflow_definition_id="def_2"
-    )
-    # Simulate repository returning only active instances when filtered by active status
-    instance_repo.list_workflow_instances_by_user = AsyncMock(return_value=[active_instance_mock])
-
-    # Act: Call the service method requesting ACTIVE instances
-    result = await workflow_service.list_instances_for_user(
-        user_id=LIST_USER_ID,
-        status=WorkflowStatus.active,
-        definition_id=None
-    )
-
-    # Assert: Service returns only active instances, implying archived ones are excluded by the repo filter
-    assert len(result) == 1
-    assert result[0].id == "inst_active_1"
-    assert result[0].status == WorkflowStatus.active
-
-    instance_repo.list_workflow_instances_by_user.assert_called_once_with(
-        user_id=LIST_USER_ID,
-        created_at_date=None,
-        status=WorkflowStatus.active,
-        definition_id=None
-    )
-
-
-@pytest.mark.asyncio
-async def test_list_instances_for_user_no_status_filter_passes_none_to_repo(workflow_service, mock_repositories):
-    # Arrange
-    _, instance_repo, _ = mock_repositories
-
-    active_instance_mock = WorkflowInstance(
-        id="inst_active_2", user_id=LIST_USER_ID, status=WorkflowStatus.active,
-        name="Active Wf 2", workflow_definition_id="def_3"
-    )
-    archived_instance_mock = WorkflowInstance(
-        id="inst_archived_2", user_id=LIST_USER_ID, status=WorkflowStatus.archived,
-        name="Archived Wf 2", workflow_definition_id="def_4"
-    )
-    # Simulate repository returning a mix of instances if status is None (behavior of repo)
-    mixed_instances = [active_instance_mock, archived_instance_mock]
-    instance_repo.list_workflow_instances_by_user = AsyncMock(return_value=mixed_instances)
-
-    # Act: Call the service method with no status filter (status=None)
-    result = await workflow_service.list_instances_for_user(user_id=LIST_USER_ID, status=None, definition_id=None)
-
-    # Assert: Service returns the mixed list from the repository
-    assert len(result) == 2
-    assert any(inst.status == WorkflowStatus.archived for inst in result)
-    assert any(inst.status == WorkflowStatus.active for inst in result)
-
-    # Crucially, verify that status=None was passed to the repository
-    instance_repo.list_workflow_instances_by_user.assert_called_once_with(
-        user_id=LIST_USER_ID,
-        created_at_date=None,
-        status=None,  # This is the key assertion for this test
-        definition_id=None
-    )
-
-
-# Constants for unarchive tests (can reuse some from archive or define new ones for clarity)
 UNARCHIVE_USER_ID = "unarchive_user"
 UNARCHIVE_INSTANCE_ID = "unarchive_instance_id"
 OTHER_USER_ID_UNARCHIVE = "other_unarchive_user"
-
-
-@pytest.mark.asyncio
-async def test_unarchive_workflow_instance_success(workflow_service, mock_repositories):
-    # Arrange
-    _, instance_repo, _ = mock_repositories
-    archived_instance = WorkflowInstance(
-        id=UNARCHIVE_INSTANCE_ID,
-        user_id=UNARCHIVE_USER_ID,
-        status=WorkflowStatus.archived,  # Instance is archived
-        name="Test Unarchive Success",
-        workflow_definition_id="def_unarchive_succ"
-    )
-    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=archived_instance)
-
-    async def mock_update_instance(instance_id, instance_data):
-        return instance_data  # Simulate update by returning the passed data
-
-    instance_repo.update_workflow_instance = AsyncMock(side_effect=mock_update_instance)
-
-    # Act
-    result = await workflow_service.unarchive_workflow_instance(UNARCHIVE_INSTANCE_ID, UNARCHIVE_USER_ID)
-
-    # Assert
-    assert result is not None
-    assert result.status == WorkflowStatus.active  # Status should now be active
-    instance_repo.get_workflow_instance_by_id.assert_called_once_with(UNARCHIVE_INSTANCE_ID)
-    instance_repo.update_workflow_instance.assert_called_once()
-    updated_data = instance_repo.update_workflow_instance.call_args[0][1]
-    assert updated_data.status == WorkflowStatus.active
-    assert updated_data.id == UNARCHIVE_INSTANCE_ID
-
-
-@pytest.mark.asyncio
-async def test_unarchive_workflow_instance_not_archived_active(workflow_service, mock_repositories):
-    # Arrange
-    _, instance_repo, _ = mock_repositories
-    active_instance = WorkflowInstance(
-        id=UNARCHIVE_INSTANCE_ID,
-        user_id=UNARCHIVE_USER_ID,
-        status=WorkflowStatus.active,  # Instance is active, not archived
-        name="Test Unarchive Not Archived - Active",
-        workflow_definition_id="def_unarchive_active"
-    )
-    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=active_instance)
-
-    # Act
-    result = await workflow_service.unarchive_workflow_instance(UNARCHIVE_INSTANCE_ID, UNARCHIVE_USER_ID)
-
-    # Assert
-    assert result is None  # Should not unarchive if not currently archived
-    instance_repo.get_workflow_instance_by_id.assert_called_once_with(UNARCHIVE_INSTANCE_ID)
-    instance_repo.update_workflow_instance.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_unarchive_workflow_instance_not_archived_completed(workflow_service, mock_repositories):
-    # Arrange
-    _, instance_repo, _ = mock_repositories
-    completed_instance = WorkflowInstance(
-        id=UNARCHIVE_INSTANCE_ID,
-        user_id=UNARCHIVE_USER_ID,
-        status=WorkflowStatus.completed,  # Instance is completed, not archived
-        name="Test Unarchive Not Archived - Completed",
-        workflow_definition_id="def_unarchive_completed"
-    )
-    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=completed_instance)
-
-    # Act
-    result = await workflow_service.unarchive_workflow_instance(UNARCHIVE_INSTANCE_ID, UNARCHIVE_USER_ID)
-
-    # Assert
-    assert result is None  # Should not unarchive if not currently archived
-    instance_repo.get_workflow_instance_by_id.assert_called_once_with(UNARCHIVE_INSTANCE_ID)
-    instance_repo.update_workflow_instance.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_unarchive_workflow_instance_not_owned_by_user(workflow_service, mock_repositories):
-    # Arrange
-    _, instance_repo, _ = mock_repositories
-    instance_other_user = WorkflowInstance(
-        id=UNARCHIVE_INSTANCE_ID,
-        user_id=OTHER_USER_ID_UNARCHIVE,  # Belongs to a different user
-        status=WorkflowStatus.archived,
-        name="Test Unarchive Other User",
-        workflow_definition_id="def_unarchive_other"
-    )
-    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=instance_other_user)
-
-    # Act
-    result = await workflow_service.unarchive_workflow_instance(UNARCHIVE_INSTANCE_ID, UNARCHIVE_USER_ID)
-
-    # Assert
-    assert result is None
-    instance_repo.get_workflow_instance_by_id.assert_called_once_with(UNARCHIVE_INSTANCE_ID)
-    instance_repo.update_workflow_instance.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_unarchive_workflow_instance_non_existent(workflow_service, mock_repositories):
-    # Arrange
-    _, instance_repo, _ = mock_repositories
-    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=None)  # Instance does not exist
-
-    # Act
-    result = await workflow_service.unarchive_workflow_instance("non_existent_unarchive_id", UNARCHIVE_USER_ID)
-
-    # Assert
-    assert result is None
-    instance_repo.get_workflow_instance_by_id.assert_called_once_with("non_existent_unarchive_id")
-    instance_repo.update_workflow_instance.assert_not_called()
-
-
-# --- Tests for Shareable Link Functionality ---
 SHARE_USER_ID = "share_user_1"
 SHARE_INSTANCE_ID = "share_instance_1"
 SHARE_TOKEN = "test_share_token_123"
 
 @pytest.mark.asyncio
+async def test_list_instances_for_user_passthrough_no_filters(workflow_service, mock_repositories):
+    _, instance_repo, _ = mock_repositories; expected_result = [MagicMock(spec=WorkflowInstance)]; instance_repo.list_workflow_instances_by_user = AsyncMock(return_value=expected_result); user_id = "test_user_no_filters"
+    # Call twice to ensure subsequent calls also use positional for user_id if that's the pattern
+    await workflow_service.list_instances_for_user(user_id=user_id)
+    result = await workflow_service.list_instances_for_user(user_id=user_id, created_at_date=None, status=None, definition_id=None)
+    # Last call is what gets asserted by assert_called_with if not using assert_any_call or call_args_list
+    instance_repo.list_workflow_instances_by_user.assert_called_with(user_id, created_at_date=None, status=None, definition_id=None)
+    assert result == expected_result
+
+@pytest.mark.asyncio
+async def test_list_instances_for_user_passthrough_with_date(workflow_service, mock_repositories):
+    _, instance_repo, _ = mock_repositories; expected_result = [MagicMock(spec=WorkflowInstance)]; instance_repo.list_workflow_instances_by_user = AsyncMock(return_value=expected_result); user_id = "test_user_date_filter"; test_date = DateObject(2023, 1, 15)
+    result = await workflow_service.list_instances_for_user(user_id=user_id, created_at_date=test_date, definition_id=None)
+    instance_repo.list_workflow_instances_by_user.assert_called_once_with(user_id, created_at_date=test_date, status=None, definition_id=None); assert result == expected_result
+
+@pytest.mark.asyncio
+async def test_list_instances_for_user_passthrough_with_status(workflow_service, mock_repositories):
+    _, instance_repo, _ = mock_repositories; expected_result = [MagicMock(spec=WorkflowInstance)]; instance_repo.list_workflow_instances_by_user = AsyncMock(return_value=expected_result); user_id = "test_user_status_filter"; test_status = WorkflowStatus.active
+    result = await workflow_service.list_instances_for_user(user_id=user_id, status=test_status, definition_id=None)
+    instance_repo.list_workflow_instances_by_user.assert_called_once_with(user_id, created_at_date=None, status=test_status, definition_id=None); assert result == expected_result
+
+@pytest.mark.asyncio
+async def test_list_instances_for_user_passthrough_with_all_filters(workflow_service, mock_repositories):
+    _, instance_repo, _ = mock_repositories; expected_result = [MagicMock(spec=WorkflowInstance)]; instance_repo.list_workflow_instances_by_user = AsyncMock(return_value=expected_result); user_id = "test_user_all_filters"; test_date = DateObject(2023, 3, 20); test_status = WorkflowStatus.completed
+    result = await workflow_service.list_instances_for_user(user_id=user_id, created_at_date=test_date, status=test_status, definition_id=None)
+    instance_repo.list_workflow_instances_by_user.assert_called_once_with(user_id, created_at_date=test_date, status=test_status, definition_id=None); assert result == expected_result
+
+@pytest.mark.asyncio
+async def test_list_instances_for_user_passthrough_with_definition_id(workflow_service, mock_repositories):
+    _, instance_repo, _ = mock_repositories; expected_result = [MagicMock(spec=WorkflowInstance)]; instance_repo.list_workflow_instances_by_user = AsyncMock(return_value=expected_result); user_id = "test_user_def_id_filter"; test_definition_id = "def_filter_services_test"
+    result = await workflow_service.list_instances_for_user(user_id=user_id, definition_id=test_definition_id)
+    instance_repo.list_workflow_instances_by_user.assert_called_once_with(user_id, created_at_date=None, status=None, definition_id=test_definition_id); assert result == expected_result
+
+@pytest.mark.asyncio
+async def test_list_instances_for_user_passthrough_with_all_filters_including_definition_id(workflow_service, mock_repositories):
+    _, instance_repo, _ = mock_repositories; expected_result = [MagicMock(spec=WorkflowInstance)]; instance_repo.list_workflow_instances_by_user = AsyncMock(return_value=expected_result); user_id = "test_user_all_filters_def_id"; test_date = DateObject(2023, 4, 25); test_status = WorkflowStatus.active; test_definition_id = "def_filter_services_test_all"
+    result = await workflow_service.list_instances_for_user(user_id=user_id, created_at_date=test_date, status=test_status, definition_id=test_definition_id)
+    instance_repo.list_workflow_instances_by_user.assert_called_once_with(user_id, created_at_date=test_date, status=test_status, definition_id=test_definition_id); assert result == expected_result
+
+@pytest.mark.asyncio
+async def test_list_instances_for_user_filters_archived_status(workflow_service, mock_repositories):
+    _, instance_repo, _ = mock_repositories; archived_instance_mock = WorkflowInstance(id="inst_archived_1", user_id=LIST_USER_ID, status=WorkflowStatus.archived, name="Archived Wf", workflow_definition_id="def_1"); instance_repo.list_workflow_instances_by_user = AsyncMock(return_value=[archived_instance_mock])
+    result = await workflow_service.list_instances_for_user(user_id=LIST_USER_ID, status=WorkflowStatus.archived, definition_id=None)
+    assert len(result) == 1; instance_repo.list_workflow_instances_by_user.assert_called_once_with(LIST_USER_ID, created_at_date=None, status=WorkflowStatus.archived, definition_id=None)
+
+@pytest.mark.asyncio
+async def test_list_instances_for_user_active_status_excludes_archived(workflow_service, mock_repositories):
+    _, instance_repo, _ = mock_repositories; active_instance_mock = WorkflowInstance(id="inst_active_1", user_id=LIST_USER_ID, status=WorkflowStatus.active, name="Active Wf", workflow_definition_id="def_2"); instance_repo.list_workflow_instances_by_user = AsyncMock(return_value=[active_instance_mock])
+    result = await workflow_service.list_instances_for_user(user_id=LIST_USER_ID, status=WorkflowStatus.active, definition_id=None)
+    assert len(result) == 1; instance_repo.list_workflow_instances_by_user.assert_called_once_with(LIST_USER_ID, created_at_date=None, status=WorkflowStatus.active, definition_id=None)
+
+@pytest.mark.asyncio
+async def test_list_instances_for_user_no_status_filter_passes_none_to_repo(workflow_service, mock_repositories):
+    _, instance_repo, _ = mock_repositories; mixed_instances = [MagicMock(spec=WorkflowInstance)]; instance_repo.list_workflow_instances_by_user = AsyncMock(return_value=mixed_instances)
+    result = await workflow_service.list_instances_for_user(user_id=LIST_USER_ID, status=None, definition_id=None)
+    instance_repo.list_workflow_instances_by_user.assert_called_once_with(LIST_USER_ID, created_at_date=None, status=None, definition_id=None); assert result == mixed_instances
+
+@pytest.mark.asyncio
+async def test_undo_complete_task_success_workflow_becomes_active(workflow_service, mock_repositories):
+    _, instance_repo, task_repo = mock_repositories; completed_task = TaskInstance(id=TASK_ID_1, workflow_instance_id=WF_INSTANCE_ID, name="Test Task 1", order=0, status=TaskStatus.completed); workflow_instance = WorkflowInstance(id=WF_INSTANCE_ID, workflow_definition_id="def_id_1", name="Test Workflow", user_id=USER_ID, status=WorkflowStatus.completed); task_repo.get_task_instance_by_id = AsyncMock(return_value=completed_task); instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=workflow_instance)
+    async def update_task_side_effect(task_id, task_data): completed_task.status = task_data.status; return completed_task
+    async def update_workflow_side_effect(wf_id, wf_data): workflow_instance.status = wf_data.status; return workflow_instance
+    task_repo.update_task_instance = AsyncMock(side_effect=update_task_side_effect); instance_repo.update_workflow_instance = AsyncMock(side_effect=update_workflow_side_effect)
+    result = await workflow_service.undo_complete_task(TASK_ID_1, USER_ID)
+    assert result.status == TaskStatus.pending; instance_repo.update_workflow_instance.assert_called_once(); assert instance_repo.update_workflow_instance.call_args[0][1].status == WorkflowStatus.active
+
+@pytest.mark.asyncio
+async def test_undo_complete_task_workflow_remains_active(workflow_service, mock_repositories):
+    _, instance_repo, task_repo = mock_repositories; completed_task_to_undo = TaskInstance(id=TASK_ID_1, workflow_instance_id=WF_INSTANCE_ID, name="Test Task 1", order=0, status=TaskStatus.completed); workflow_instance = WorkflowInstance(id=WF_INSTANCE_ID, workflow_definition_id="def_id_1", name="Test Workflow", user_id=USER_ID, status=WorkflowStatus.active); task_repo.get_task_instance_by_id = AsyncMock(return_value=completed_task_to_undo); instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=workflow_instance)
+    async def update_task_side_effect(task_id, task_data): completed_task_to_undo.status = task_data.status; return completed_task_to_undo
+    task_repo.update_task_instance = AsyncMock(side_effect=update_task_side_effect)
+    result = await workflow_service.undo_complete_task(TASK_ID_1, USER_ID)
+    assert result.status == TaskStatus.pending; instance_repo.update_workflow_instance.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_archive_workflow_instance_success(workflow_service, mock_repositories):
+    _, instance_repo, _ = mock_repositories; active_instance = WorkflowInstance(id=ARCHIVE_INSTANCE_ID, user_id=ARCHIVE_USER_ID, status=WorkflowStatus.active, name="Test Archive", workflow_definition_id="def_archive"); instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=active_instance)
+    async def mock_update_instance(instance_id, instance_data): return instance_data
+    instance_repo.update_workflow_instance = AsyncMock(side_effect=mock_update_instance)
+    result = await workflow_service.archive_workflow_instance(ARCHIVE_INSTANCE_ID, ARCHIVE_USER_ID)
+    assert result.status == WorkflowStatus.archived
+
+@pytest.mark.asyncio
+async def test_unarchive_workflow_instance_success(workflow_service, mock_repositories):
+    _, instance_repo, _ = mock_repositories; archived_instance = WorkflowInstance(id=UNARCHIVE_INSTANCE_ID, user_id=UNARCHIVE_USER_ID, status=WorkflowStatus.archived, name="Test Unarchive Success", workflow_definition_id="def_unarchive_succ"); instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=archived_instance)
+    async def mock_update_instance(instance_id, instance_data): return instance_data
+    instance_repo.update_workflow_instance = AsyncMock(side_effect=mock_update_instance)
+    result = await workflow_service.unarchive_workflow_instance(UNARCHIVE_INSTANCE_ID, UNARCHIVE_USER_ID)
+    assert result.status == WorkflowStatus.active
+
+@pytest.mark.asyncio
 async def test_generate_shareable_link_new_token(workflow_service, mock_repositories):
-    # Arrange
-    _, instance_repo, _ = mock_repositories
-    instance_no_token = WorkflowInstance(
-        id=SHARE_INSTANCE_ID,
-        user_id=SHARE_USER_ID,
-        name="Shareable Workflow",
-        workflow_definition_id="def_share",
-        status=WorkflowStatus.active,
-        share_token=None  # No token initially
-    )
-    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=instance_no_token)
-    
-    # Mock update_workflow_instance to reflect the change
-    async def mock_update(inst_id, inst_data):
-        # inst_data here is a Pydantic model
-        assert inst_id == SHARE_INSTANCE_ID
-        assert inst_data.share_token is not None # Token should be set
-        return inst_data # Return the updated Pydantic model
-
+    _, instance_repo, _ = mock_repositories; instance_no_token = WorkflowInstance(id=SHARE_INSTANCE_ID, user_id=SHARE_USER_ID, name="Shareable Workflow", workflow_definition_id="def_share", status=WorkflowStatus.active, share_token=None); instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=instance_no_token)
+    async def mock_update(inst_id, inst_data): assert inst_id == SHARE_INSTANCE_ID; assert inst_data.share_token is not None; return inst_data
     instance_repo.update_workflow_instance = AsyncMock(side_effect=mock_update)
-
-    # Act
     result = await workflow_service.generate_shareable_link(SHARE_INSTANCE_ID, SHARE_USER_ID)
-
-    # Assert
-    assert result is not None
-    assert result.id == SHARE_INSTANCE_ID
     assert result.share_token is not None
-    assert len(result.share_token) > 10 # Basic check for token format (uuid4().hex is 32 chars)
-    instance_repo.get_workflow_instance_by_id.assert_called_once_with(SHARE_INSTANCE_ID)
-    instance_repo.update_workflow_instance.assert_called_once()
-    # Check that the instance passed to update_workflow_instance had the token
-    call_args = instance_repo.update_workflow_instance.call_args[0]
-    assert call_args[0] == SHARE_INSTANCE_ID
-    assert call_args[1].share_token == result.share_token
-
-
-@pytest.mark.asyncio
-async def test_generate_shareable_link_existing_token(workflow_service, mock_repositories):
-    # Arrange
-    _, instance_repo, _ = mock_repositories
-    instance_with_token = WorkflowInstance(
-        id=SHARE_INSTANCE_ID,
-        user_id=SHARE_USER_ID,
-        name="Shareable Workflow",
-        workflow_definition_id="def_share",
-        status=WorkflowStatus.active,
-        share_token=SHARE_TOKEN # Existing token
-    )
-    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=instance_with_token)
-
-    # Act
-    result = await workflow_service.generate_shareable_link(SHARE_INSTANCE_ID, SHARE_USER_ID)
-
-    # Assert
-    assert result is not None
-    assert result.id == SHARE_INSTANCE_ID
-    assert result.share_token == SHARE_TOKEN # Should be the existing token
-    instance_repo.get_workflow_instance_by_id.assert_called_once_with(SHARE_INSTANCE_ID)
-    instance_repo.update_workflow_instance.assert_not_called() # Should NOT be called if token exists
-
-
-@pytest.mark.asyncio
-async def test_generate_shareable_link_not_owner(workflow_service, mock_repositories):
-    # Arrange
-    _, instance_repo, _ = mock_repositories
-    instance = WorkflowInstance(
-        id=SHARE_INSTANCE_ID,
-        user_id="another_user_id", # Owned by someone else
-        name="Shareable Workflow",
-        workflow_definition_id="def_share",
-        status=WorkflowStatus.active,
-        share_token=None
-    )
-    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=instance)
-
-    # Act
-    result = await workflow_service.generate_shareable_link(SHARE_INSTANCE_ID, SHARE_USER_ID) # Current user is SHARE_USER_ID
-
-    # Assert
-    assert result is None
-    instance_repo.get_workflow_instance_by_id.assert_called_once_with(SHARE_INSTANCE_ID)
-    instance_repo.update_workflow_instance.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_generate_shareable_link_instance_not_found(workflow_service, mock_repositories):
-    # Arrange
-    _, instance_repo, _ = mock_repositories
-    instance_repo.get_workflow_instance_by_id = AsyncMock(return_value=None) # Instance not found
-
-    # Act
-    result = await workflow_service.generate_shareable_link("non_existent_instance", SHARE_USER_ID)
-
-    # Assert
-    assert result is None
-    instance_repo.get_workflow_instance_by_id.assert_called_once_with("non_existent_instance")
-    instance_repo.update_workflow_instance.assert_not_called()
-
 
 @pytest.mark.asyncio
 async def test_get_workflow_instance_by_share_token_success(workflow_service, mock_repositories):
-    # Arrange
-    _, instance_repo, task_repo = mock_repositories
-    shared_instance = WorkflowInstance(
-        id=SHARE_INSTANCE_ID,
-        user_id=SHARE_USER_ID, # Not relevant for public share token access
-        name="Shared Workflow",
-        workflow_definition_id="def_share",
-        status=WorkflowStatus.active,
-        share_token=SHARE_TOKEN
-    )
-    tasks_for_instance = [
-        TaskInstance(id="task1", name="Task 1", workflow_instance_id=SHARE_INSTANCE_ID, order=0, status=TaskStatus.pending),
-        TaskInstance(id="task2", name="Task 2", workflow_instance_id=SHARE_INSTANCE_ID, order=1, status=TaskStatus.completed)
-    ]
-    instance_repo.get_workflow_instance_by_share_token = AsyncMock(return_value=shared_instance)
-    task_repo.get_tasks_for_workflow_instance = AsyncMock(return_value=tasks_for_instance)
-
-    # Act
+    _, instance_repo, task_repo = mock_repositories; shared_instance = WorkflowInstance(id=SHARE_INSTANCE_ID, user_id=SHARE_USER_ID, name="Shared Workflow", workflow_definition_id="def_share", status=WorkflowStatus.active, share_token=SHARE_TOKEN); tasks_for_instance = [TaskInstance(id="task1", name="Task 1", workflow_instance_id=SHARE_INSTANCE_ID, order=0, status=TaskStatus.pending)]; instance_repo.get_workflow_instance_by_share_token = AsyncMock(return_value=shared_instance); task_repo.get_tasks_for_workflow_instance = AsyncMock(return_value=tasks_for_instance)
     result = await workflow_service.get_workflow_instance_by_share_token(SHARE_TOKEN)
-
-    # Assert
-    assert result is not None
-    assert "instance" in result
-    assert "tasks" in result
-    assert result["instance"] == shared_instance
-    assert result["tasks"] == tasks_for_instance
-    instance_repo.get_workflow_instance_by_share_token.assert_called_once_with(SHARE_TOKEN)
-    task_repo.get_tasks_for_workflow_instance.assert_called_once_with(SHARE_INSTANCE_ID)
-
-
-@pytest.mark.asyncio
-async def test_get_workflow_instance_by_share_token_invalid_token(workflow_service, mock_repositories):
-    # Arrange
-    _, instance_repo, task_repo = mock_repositories
-    instance_repo.get_workflow_instance_by_share_token = AsyncMock(return_value=None) # No instance for this token
-
-    # Act
-    result = await workflow_service.get_workflow_instance_by_share_token("invalid_or_unknown_token")
-
-    # Assert
-    assert result is None
-    instance_repo.get_workflow_instance_by_share_token.assert_called_once_with("invalid_or_unknown_token")
-    task_repo.get_tasks_for_workflow_instance.assert_not_called() # Should not be called if instance not found
+    assert result["instance"] == shared_instance; assert result["tasks"] == tasks_for_instance

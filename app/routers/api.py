@@ -35,7 +35,7 @@ async def create_workflow_definition(
         return await service.create_new_definition(
             name=definition.name,
             description=definition.description,
-            task_names=definition.task_names
+            task_definitions=definition.task_definitions # Changed from task_names
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -53,7 +53,7 @@ async def update_workflow_definition(
         definition_id=definition_id,
         name=definition.name,
         description=definition.description,
-        task_names=definition.task_names
+        task_definitions=definition.task_definitions # Changed from task_names
     )
     if not updated:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Definition not found")
