@@ -5,12 +5,15 @@ import sys
 # Add the project root to sys.path to ensure 'app' module can be found
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from fastapi import FastAPI
+from starlette.middleware.forwarded import ForwardedMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.routers import root, workflow_definitions, workflow_instances, tasks, auth, user_workflows, api, share
 
 app = FastAPI(
     redirect_slashes=False,
 )
+
+app.add_middleware(ForwardedMiddleware, forwarded_allow_ips='*', forwarded_count=1)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="app/templates"), name="static")
