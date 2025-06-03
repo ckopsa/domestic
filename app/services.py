@@ -42,8 +42,8 @@ class WorkflowService:
             await self.task_repo.create_task_instance(task)
         return created_instance
 
-    async def list_workflow_definitions(self, name: Optional[str] = None) -> List[WorkflowDefinition]:
-        return await self.definition_repo.list_workflow_definitions(name=name)
+    async def list_workflow_definitions(self, name: Optional[str] = None, definition_id: Optional[str] = None) -> List[WorkflowDefinition]:
+        return await self.definition_repo.list_workflow_definitions(name=name, definition_id=definition_id)
 
     async def complete_task(self, task_id: str, user_id: str) -> Optional[TaskInstance]:
         task = await self.task_repo.get_task_instance_by_id(task_id)
