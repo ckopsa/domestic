@@ -34,4 +34,19 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ghcr.io/${{ github.repository }}:${{ github.sha }}
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
+
+      - name: Setup Nomad CLI
+        uses: hashicorp/setup-nomad@main
+        with:
+          version: 'latest'
+
+      - name: Update Nomad Job
+        env:
+          NOMAD_ADDR: ${{ secrets.NOMAD_ADDR }}
+          NOMAD_TOKEN: ${{ secrets.NOMAD_TOKEN }}
+        run: |
+          echo "Updating Nomad variable with new image tag: ${{ github.sha }}"
+          nomad var put -force nomad/jobs/domestic-task-app image_tag=${{ github.sha }}
