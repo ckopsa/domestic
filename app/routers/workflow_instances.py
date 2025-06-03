@@ -167,3 +167,36 @@ async def unarchive_workflow_instance_handler(
             [(f"← Back to Instance", f"/workflow-instances/{instance_id}")],
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, renderer=renderer
         )
+    
+@router.get("/{instance_id}/dashboard", response_class=HTMLResponse)
+async def read_single_workflow_dashboard_page(
+        request: Request,
+        instance_id: str,
+        service: WorkflowService = Depends(get_workflow_service),
+        current_user: AuthenticatedUser = Depends(get_current_active_user),
+        renderer: HtmlRendererInterface = Depends(get_html_renderer)
+):
+    if isinstance(current_user, RedirectResponse): # Handle if user is not authenticated
+        return current_user
+
+    details = await service.get_workflow_instance_with_tasks(instance_id, current_user.user_id)
+
+    if not details or not details["instance"]:
+        return await create_message_page(
+            request,
+            "Workflow Dashboard Not Found",
+            "Error 404",
+            f"Workflow Instance Dashboard for ID '{instance_id}' not found or access denied.",
+            [("← Back to All Workflows Dashboard", "/workflow-instances/dashboard")],
+            status_code=404,
+            renderer=renderer
+        )
+
+    instance = details["instance"]
+    tasks = details["tasks"]
+
+    return await renderer.render(
+        "single_workflow_dashboard.html",
+        request,
+        {"instance": instance, "tasks": tasks, "current_user": current_user}
+    )

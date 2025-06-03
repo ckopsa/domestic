@@ -2,6 +2,7 @@
 
 {% block content %}
 <h1>Workflow: {{ instance.name }}</h1>
+<a href="/workflow-instances/{{ instance.id }}/dashboard" class="action-button" style="margin-bottom:15px; display:inline-block;">View Read-only Dashboard</a>
 <div class="workflow-details">
     <p><strong>ID:</strong> {{ instance.id }}</p>
     <p><strong>Status:</strong> {{ instance.status.upper() }}</p>

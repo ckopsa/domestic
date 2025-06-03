@@ -308,6 +308,121 @@ async def test_get_workflow_instance_not_found(db_session):
 
 
 @pytest.mark.asyncio
+async def test_get_workflow_dashboard_page(db_session):
+    # Arrange: Create a definition
+    definition_data = {
+        "name": "Dashboard Test Workflow",
+        "description": "Workflow for dashboard test",
+        "task_names": ["Task Alpha"]
+    }
+    # Ensure the API endpoint for creating definitions is correct
+    create_def_response = client.post("/api/workflow-definitions", json=definition_data)
+    assert create_def_response.status_code == 201
+    definition_id = create_def_response.json()["id"]
+
+    # Arrange: Create an instance for the mock_user
+    # The user_id for the instance will be 'test_user' due to override_get_current_active_user
+    instance_data = {
+        "definition_id": definition_id
+    }
+    # The mock_user's ID 'test_user' will be associated with this instance by the service.
+    create_inst_response = client.post(f"/api/workflow-instances", json={"definition_id": definition_id})
+    assert create_inst_response.status_code == 201
+    instance_json = create_inst_response.json()
+    instance_id = instance_json["id"]
+    instance_name = instance_json["name"] # Should be "Dashboard Test Workflow"
+
+    # Act: Get the dashboard page
+    response = client.get("/workflow-instances/dashboard")
+
+    # Assert: Basic page structure and content
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    assert "My Workflows Dashboard" in response.text
+    assert "<th>Name</th>" in response.text
+    assert "<th>Status</th>" in response.text
+    assert "<th>Actions</th>" in response.text
+
+    # Assert: Check if the created instance is listed
+    assert instance_name in response.text
+    assert instance_id in response.text
+    assert f'<a href="/workflow-instances/{instance_id}" class="action-button">View Details</a>' in response.text
+
+@pytest.mark.asyncio
+async def test_get_single_instance_dashboard_page(db_session):
+    # Arrange: Create a definition
+    definition_data = {
+        "name": "Single Dashboard Test Workflow",
+        "description": "Workflow for single dashboard test",
+        "task_names": ["Task A - Done", "Task B - Next", "Task C - Later"]
+    }
+    create_def_response = client.post("/api/workflow-definitions", json=definition_data)
+    assert create_def_response.status_code == 201
+    definition_id = create_def_response.json()["id"]
+
+    # Arrange: Create an instance for the mock_user
+    create_inst_response = client.post(f"/api/workflow-instances", json={"definition_id": definition_id})
+    assert create_inst_response.status_code == 201
+    instance_json = create_inst_response.json()
+    instance_id = instance_json["id"]
+    instance_name = instance_json["name"] # Should be "Single Dashboard Test Workflow"
+
+    # Arrange: Get tasks and complete the first one ("Task A - Done")
+    instance_details_response = client.get(f"/api/workflow-instances/{instance_id}")
+    assert instance_details_response.status_code == 200
+    tasks_from_api = instance_details_response.json()["tasks"] # Renamed to avoid conflict
+    
+    task_a_id = None
+    task_a_name = "Task A - Done"
+    task_b_name = "Task B - Next"
+    task_c_name = "Task C - Later"
+
+    for task_api_item in tasks_from_api: # Renamed to avoid conflict
+        if task_api_item["name"] == task_a_name:
+            task_a_id = task_api_item["id"]
+            break
+    assert task_a_id is not None, f"{task_a_name} not found in instance tasks"
+
+    complete_task_a_response = client.post(f"/api/task-instances/{task_a_id}/complete")
+    assert complete_task_a_response.status_code == 200
+    assert complete_task_a_response.json()["status"].lower() == "completed"
+
+    # Act: Get the single instance dashboard page
+    dashboard_response = client.get(f"/workflow-instances/{instance_id}/dashboard")
+
+    # Assert: Basic page structure and content
+    assert dashboard_response.status_code == 200
+    assert "text/html" in dashboard_response.headers["content-type"]
+    response_text = dashboard_response.text # Get text once for multiple assertions
+    assert f"Dashboard: {instance_name}" in response_text
+    
+    # Assert: Task information and highlighting
+    # Check for Task A - Done (Completed)
+    assert task_a_name in response_text
+    assert f'<li class="task-item-dashboard completed-task">' in response_text # More specific
+    assert f'<span class="task-name">{task_a_name}</span> - <span class="task-status">COMPLETED</span>' in response_text
+
+    # Check for Task B - Next (Priority)
+    assert task_b_name in response_text
+    assert f'<li class="task-item-dashboard priority-task">' in response_text # More specific
+    assert f'<span class="task-name">{task_b_name}</span> - <span class="task-status">PENDING</span><span class="priority-tag"> (Next Up)</span>' in response_text
+    
+    # Check for Task C - Later (Pending)
+    assert task_c_name in response_text
+    assert f'<li class="task-item-dashboard pending-task">' in response_text # More specific
+    assert f'<span class="task-name">{task_c_name}</span> - <span class="task-status">PENDING</span>' in response_text
+    assert "(Next Up)" not in response_text[response_text.find(task_c_name):] # Ensure (Next Up) is not after Task C
+
+    # Assert: Read-only (no interactive forms for task completion)
+    assert "Mark Complete</button>" not in response_text
+    assert "<form action=\"/task-instances/" not in response_text 
+
+    # Assert: Navigation links
+    assert f'<a href="/workflow-instances/{instance_id}" class="action-button">View Interactive Workflow</a>' in response_text
+    assert '<a href="/workflow-instances/dashboard" class="back-link"' in response_text
+    assert '<a href="/" class="back-link"' in response_text
+
+@pytest.mark.asyncio
 async def test_complete_task(db_session):
     # Arrange: First create a definition and an instance with tasks
     definition_data = {
