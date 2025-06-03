@@ -112,9 +112,9 @@ class PostgreSQLWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanc
 
     async def list_workflow_definitions(self, name: Optional[str] = None, definition_id: Optional[str] = None) -> List[WorkflowDefinition]:
         query = self.db_session.query(WorkflowDefinitionORM)
-        if definition_id: # Primary filter
+        if definition_id:
             query = query.filter(WorkflowDefinitionORM.id == definition_id)
-        elif name: # Secondary filter, only if definition_id is not provided
+        elif name:
             query = query.filter(WorkflowDefinitionORM.name.ilike(f"%{name}%"))
         definitions = query.all()
         return [WorkflowDefinition.model_validate(defn, from_attributes=True) for defn in definitions]
@@ -124,24 +124,27 @@ class PostgreSQLWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanc
         return WorkflowDefinition.model_validate(defn, from_attributes=True) if defn else None
 
     async def create_workflow_instance(self, instance_data: WorkflowInstance) -> WorkflowInstance:
-        instance = WorkflowInstanceORM(**instance_data.model_dump(mode='json'))
+        instance_orm_data = instance_data.model_dump() # Use default mode='python'
+        instance = WorkflowInstanceORM(**instance_orm_data)
         self.db_session.add(instance)
         self.db_session.commit()
         self.db_session.refresh(instance)
         return WorkflowInstance.model_validate(instance, from_attributes=True)
 
-    async def update_workflow_instance(self, instance_id: str, instance_update: WorkflowInstance) -> Optional[
-        WorkflowInstance]:
+    async def update_workflow_instance(self, instance_id: str, instance_update: WorkflowInstance) -> Optional[WorkflowInstance]:
         instance = self.db_session.query(WorkflowInstanceORM).filter(WorkflowInstanceORM.id == instance_id).first()
         if instance:
-            for key, value in instance_update.model_dump(mode='json').items():
+            update_data = instance_update.model_dump() # Use default mode='python'
+            for key, value in update_data.items():
                 setattr(instance, key, value)
             self.db_session.commit()
-            return instance_update
+            self.db_session.refresh(instance) # Refresh to get any DB-level changes
+            return WorkflowInstance.model_validate(instance, from_attributes=True)
         return None
 
     async def create_task_instance(self, task_data: TaskInstance) -> TaskInstance:
-        task = TaskInstanceORM(**task_data.model_dump(mode='json'))
+        task_orm_data = task_data.model_dump() # Use default mode='python'
+        task = TaskInstanceORM(**task_orm_data)
         self.db_session.add(task)
         self.db_session.commit()
         self.db_session.refresh(task)
@@ -154,17 +157,19 @@ class PostgreSQLWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanc
     async def update_task_instance(self, task_id: str, task_update: TaskInstance) -> Optional[TaskInstance]:
         task = self.db_session.query(TaskInstanceORM).filter(TaskInstanceORM.id == task_id).first()
         if task:
-            for key, value in task_update.model_dump(mode='json').items():
+            update_data = task_update.model_dump() # Use default mode='python'
+            for key, value in update_data.items():
                 setattr(task, key, value)
             self.db_session.commit()
-            return task_update
+            self.db_session.refresh(task) # Refresh to get any DB-level changes
+            return TaskInstance.model_validate(task, from_attributes=True)
         return None
 
     async def get_tasks_for_workflow_instance(self, instance_id: str) -> List[TaskInstance]:
         status_order = case(
             (TaskInstanceORM.status == TaskStatus.pending, 0),
             (TaskInstanceORM.status == TaskStatus.completed, 1),
-            else_=2  # Should not happen with current enum but good practice
+            else_=2
         )
         tasks = self.db_session.query(TaskInstanceORM).filter(
             TaskInstanceORM.workflow_instance_id == instance_id
@@ -184,16 +189,14 @@ class PostgreSQLWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanc
         return [WorkflowInstance.model_validate(instance, from_attributes=True) for instance in instances]
 
     async def create_workflow_definition(self, definition_data: WorkflowDefinition) -> WorkflowDefinition:
-        # Extract task_definitions from Pydantic model, as it won't be a direct column in ORM
         task_definitions_data = definition_data.task_definitions
-        orm_data = definition_data.model_dump(mode='json', exclude={'task_definitions'})
+        orm_data = definition_data.model_dump(exclude={'task_definitions'}) # mode='python' by default
 
         definition_orm = WorkflowDefinitionORM(**orm_data)
         self.db_session.add(definition_orm)
         self.db_session.commit()
-        self.db_session.refresh(definition_orm) # Get ID
+        self.db_session.refresh(definition_orm)
 
-        # Create TaskDefinitionORM instances
         for task_def_data in task_definitions_data:
             task_def_orm = TaskDefinitionORM(
                 workflow_definition_id=definition_orm.id,
@@ -203,7 +206,7 @@ class PostgreSQLWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanc
             self.db_session.add(task_def_orm)
 
         self.db_session.commit()
-        self.db_session.refresh(definition_orm) # Refresh again to load the relationship
+        self.db_session.refresh(definition_orm)
         return WorkflowDefinition.model_validate(definition_orm, from_attributes=True)
 
     async def update_workflow_definition(self, definition_id: str, name: str, description: Optional[str],
@@ -214,12 +217,10 @@ class PostgreSQLWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanc
             db_definition.name = name
             db_definition.description = description
 
-            # Delete old task definitions
             self.db_session.query(TaskDefinitionORM).filter(
                 TaskDefinitionORM.workflow_definition_id == definition_id
-            ).delete()
+            ).delete(synchronize_session=False) # Added synchronize_session=False
 
-            # Create new task definitions
             for task_def_data in task_definitions_data:
                 task_def_orm = TaskDefinitionORM(
                     workflow_definition_id=db_definition.id,
@@ -245,12 +246,14 @@ class PostgreSQLWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanc
             raise DefinitionInUseError(
                 f"Cannot delete definition: It is currently used by {linked_instances_count} workflow instance(s).")
 
+        self.db_session.query(TaskDefinitionORM).filter(
+            TaskDefinitionORM.workflow_definition_id == definition_id
+        ).delete(synchronize_session=False)
+
         self.db_session.delete(db_definition)
         self.db_session.commit()
 
     async def get_workflow_instance_by_share_token(self, share_token: str) -> Optional[WorkflowInstance]:
-        # Ensure 'select' is imported if you use it, e.g., from sqlalchemy import select
-        # For consistency with existing methods, using self.db_session.query()
         instance_orm = self.db_session.query(WorkflowInstanceORM).filter(WorkflowInstanceORM.share_token == share_token).first()
         if instance_orm:
             return WorkflowInstance.model_validate(instance_orm, from_attributes=True)
@@ -262,27 +265,15 @@ class InMemoryWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanceR
         self._seed_definitions()
 
     def _seed_definitions(self):
-        if not _workflow_definitions_db:  # Seed only if empty
+        if not _workflow_definitions_db:
             def1 = WorkflowDefinition(
-                id="def_morning_quick_start",
-                name="Morning Quick Start",
-                description="A simple routine to kick off the day.",
-                task_definitions=[
-                    TaskDefinitionBase(name="Make Bed", order=0),
-                    TaskDefinitionBase(name="Brush Teeth", order=1),
-                    TaskDefinitionBase(name="Get Dressed", order=2)
-                ]
+                id="def_morning_quick_start", name="Morning Quick Start", description="A simple routine to kick off the day.",
+                task_definitions=[ TaskDefinitionBase(name="Make Bed", order=0), TaskDefinitionBase(name="Brush Teeth", order=1), TaskDefinitionBase(name="Get Dressed", order=2)]
             )
             _workflow_definitions_db[def1.id] = def1
             def2 = WorkflowDefinition(
-                id="def_evening_wind_down",
-                name="Evening Wind Down",
-                description="Prepare for a good night's sleep.",
-                task_definitions=[
-                    TaskDefinitionBase(name="Tidy Up Living Room (5 mins)", order=0),
-                    TaskDefinitionBase(name="Prepare Outfit for Tomorrow", order=1),
-                    TaskDefinitionBase(name="Read a Book (15 mins)", order=2)
-                ]
+                id="def_evening_wind_down", name="Evening Wind Down", description="Prepare for a good night's sleep.",
+                task_definitions=[ TaskDefinitionBase(name="Tidy Up Living Room (5 mins)", order=0), TaskDefinitionBase(name="Prepare Outfit for Tomorrow", order=1), TaskDefinitionBase(name="Read a Book (15 mins)", order=2)]
             )
             _workflow_definitions_db[def2.id] = def2
 
@@ -292,9 +283,9 @@ class InMemoryWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanceR
 
     async def list_workflow_definitions(self, name: Optional[str] = None, definition_id: Optional[str] = None) -> List[WorkflowDefinition]:
         definitions = [defn.model_copy(deep=True) for defn in _workflow_definitions_db.values()]
-        if definition_id: # Primary filter
+        if definition_id:
             definitions = [defn for defn in definitions if defn.id == definition_id]
-        elif name: # Secondary filter
+        elif name:
             definitions = [defn for defn in definitions if name.lower() in defn.name.lower()]
         return definitions
 
@@ -307,8 +298,7 @@ class InMemoryWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanceR
         _workflow_instances_db[new_instance.id] = new_instance
         return new_instance.model_copy(deep=True)
 
-    async def update_workflow_instance(self, instance_id: str, instance_update: WorkflowInstance) -> Optional[
-        WorkflowInstance]:
+    async def update_workflow_instance(self, instance_id: str, instance_update: WorkflowInstance) -> Optional[WorkflowInstance]:
         if instance_id in _workflow_instances_db:
             _workflow_instances_db[instance_id] = instance_update.model_copy(deep=True)
             return _workflow_instances_db[instance_id].model_copy(deep=True)
@@ -330,23 +320,17 @@ class InMemoryWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanceR
         return None
 
     async def get_tasks_for_workflow_instance(self, instance_id: str) -> List[TaskInstance]:
-        tasks = [
-            task.model_copy(deep=True) for task in _task_instances_db.values()
-            if task.workflow_instance_id == instance_id
-        ]
-        # Sort by status (pending first), then by order
+        tasks = [task.model_copy(deep=True) for task in _task_instances_db.values() if task.workflow_instance_id == instance_id]
         return sorted(tasks, key=lambda t: (0 if t.status == TaskStatus.pending else 1, t.order))
 
     async def list_workflow_instances_by_user(self, user_id: str, created_at_date: Optional[DateObject] = None,
                                               status: Optional[WorkflowStatus] = None, definition_id: Optional[str] = None) -> List[WorkflowInstance]:
-        instances = [
-            instance.model_copy(deep=True) for instance in _workflow_instances_db.values()
-            if instance.user_id == user_id
-        ]
+        instances = [instance.model_copy(deep=True) for instance in _workflow_instances_db.values() if instance.user_id == user_id]
         if definition_id:
             instances = [instance for instance in instances if instance.workflow_definition_id == definition_id]
         if created_at_date:
-            instances = [instance for instance in instances if instance.created_at.date() == created_at_date]
+            # instance.created_at is already a date object.
+            instances = [instance for instance in instances if instance.created_at == created_at_date]
         if status:
             instances = [instance for instance in instances if instance.status == status]
         return sorted(instances, key=lambda i: i.created_at, reverse=True)
@@ -365,12 +349,9 @@ class InMemoryWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanceR
     async def update_workflow_definition(self, definition_id: str, name: str, description: Optional[str],
                                          task_definitions_data: List[TaskDefinitionBase]) -> Optional[WorkflowDefinition]:
         if definition_id in _workflow_definitions_db:
-            # For in-memory, we assume the WorkflowDefinition Pydantic model holds TaskDefinitionBase directly
             updated_definition = WorkflowDefinition(
-                id=definition_id,
-                name=name,
-                description=description,
-                task_definitions=task_definitions_data # Directly assign the list of TaskDefinitionBase
+                id=definition_id, name=name, description=description,
+                task_definitions=task_definitions_data
             )
             _workflow_definitions_db[definition_id] = updated_definition
             return updated_definition.model_copy(deep=True)
@@ -379,11 +360,7 @@ class InMemoryWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanceR
     async def delete_workflow_definition(self, definition_id: str) -> None:
         if definition_id not in _workflow_definitions_db:
             raise DefinitionNotFoundError(f"Workflow Definition with ID '{definition_id}' not found.")
-
-        linked_instances = any(
-            instance.workflow_definition_id == definition_id for instance in _workflow_instances_db.values())
+        linked_instances = any(instance.workflow_definition_id == definition_id for instance in _workflow_instances_db.values())
         if linked_instances:
-            raise DefinitionInUseError(
-                "Cannot delete definition: It is currently used by one or more workflow instances.")
-
+            raise DefinitionInUseError("Cannot delete definition: It is currently used by one or more workflow instances.")
         del _workflow_definitions_db[definition_id]

@@ -74,39 +74,30 @@ class WorkflowService:
                                                                         status=status, definition_id=definition_id)
 
     async def create_new_definition(self, name: str, description: Optional[str],
-                                    task_names: List[str]) -> WorkflowDefinition: # Input remains List[str] from router
+                                    task_definitions: List[TaskDefinitionBase]) -> WorkflowDefinition:
         if not name.strip():
             raise ValueError("Definition name cannot be empty.")
-        if not task_names: # This check is on the raw list of strings
-            raise ValueError("A definition must have at least one task name.")
+        if not task_definitions:
+            raise ValueError("A definition must have at least one task.")
 
-        # Convert List[str] to List[TaskDefinitionBase]
-        task_definitions_data = [
-            TaskDefinitionBase(name=task_name, order=i)
-            for i, task_name in enumerate(task_names)
-        ]
-
+        # task_definitions is already List[TaskDefinitionBase]
         definition = WorkflowDefinition(
             name=name,
             description=description,
-            task_definitions=task_definitions_data # Use the new field
+            task_definitions=task_definitions
         )
         return await self.definition_repo.create_workflow_definition(definition)
 
     async def update_definition(self, definition_id: str, name: str, description: Optional[str],
-                                task_names: List[str]) -> Optional[WorkflowDefinition]: # Input remains List[str]
+                                task_definitions: List[TaskDefinitionBase]) -> Optional[WorkflowDefinition]:
         if not name.strip():
             raise ValueError("Definition name cannot be empty.")
-        if not task_names: # This check is on the raw list of strings
-            raise ValueError("A definition must have at least one task name.")
+        if not task_definitions:
+            raise ValueError("A definition must have at least one task.")
 
-        # Convert List[str] to List[TaskDefinitionBase]
-        task_definitions_data = [
-            TaskDefinitionBase(name=task_name, order=i)
-            for i, task_name in enumerate(task_names)
-        ]
-        # The repository method now expects List[TaskDefinitionBase]
-        return await self.definition_repo.update_workflow_definition(definition_id, name, description, task_definitions_data)
+        # task_definitions is already List[TaskDefinitionBase]
+        # The repository method expects List[TaskDefinitionBase]
+        return await self.definition_repo.update_workflow_definition(definition_id, name, description, task_definitions)
 
     async def delete_definition(self, definition_id: str) -> None:
         from app.repository import DefinitionNotFoundError, DefinitionInUseError
