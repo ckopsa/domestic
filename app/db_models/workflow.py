@@ -1,10 +1,12 @@
 import uuid
 
 from sqlalchemy import Column, String, Text, Date, Enum as SQLAlchemyEnum, ForeignKey
-from sqlalchemy.dialects.postgresql import JSONB
+# Remove JSONB from imports if it's no longer used
 from sqlalchemy.orm import relationship
 
 from app.db_models.base import Base
+# Ensure TaskDefinition is imported if it's type hinted, though SQLAlchemy relationships use strings
+# from app.db_models.task_definition import TaskDefinition # May not be needed here
 from app.db_models.enums import WorkflowStatus
 
 
@@ -14,9 +16,10 @@ class WorkflowDefinition(Base):
     id = Column(String, primary_key=True, index=True, default=lambda: "wf_" + str(uuid.uuid4())[:8])
     name = Column(String, nullable=False)
     description = Column(Text, nullable=True, default="")
-    task_names = Column(JSONB, nullable=False, default=lambda: [])  # Stored as JSONB for proper list handling
+    # task_names = Column(JSONB, nullable=False, default=lambda: []) # This line is removed
 
     instances = relationship("WorkflowInstance", back_populates="definition")
+    task_definitions = relationship("TaskDefinition", back_populates="workflow_definition", order_by="TaskDefinition.order") # This line is added
 
 
 class WorkflowInstance(Base):

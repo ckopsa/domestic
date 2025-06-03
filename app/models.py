@@ -12,7 +12,7 @@ class WorkflowDefinition(BaseModel):
     id: str = Field(default_factory=lambda: "def_" + str(uuid.uuid4())[:8])
     name: str
     description: Optional[str] = ""
-    task_names: List[str] = Field(default_factory=list)  # Simple list of task names for MVP
+    task_definitions: List['TaskDefinitionBase'] = Field(default_factory=list)
 
     class Config:
         from_attributes = True
@@ -23,6 +23,19 @@ class WorkflowDefinition(BaseModel):
     @classmethod
     def from_dict(cls, data: dict):
         return cls(**data)
+
+
+class TaskDefinitionBase(BaseModel):
+    name: str
+    order: int
+
+
+class TaskDefinition(TaskDefinitionBase):
+    id: str
+    workflow_definition_id: str # Potentially optional or not included if it's clear from context
+
+    class Config:
+        from_attributes = True
 
 
 class TaskInstance(BaseModel):

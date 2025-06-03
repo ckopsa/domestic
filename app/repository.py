@@ -7,8 +7,9 @@ from sqlalchemy import case
 
 from app.db_models.enums import WorkflowStatus, TaskStatus
 from app.db_models.task import TaskInstance as TaskInstanceORM
+from app.db_models.task_definition import TaskDefinition as TaskDefinitionORM
 from app.db_models.workflow import WorkflowDefinition as WorkflowDefinitionORM, WorkflowInstance as WorkflowInstanceORM
-from app.models import WorkflowDefinition, WorkflowInstance, TaskInstance
+from app.models import WorkflowDefinition, WorkflowInstance, TaskInstance, TaskDefinitionBase
 
 # In-memory stores
 _workflow_definitions_db: Dict[str, WorkflowDefinition] = {}
@@ -31,7 +32,7 @@ class WorkflowDefinitionRepository(ABC):
 
     @abstractmethod
     async def update_workflow_definition(self, definition_id: str, name: str, description: Optional[str],
-                                         task_names: List[str]) -> Optional[WorkflowDefinition]:
+                                         task_definitions_data: List[TaskDefinitionBase]) -> Optional[WorkflowDefinition]:
         pass
 
     @abstractmethod
@@ -183,20 +184,50 @@ class PostgreSQLWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanc
         return [WorkflowInstance.model_validate(instance, from_attributes=True) for instance in instances]
 
     async def create_workflow_definition(self, definition_data: WorkflowDefinition) -> WorkflowDefinition:
-        definition = WorkflowDefinitionORM(**definition_data.model_dump(mode='json'))
-        self.db_session.add(definition)
+        # Extract task_definitions from Pydantic model, as it won't be a direct column in ORM
+        task_definitions_data = definition_data.task_definitions
+        orm_data = definition_data.model_dump(mode='json', exclude={'task_definitions'})
+
+        definition_orm = WorkflowDefinitionORM(**orm_data)
+        self.db_session.add(definition_orm)
         self.db_session.commit()
-        self.db_session.refresh(definition)
-        return WorkflowDefinition.model_validate(definition, from_attributes=True)
+        self.db_session.refresh(definition_orm) # Get ID
+
+        # Create TaskDefinitionORM instances
+        for task_def_data in task_definitions_data:
+            task_def_orm = TaskDefinitionORM(
+                workflow_definition_id=definition_orm.id,
+                name=task_def_data.name,
+                order=task_def_data.order
+            )
+            self.db_session.add(task_def_orm)
+
+        self.db_session.commit()
+        self.db_session.refresh(definition_orm) # Refresh again to load the relationship
+        return WorkflowDefinition.model_validate(definition_orm, from_attributes=True)
 
     async def update_workflow_definition(self, definition_id: str, name: str, description: Optional[str],
-                                         task_names: List[str]) -> Optional[WorkflowDefinition]:
+                                         task_definitions_data: List[TaskDefinitionBase]) -> Optional[WorkflowDefinition]:
         db_definition = self.db_session.query(WorkflowDefinitionORM).filter(
             WorkflowDefinitionORM.id == definition_id).first()
         if db_definition:
             db_definition.name = name
             db_definition.description = description
-            db_definition.task_names = task_names if task_names else []
+
+            # Delete old task definitions
+            self.db_session.query(TaskDefinitionORM).filter(
+                TaskDefinitionORM.workflow_definition_id == definition_id
+            ).delete()
+
+            # Create new task definitions
+            for task_def_data in task_definitions_data:
+                task_def_orm = TaskDefinitionORM(
+                    workflow_definition_id=db_definition.id,
+                    name=task_def_data.name,
+                    order=task_def_data.order
+                )
+                self.db_session.add(task_def_orm)
+
             self.db_session.commit()
             self.db_session.refresh(db_definition)
             return WorkflowDefinition.model_validate(db_definition, from_attributes=True)
@@ -236,14 +267,22 @@ class InMemoryWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanceR
                 id="def_morning_quick_start",
                 name="Morning Quick Start",
                 description="A simple routine to kick off the day.",
-                task_names=["Make Bed", "Brush Teeth", "Get Dressed"]
+                task_definitions=[
+                    TaskDefinitionBase(name="Make Bed", order=0),
+                    TaskDefinitionBase(name="Brush Teeth", order=1),
+                    TaskDefinitionBase(name="Get Dressed", order=2)
+                ]
             )
             _workflow_definitions_db[def1.id] = def1
             def2 = WorkflowDefinition(
                 id="def_evening_wind_down",
                 name="Evening Wind Down",
                 description="Prepare for a good night's sleep.",
-                task_names=["Tidy Up Living Room (5 mins)", "Prepare Outfit for Tomorrow", "Read a Book (15 mins)"]
+                task_definitions=[
+                    TaskDefinitionBase(name="Tidy Up Living Room (5 mins)", order=0),
+                    TaskDefinitionBase(name="Prepare Outfit for Tomorrow", order=1),
+                    TaskDefinitionBase(name="Read a Book (15 mins)", order=2)
+                ]
             )
             _workflow_definitions_db[def2.id] = def2
 
@@ -324,13 +363,14 @@ class InMemoryWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanceR
         return new_definition.model_copy(deep=True)
 
     async def update_workflow_definition(self, definition_id: str, name: str, description: Optional[str],
-                                         task_names: List[str]) -> Optional[WorkflowDefinition]:
+                                         task_definitions_data: List[TaskDefinitionBase]) -> Optional[WorkflowDefinition]:
         if definition_id in _workflow_definitions_db:
+            # For in-memory, we assume the WorkflowDefinition Pydantic model holds TaskDefinitionBase directly
             updated_definition = WorkflowDefinition(
                 id=definition_id,
                 name=name,
                 description=description,
-                task_names=task_names
+                task_definitions=task_definitions_data # Directly assign the list of TaskDefinitionBase
             )
             _workflow_definitions_db[definition_id] = updated_definition
             return updated_definition.model_copy(deep=True)
