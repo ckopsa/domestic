@@ -8,9 +8,11 @@ import pytest
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 from app.db_models import Base
 from app.repository import PostgreSQLWorkflowRepository, DefinitionNotFoundError, DefinitionInUseError
-from app.models import WorkflowDefinition, TaskInstance, WorkflowInstance
+from app.models import WorkflowDefinition, TaskInstance, WorkflowInstance, TaskDefinitionBase
 from app.db_models.enums import WorkflowStatus, TaskStatus
 from app.db_models import WorkflowInstance as WorkflowInstanceORM
+from app.db_models.task_definition import TaskDefinition as TaskDefinitionORM
+from app.db_models.workflow import WorkflowDefinition as WorkflowDefinitionORM # Already imported as part of db_models but good to be explicit for ORM usage
 
 from unittest.mock import MagicMock
 # Setup for PostgreSQL database for testing
@@ -227,46 +229,49 @@ class TestInMemoryListWorkflowInstancesByUser:
 async def test_list_workflow_definitions(db_session):
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
-    from app.db_models.workflow import WorkflowDefinition as WorkflowDefinitionORM
-    defn1 = WorkflowDefinitionORM(
+    # WorkflowDefinitionORM already imported
+    defn1_orm = WorkflowDefinitionORM( # Renamed to avoid confusion with Pydantic model
         id="test_def_1",
         name="Test Workflow 1",
-        description="First test workflow",
-        task_names=["Task 1", "Task 2"]
+        description="First test workflow"
+        # task_names removed
     )
-    defn2 = WorkflowDefinitionORM(
+    defn2_orm = WorkflowDefinitionORM( # Renamed
         id="test_def_2",
         name="Test Workflow 2",
-        description="Second test workflow",
-        task_names=["Task 3", "Task 4"]
+        description="Second test workflow"
+        # task_names removed
     )
-    db_session.add(defn1)
-    db_session.add(defn2)
+    db_session.add(defn1_orm)
+    db_session.add(defn2_orm)
     db_session.commit()
 
     # Act
+    # This test will be replaced by test_list_workflow_definitions_includes_task_definitions
+    # For now, let's comment out the problematic assertions or adapt if simple
     result = await repo.list_workflow_definitions()
 
     # Assert
     assert len(result) == 2
     assert result[0].id == "test_def_1"
     assert result[1].id == "test_def_2"
-    assert result[0].task_names == ["Task 1", "Task 2"]
-    assert result[1].task_names == ["Task 3", "Task 4"]
+    # task_names assertions removed, will be covered by new test
+    # assert result[0].task_definitions == [] # Default if not created
+    # assert result[1].task_definitions == []
 
 
 @pytest.mark.asyncio
-async def test_get_workflow_definition_by_id(db_session):
+async def test_get_workflow_definition_by_id(db_session): # This will be replaced/augmented
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
-    from app.db_models.workflow import WorkflowDefinition as WorkflowDefinitionORM
-    defn = WorkflowDefinitionORM(
+    # WorkflowDefinitionORM already imported
+    defn_orm = WorkflowDefinitionORM( # Renamed
         id="test_def_1",
         name="Test Workflow",
-        description="A test workflow definition",
-        task_names=["Task 1", "Task 2"]
+        description="A test workflow definition"
+        # task_names removed
     )
-    db_session.add(defn)
+    db_session.add(defn_orm)
     db_session.commit()
 
     # Act
@@ -277,7 +282,80 @@ async def test_get_workflow_definition_by_id(db_session):
     assert result.id == "test_def_1"
     assert result.name == "Test Workflow"
     assert result.description == "A test workflow definition"
-    assert result.task_names == ["Task 1", "Task 2"]
+    # task_names assertion removed, will be covered by new test
+    # assert result.task_definitions == [] # Default if not created
+
+
+@pytest.mark.asyncio
+async def test_get_workflow_definition_by_id_includes_task_definitions(db_session):
+    # Arrange
+    repo = PostgreSQLWorkflowRepository(db_session)
+    # WorkflowDefinitionORM, TaskDefinitionORM already imported
+
+    defn_orm = WorkflowDefinitionORM(id="test_def_tasks", name="Def With Tasks")
+    db_session.add(defn_orm)
+    db_session.commit() # Commit to get ID
+
+    td_orm_1 = TaskDefinitionORM(workflow_definition_id=defn_orm.id, name="Task Alpha", order=0)
+    td_orm_2 = TaskDefinitionORM(workflow_definition_id=defn_orm.id, name="Task Beta", order=1)
+    db_session.add_all([td_orm_1, td_orm_2])
+    db_session.commit()
+
+    # Act
+    result = await repo.get_workflow_definition_by_id(defn_orm.id) # Pydantic model
+
+    # Assert
+    assert result is not None
+    assert result.id == defn_orm.id
+    assert len(result.task_definitions) == 2
+    assert result.task_definitions[0].name == "Task Alpha"
+    assert result.task_definitions[0].order == 0
+    assert result.task_definitions[1].name == "Task Beta"
+    assert result.task_definitions[1].order == 1
+
+
+@pytest.mark.asyncio
+async def test_list_workflow_definitions_includes_task_definitions(db_session):
+    # Arrange
+    repo = PostgreSQLWorkflowRepository(db_session)
+    # WorkflowDefinitionORM, TaskDefinitionORM already imported
+
+    # Definition 1
+    defn1_orm = WorkflowDefinitionORM(id="list_def_1", name="List Def 1")
+    db_session.add(defn1_orm)
+    db_session.commit()
+    td1_1 = TaskDefinitionORM(workflow_definition_id=defn1_orm.id, name="L1T1", order=0)
+    td1_2 = TaskDefinitionORM(workflow_definition_id=defn1_orm.id, name="L1T2", order=1)
+    db_session.add_all([td1_1, td1_2])
+
+    # Definition 2
+    defn2_orm = WorkflowDefinitionORM(id="list_def_2", name="List Def 2")
+    db_session.add(defn2_orm)
+    db_session.commit()
+    td2_1 = TaskDefinitionORM(workflow_definition_id=defn2_orm.id, name="L2T1", order=0)
+    db_session.add_all([td2_1])
+
+    db_session.commit()
+
+    # Act
+    results = await repo.list_workflow_definitions() # List of Pydantic models
+
+    # Assert
+    assert len(results) == 2
+
+    res1 = next((r for r in results if r.id == defn1_orm.id), None)
+    assert res1 is not None
+    assert len(res1.task_definitions) == 2
+    assert res1.task_definitions[0].name == "L1T1"
+    assert res1.task_definitions[0].order == 0
+    assert res1.task_definitions[1].name == "L1T2"
+    assert res1.task_definitions[1].order == 1
+
+    res2 = next((r for r in results if r.id == defn2_orm.id), None)
+    assert res2 is not None
+    assert len(res2.task_definitions) == 1
+    assert res2.task_definitions[0].name == "L2T1"
+    assert res2.task_definitions[0].order == 0
 
 
 @pytest.mark.asyncio
@@ -603,11 +681,14 @@ class TestUnitPostgreSQLListWorkflowInstancesByUser:
 async def test_create_workflow_definition(db_session):
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
-    definition_data = WorkflowDefinition(
+    definition_data = WorkflowDefinition( # Pydantic model
         id="test_def_1",
         name="Test Workflow",
         description="A test workflow",
-        task_names=["Task 1", "Task 2"]
+        task_definitions=[ # Changed from task_names
+            TaskDefinitionBase(name="Task 1", order=0),
+            TaskDefinitionBase(name="Task 2", order=1)
+        ]
     )
 
     # Act
@@ -618,49 +699,86 @@ async def test_create_workflow_definition(db_session):
     assert created_definition.id == "test_def_1"
     assert created_definition.name == "Test Workflow"
     assert created_definition.description == "A test workflow"
-    assert created_definition.task_names == ["Task 1", "Task 2"]
+    assert len(created_definition.task_definitions) == 2
+    assert created_definition.task_definitions[0].name == "Task 1"
+    assert created_definition.task_definitions[0].order == 0
+    assert created_definition.task_definitions[1].name == "Task 2"
+    assert created_definition.task_definitions[1].order == 1
 
     # Verify in database
-    from app.db_models.workflow import WorkflowDefinition as WorkflowDefinitionORM
-    db_defn = db_session.query(WorkflowDefinitionORM).filter(WorkflowDefinitionORM.id == "test_def_1").first()
-    assert db_defn is not None
-    assert db_defn.name == "Test Workflow"
-    assert db_defn.task_names == ["Task 1", "Task 2"]
+    # WorkflowDefinitionORM already imported
+    db_defn_orm = db_session.query(WorkflowDefinitionORM).filter(WorkflowDefinitionORM.id == "test_def_1").first()
+    assert db_defn_orm is not None
+    assert db_defn_orm.name == "Test Workflow"
+    # Query TaskDefinitionORM objects
+    task_defs_orm = db_session.query(TaskDefinitionORM).filter(TaskDefinitionORM.workflow_definition_id == db_defn_orm.id).order_by(TaskDefinitionORM.order).all()
+    assert len(task_defs_orm) == 2
+    assert task_defs_orm[0].name == "Task 1"
+    assert task_defs_orm[0].order == 0
+    assert task_defs_orm[1].name == "Task 2"
+    assert task_defs_orm[1].order == 1
 
 
 @pytest.mark.asyncio
 async def test_update_workflow_definition(db_session):
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
-    from app.db_models.workflow import WorkflowDefinition as WorkflowDefinitionORM
-    defn = WorkflowDefinitionORM(
+    # WorkflowDefinitionORM, TaskDefinitionORM already imported
+
+    # Initial WorkflowDefinitionORM
+    initial_defn_orm = WorkflowDefinitionORM(
         id="test_def_1",
         name="Original Workflow",
-        description="Original description",
-        task_names=["Original Task 1"]
+        description="Original description"
     )
-    db_session.add(defn)
+    db_session.add(initial_defn_orm)
+    db_session.commit() # Commit to get ID
+
+    # Initial TaskDefinitionORM objects
+    initial_task_def1_orm = TaskDefinitionORM(workflow_definition_id=initial_defn_orm.id, name="Original Task 1", order=0)
+    initial_task_def2_orm = TaskDefinitionORM(workflow_definition_id=initial_defn_orm.id, name="Original Task 2", order=1)
+    db_session.add_all([initial_task_def1_orm, initial_task_def2_orm])
     db_session.commit()
 
+    updated_task_definitions_data = [ # List[TaskDefinitionBase]
+        TaskDefinitionBase(name="Updated Task A", order=0),
+        TaskDefinitionBase(name="Updated Task B", order=1)
+    ]
+
     # Act
-    result = await repo.update_workflow_definition(
+    result = await repo.update_workflow_definition( # Pydantic model result
         definition_id="test_def_1",
         name="Updated Workflow",
         description="Updated description",
-        task_names=["Updated Task 1", "Updated Task 2"]
+        task_definitions_data=updated_task_definitions_data
     )
 
-    # Assert
+    # Assert Pydantic model (result)
     assert result is not None
     assert result.id == "test_def_1"
     assert result.name == "Updated Workflow"
     assert result.description == "Updated description"
-    assert result.task_names == ["Updated Task 1", "Updated Task 2"]
+    assert len(result.task_definitions) == 2
+    assert result.task_definitions[0].name == "Updated Task A"
+    assert result.task_definitions[0].order == 0
+    assert result.task_definitions[1].name == "Updated Task B"
+    assert result.task_definitions[1].order == 1
 
     # Verify in database
-    db_defn = db_session.query(WorkflowDefinitionORM).filter(WorkflowDefinitionORM.id == "test_def_1").first()
-    assert db_defn.name == "Updated Workflow"
-    assert db_defn.task_names == ["Updated Task 1", "Updated Task 2"]
+    db_session.refresh(initial_defn_orm) # Refresh the instance
+    assert initial_defn_orm.name == "Updated Workflow"
+
+    # Query new TaskDefinitionORM objects
+    task_defs_orm = db_session.query(TaskDefinitionORM).filter(TaskDefinitionORM.workflow_definition_id == initial_defn_orm.id).order_by(TaskDefinitionORM.order).all()
+    assert len(task_defs_orm) == 2
+    assert task_defs_orm[0].name == "Updated Task A"
+    assert task_defs_orm[0].order == 0
+    assert task_defs_orm[1].name == "Updated Task B"
+    assert task_defs_orm[1].order == 1
+
+    # Ensure old tasks with "Original Task" names are gone (by checking current names)
+    original_task_names_in_db = [td.name for td in task_defs_orm if "Original Task" in td.name]
+    assert not original_task_names_in_db
 
 
 @pytest.mark.asyncio
@@ -684,14 +802,14 @@ async def test_update_workflow_definition_not_found(db_session):
 async def test_delete_workflow_definition(db_session):
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
-    from app.db_models.workflow import WorkflowDefinition as WorkflowDefinitionORM
-    defn = WorkflowDefinitionORM(
+    # WorkflowDefinitionORM already imported
+    defn_orm = WorkflowDefinitionORM( # Renamed
         id="test_def_1",
         name="Test Workflow",
-        description="A test workflow",
-        task_names=["Task 1"]
+        description="A test workflow"
+        # task_names removed
     )
-    db_session.add(defn)
+    db_session.add(defn_orm)
     db_session.commit()
 
     # Act
@@ -716,15 +834,14 @@ async def test_delete_workflow_definition_not_found(db_session):
 async def test_delete_workflow_definition_in_use(db_session):
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
-    from app.db_models.workflow import WorkflowDefinition as WorkflowDefinitionORM
-    from app.db_models.workflow import WorkflowInstance as WorkflowInstanceORM
-    defn = WorkflowDefinitionORM(
+    # WorkflowDefinitionORM, WorkflowInstanceORM already imported
+    defn_orm = WorkflowDefinitionORM( # Renamed
         id="test_def_1",
         name="Test Workflow",
-        description="A test workflow",
-        task_names=["Task 1"]
+        description="A test workflow"
+        # task_names removed
     )
-    db_session.add(defn)
+    db_session.add(defn_orm)
     db_session.commit()
 
     instance = WorkflowInstanceORM(
@@ -748,15 +865,14 @@ async def test_delete_workflow_definition_in_use(db_session):
 async def test_get_workflow_instance_by_id(db_session):
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
-    from app.db_models.workflow import WorkflowDefinition as WorkflowDefinitionORM
-    from app.db_models.workflow import WorkflowInstance as WorkflowInstanceORM
-    definition = WorkflowDefinitionORM(
+    # WorkflowDefinitionORM, WorkflowInstanceORM already imported
+    definition_orm = WorkflowDefinitionORM( # Renamed
         id="test_def_1",
         name="Test Workflow",
-        description="A test workflow definition",
-        task_names=["Task 1", "Task 2"]
+        description="A test workflow definition"
+        # task_names removed
     )
-    db_session.add(definition)
+    db_session.add(definition_orm)
     db_session.commit()
 
     instance = WorkflowInstanceORM(
@@ -798,14 +914,14 @@ async def test_get_workflow_instance_by_id_not_found(db_session):
 async def test_create_workflow_instance(db_session):
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
-    from app.db_models.workflow import WorkflowDefinition as WorkflowDefinitionORM
-    definition = WorkflowDefinitionORM(
+    # WorkflowDefinitionORM already imported
+    definition_orm = WorkflowDefinitionORM( # Renamed
         id="test_def_1",
         name="Test Workflow",
-        description="A test workflow",
-        task_names=["Task 1", "Task 2"]
+        description="A test workflow"
+        # task_names removed
     )
-    db_session.add(definition)
+    db_session.add(definition_orm)
     db_session.commit()
 
     instance_data = WorkflowInstance(
@@ -840,15 +956,14 @@ async def test_create_workflow_instance(db_session):
 async def test_update_workflow_instance(db_session):
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
-    from app.db_models.workflow import WorkflowDefinition as WorkflowDefinitionORM
-    from app.db_models.workflow import WorkflowInstance as WorkflowInstanceORM
-    definition = WorkflowDefinitionORM(
+    # WorkflowDefinitionORM, WorkflowInstanceORM already imported
+    definition_orm = WorkflowDefinitionORM( # Renamed
         id="test_def_1",
         name="Test Workflow",
-        description="A test workflow definition",
-        task_names=["Task 1", "Task 2"]
+        description="A test workflow definition"
+        # task_names removed
     )
-    db_session.add(definition)
+    db_session.add(definition_orm)
     db_session.commit()
 
     instance = WorkflowInstanceORM(
@@ -910,29 +1025,28 @@ async def test_update_workflow_instance_not_found(db_session):
 async def test_list_workflow_instances_by_user(db_session):
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
-    from app.db_models.workflow import WorkflowDefinition as WorkflowDefinitionORM
-    from app.db_models.workflow import WorkflowInstance as WorkflowInstanceORM
-    def1 = WorkflowDefinitionORM(
+    # WorkflowDefinitionORM, WorkflowInstanceORM already imported
+    def1_orm = WorkflowDefinitionORM( # Renamed
         id="test_def_1",
         name="Test Workflow 1",
-        description="First test workflow",
-        task_names=["Task 1", "Task 2"]
+        description="First test workflow"
+        # task_names removed
     )
-    def2 = WorkflowDefinitionORM(
+    def2_orm = WorkflowDefinitionORM( # Renamed
         id="test_def_2",
         name="Test Workflow 2",
-        description="Second test workflow",
-        task_names=["Task 3", "Task 4"]
+        description="Second test workflow"
+        # task_names removed
     )
-    def3 = WorkflowDefinitionORM(
+    def3_orm = WorkflowDefinitionORM( # Renamed
         id="test_def_3",
         name="Test Workflow 3",
-        description="Third test workflow",
-        task_names=["Task 5", "Task 6"]
+        description="Third test workflow"
+        # task_names removed
     )
-    db_session.add(def1)
-    db_session.add(def2)
-    db_session.add(def3)
+    db_session.add(def1_orm)
+    db_session.add(def2_orm)
+    db_session.add(def3_orm)
     db_session.commit()
 
     instance1 = WorkflowInstanceORM(
@@ -990,8 +1104,8 @@ async def test_list_workflow_instances_by_user(db_session):
     # Act: Test with a definition_id that exists but has no instances for ANY user (if we created such a def)
     # For this test, let's assume test_def_4 is a valid definition ID but no instances use it.
     # We need to create such a definition for this to be a valid test against the DB.
-    def4 = WorkflowDefinitionORM(id="test_def_4", name="Unused Def", task_names=["t"])
-    db_session.add(def4)
+    def4_orm = WorkflowDefinitionORM(id="test_def_4", name="Unused Def") # task_names removed, Renamed
+    db_session.add(def4_orm)
     db_session.commit()
     result_filtered_by_unused_def = await repo.list_workflow_instances_by_user("test_user", definition_id="test_def_4")
     assert len(result_filtered_by_unused_def) == 0
@@ -1001,15 +1115,14 @@ async def test_list_workflow_instances_by_user(db_session):
 async def test_create_task_instance(db_session):
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
-    from app.db_models.workflow import WorkflowDefinition as WorkflowDefinitionORM
-    from app.db_models.workflow import WorkflowInstance as WorkflowInstanceORM
-    definition = WorkflowDefinitionORM(
+    # WorkflowDefinitionORM, WorkflowInstanceORM already imported
+    definition_orm = WorkflowDefinitionORM( # Renamed
         id="test_def_1",
         name="Test Workflow",
-        description="A test workflow",
-        task_names=["Task 1", "Task 2"]
+        description="A test workflow"
+        # task_names removed
     )
-    db_session.add(definition)
+    db_session.add(definition_orm)
     db_session.commit()
 
     workflow_instance = WorkflowInstanceORM(
@@ -1054,16 +1167,14 @@ async def test_create_task_instance(db_session):
 async def test_get_tasks_for_workflow_instance(db_session):
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
-    from app.db_models.workflow import WorkflowDefinition as WorkflowDefinitionORM
-    from app.db_models.workflow import WorkflowInstance as WorkflowInstanceORM
-    from app.db_models.task import TaskInstance as TaskInstanceORM
-    definition = WorkflowDefinitionORM(
+    # WorkflowDefinitionORM, WorkflowInstanceORM, TaskInstanceORM already imported
+    definition_orm = WorkflowDefinitionORM( # Renamed
         id="test_def_1",
         name="Test Workflow",
-        description="A test workflow",
-        task_names=["Task 1", "Task 2"]
+        description="A test workflow"
+        # task_names removed
     )
-    db_session.add(definition)
+    db_session.add(definition_orm)
     db_session.commit()
 
     workflow_instance = WorkflowInstanceORM(
@@ -1107,15 +1218,14 @@ async def test_get_tasks_for_workflow_instance(db_session):
 async def test_get_tasks_for_workflow_instance_no_tasks(db_session):
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
-    from app.db_models.workflow import WorkflowDefinition as WorkflowDefinitionORM
-    from app.db_models.workflow import WorkflowInstance as WorkflowInstanceORM
-    definition = WorkflowDefinitionORM(
+    # WorkflowDefinitionORM, WorkflowInstanceORM already imported
+    definition_orm = WorkflowDefinitionORM( # Renamed
         id="test_def_1",
         name="Test Workflow",
-        description="A test workflow",
-        task_names=["Task 1", "Task 2"]
+        description="A test workflow"
+        # task_names removed
     )
-    db_session.add(definition)
+    db_session.add(definition_orm)
     db_session.commit()
 
     workflow_instance = WorkflowInstanceORM(
@@ -1140,16 +1250,14 @@ async def test_get_tasks_for_workflow_instance_no_tasks(db_session):
 async def test_get_task_instance_by_id(db_session):
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
-    from app.db_models.workflow import WorkflowDefinition as WorkflowDefinitionORM
-    from app.db_models.workflow import WorkflowInstance as WorkflowInstanceORM
-    from app.db_models.task import TaskInstance as TaskInstanceORM
-    definition = WorkflowDefinitionORM(
+    # WorkflowDefinitionORM, WorkflowInstanceORM, TaskInstanceORM already imported
+    definition_orm = WorkflowDefinitionORM( # Renamed
         id="test_def_1",
         name="Test Workflow",
-        description="A test workflow",
-        task_names=["Task 1", "Task 2"]
+        description="A test workflow"
+        # task_names removed
     )
-    db_session.add(definition)
+    db_session.add(definition_orm)
     db_session.commit()
 
     workflow_instance = WorkflowInstanceORM(
@@ -1201,16 +1309,14 @@ async def test_get_task_instance_by_id_not_found(db_session):
 async def test_update_task_instance(db_session):
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
-    from app.db_models.workflow import WorkflowDefinition as WorkflowDefinitionORM
-    from app.db_models.workflow import WorkflowInstance as WorkflowInstanceORM
-    from app.db_models.task import TaskInstance as TaskInstanceORM
-    definition = WorkflowDefinitionORM(
+    # WorkflowDefinitionORM, WorkflowInstanceORM, TaskInstanceORM already imported
+    definition_orm = WorkflowDefinitionORM( # Renamed
         id="test_def_1",
         name="Test Workflow",
-        description="A test workflow",
-        task_names=["Task 1", "Task 2"]
+        description="A test workflow"
+        # task_names removed
     )
-    db_session.add(definition)
+    db_session.add(definition_orm)
     db_session.commit()
 
     workflow_instance = WorkflowInstanceORM(

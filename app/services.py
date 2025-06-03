@@ -3,7 +3,7 @@ import uuid
 from datetime import date as DateObject
 from typing import List, Optional, Dict, Any
 
-from app.models import WorkflowDefinition, WorkflowInstance, TaskInstance, TaskStatus, WorkflowStatus
+from app.models import WorkflowDefinition, WorkflowInstance, TaskInstance, TaskStatus, WorkflowStatus, TaskDefinitionBase
 from app.repository import WorkflowDefinitionRepository, WorkflowInstanceRepository, TaskInstanceRepository
 
 
@@ -33,11 +33,11 @@ class WorkflowService:
         )
         created_instance = await self.instance_repo.create_workflow_instance(instance)
 
-        for i, task_name in enumerate(definition.task_names):
+        for task_def in definition.task_definitions: # Iterate over TaskDefinitionBase objects
             task = TaskInstance(
                 workflow_instance_id=created_instance.id,
-                name=task_name,
-                order=i
+                name=task_def.name, # Use name from TaskDefinitionBase
+                order=task_def.order # Use order from TaskDefinitionBase
             )
             await self.task_repo.create_task_instance(task)
         return created_instance
@@ -74,27 +74,39 @@ class WorkflowService:
                                                                         status=status, definition_id=definition_id)
 
     async def create_new_definition(self, name: str, description: Optional[str],
-                                    task_names: List[str]) -> WorkflowDefinition:
+                                    task_names: List[str]) -> WorkflowDefinition: # Input remains List[str] from router
         if not name.strip():
             raise ValueError("Definition name cannot be empty.")
-        if not task_names:
+        if not task_names: # This check is on the raw list of strings
             raise ValueError("A definition must have at least one task name.")
+
+        # Convert List[str] to List[TaskDefinitionBase]
+        task_definitions_data = [
+            TaskDefinitionBase(name=task_name, order=i)
+            for i, task_name in enumerate(task_names)
+        ]
 
         definition = WorkflowDefinition(
             name=name,
             description=description,
-            task_names=task_names
+            task_definitions=task_definitions_data # Use the new field
         )
         return await self.definition_repo.create_workflow_definition(definition)
 
     async def update_definition(self, definition_id: str, name: str, description: Optional[str],
-                                task_names: List[str]) -> Optional[WorkflowDefinition]:
+                                task_names: List[str]) -> Optional[WorkflowDefinition]: # Input remains List[str]
         if not name.strip():
             raise ValueError("Definition name cannot be empty.")
-        if not task_names:
+        if not task_names: # This check is on the raw list of strings
             raise ValueError("A definition must have at least one task name.")
 
-        return await self.definition_repo.update_workflow_definition(definition_id, name, description, task_names)
+        # Convert List[str] to List[TaskDefinitionBase]
+        task_definitions_data = [
+            TaskDefinitionBase(name=task_name, order=i)
+            for i, task_name in enumerate(task_names)
+        ]
+        # The repository method now expects List[TaskDefinitionBase]
+        return await self.definition_repo.update_workflow_definition(definition_id, name, description, task_definitions_data)
 
     async def delete_definition(self, definition_id: str) -> None:
         from app.repository import DefinitionNotFoundError, DefinitionInUseError
