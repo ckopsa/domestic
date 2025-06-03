@@ -8,7 +8,7 @@
     <p><strong>Status:</strong> {{ instance.status.upper() }}</p>
     <p><strong>Created At:</strong> {{ instance.created_at.isoformat() }}</p>
     {% if is_shared_view %}
-        <p style="background-color: #e0f2fe; border-left: 5px solid #3b82f6; padding: 10px; margin-top: 10px;">
+        <p class="shared-view-message">
             You are viewing this workflow via a shared link (read-only).
         </p>
     {% endif %}
@@ -57,12 +57,12 @@
         {% endif %}
     </div>
 
-    <div class="share-section" style="margin-top:20px; padding:15px; border:1px solid #ccc; border-radius:5px; background-color:#f9f9f9;">
+    <div class="share-section">
         <h3>Share this Workflow</h3>
         {% if instance.share_token %}
             <p>Shareable Link (read-only):</p>
-            <input type="text" value="{{ request.url_for('view_shared_workflow_instance', share_token=instance.share_token) }}" readonly style="width: 90%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 5px;">
-            <p style="font-size:0.9em; color: #555;">Anyone with this link can view this workflow instance without logging in.</p>
+            <input type="text" value="{{ request.url_for('view_shared_workflow_instance', share_token=instance.share_token) }}" readonly>
+            <p style="font-size:0.9em; color: #aaaaaa;">Anyone with this link can view this workflow instance without logging in.</p>
         {% else %}
             <p>Generate a shareable link to allow others to view this workflow instance (read-only).</p>
         {% endif %}
