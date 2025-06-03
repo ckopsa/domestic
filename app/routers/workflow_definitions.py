@@ -17,14 +17,20 @@ router = APIRouter(prefix="/workflow-definitions", tags=["workflow_definitions"]
 async def list_workflow_definitions_page(
         request: Request,
         name: Optional[str] = Query(None),
+        definition_id: Optional[str] = Query(None), # New parameter
         service: WorkflowService = Depends(get_workflow_service),
         renderer: HtmlRendererInterface = Depends(get_html_renderer)
 ):
-    definitions = await service.list_workflow_definitions(name=name)
+    # Service will need to handle logic for definition_id vs name
+    definitions = await service.list_workflow_definitions(name=name, definition_id=definition_id)
     return await renderer.render(
         "workflow_definitions.html",
         request,
-        {"definitions": definitions, "current_filter_name": name}
+        {
+            "definitions": definitions,
+            "current_filter_name": name,
+            "current_filter_definition_id": definition_id # New context variable
+        }
     )
 
 

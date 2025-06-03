@@ -2,6 +2,28 @@
 
 {% block content %}
 <h1>Available Workflow Definitions</h1>
+
+{% if current_filter_definition_id %}
+<div style="margin-bottom: 15px;">
+    {% if current_filter_name %}
+    <a href="/workflow-definitions?name={{ current_filter_name }}" class="action-button neutral">Clear Definition Filter (Keep Name Filter)</a>
+    {% else %}
+    <a href="/workflow-definitions" class="action-button neutral">Clear All Filters (Show All)</a>
+    {% endif %}
+</div>
+{% elif current_filter_name %}
+{# Optionally, provide a way to clear just the name filter if only name is active #}
+<div style="margin-bottom: 15px;">
+    <a href="/workflow-definitions" class="action-button neutral">Clear Name Filter (Show All)</a>
+</div>
+{% endif %}
+
+{% if current_filter_definition_id %}
+    <p>Showing definition with ID: <strong>{{ current_filter_definition_id }}</strong></p>
+{% elif current_filter_name %}
+    <p>Filtering by name: <strong>{{ current_filter_name }}</strong></p>
+{% endif %}
+
 {% if not definitions %}
 <p>No workflow definitions available.</p>
 {% else %}
@@ -21,6 +43,8 @@
               style="display:inline; margin-left: 10px;">
             <button type="submit" class="action-button cancel">Delete</button>
         </form>
+         <!-- New Filter Button -->
+         <a href="/workflow-definitions?definition_id={{ defn.id }}" class="action-button" style="background-color: #4CAF50; margin-left: 10px;">Filter This Definition</a>
         <a href="/my-workflows?definition_id={{ defn.id }}" class="action-button" style="margin-left: 10px;">View Instances</a>
     </li>
     {% endfor %}
