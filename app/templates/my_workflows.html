@@ -3,6 +3,10 @@
 {% block content %}
 <h1>My Workflows</h1>
 
+{% if selected_definition_id %}
+<p>Showing instances filtered by Definition ID: <strong>{{ selected_definition_id }}</strong>. <a href="/my-workflows">Clear filter</a></p>
+{% endif %}
+
 <form method="GET" action="{{ request.url.path }}" class="filter-form">
     <div class="filter-group">
         <label for="created_at">Created Date:</label>

@@ -54,7 +54,7 @@ class WorkflowInstanceRepository(ABC):
         pass
 
     @abstractmethod
-    async def list_workflow_instances_by_user(self, user_id: str) -> List[WorkflowInstance]:
+    async def list_workflow_instances_by_user(self, user_id: str, created_at_date: Optional[DateObject] = None, status: Optional[WorkflowStatus] = None, definition_id: Optional[str] = None) -> List[WorkflowInstance]:
         pass
 
     @abstractmethod
@@ -169,12 +169,14 @@ class PostgreSQLWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanc
         return [TaskInstance.model_validate(task, from_attributes=True) for task in tasks]
 
     async def list_workflow_instances_by_user(self, user_id: str, created_at_date: Optional[DateObject] = None,
-                                              status: Optional[WorkflowStatus] = None) -> List[WorkflowInstance]:
+                                              status: Optional[WorkflowStatus] = None, definition_id: Optional[str] = None) -> List[WorkflowInstance]:
         query = self.db_session.query(WorkflowInstanceORM).filter(WorkflowInstanceORM.user_id == user_id)
         if created_at_date:
             query = query.filter(WorkflowInstanceORM.created_at == created_at_date)
         if status:
             query = query.filter(WorkflowInstanceORM.status == status)
+        if definition_id:
+            query = query.filter(WorkflowInstanceORM.workflow_definition_id == definition_id)
         instances = query.order_by(WorkflowInstanceORM.created_at.desc()).all()
         return [WorkflowInstance.model_validate(instance, from_attributes=True) for instance in instances]
 
@@ -293,11 +295,13 @@ class InMemoryWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanceR
         return sorted(tasks, key=lambda t: (0 if t.status == TaskStatus.pending else 1, t.order))
 
     async def list_workflow_instances_by_user(self, user_id: str, created_at_date: Optional[DateObject] = None,
-                                              status: Optional[WorkflowStatus] = None) -> List[WorkflowInstance]:
+                                              status: Optional[WorkflowStatus] = None, definition_id: Optional[str] = None) -> List[WorkflowInstance]:
         instances = [
             instance.model_copy(deep=True) for instance in _workflow_instances_db.values()
             if instance.user_id == user_id
         ]
+        if definition_id:
+            instances = [instance for instance in instances if instance.workflow_definition_id == definition_id]
         if created_at_date:
             instances = [instance for instance in instances if instance.created_at.date() == created_at_date]
         if status:

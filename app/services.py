@@ -69,9 +69,9 @@ class WorkflowService:
         return updated_task
 
     async def list_instances_for_user(self, user_id: str, created_at_date: Optional[DateObject] = None,
-                                      status: Optional[WorkflowStatus] = None) -> List[WorkflowInstance]:
+                                      status: Optional[WorkflowStatus] = None, definition_id: Optional[str] = None) -> List[WorkflowInstance]:
         return await self.instance_repo.list_workflow_instances_by_user(user_id, created_at_date=created_at_date,
-                                                                        status=status)
+                                                                        status=status, definition_id=definition_id)
 
     async def create_new_definition(self, name: str, description: Optional[str],
                                     task_names: List[str]) -> WorkflowDefinition:
