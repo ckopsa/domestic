@@ -18,6 +18,7 @@ async def list_user_workflows(
         request: Request,
         created_at: Optional[str] = Query(None, description="Filter by creation date (YYYY-MM-DD)"),
         status: Optional[str] = Query(None, description="Filter by workflow status (string value like 'active')"),
+        definition_id: Optional[str] = Query(None),
         service: WorkflowService = Depends(get_workflow_service),
         current_user: AuthenticatedUser = Depends(get_current_active_user),
         renderer: HtmlRendererInterface = Depends(get_html_renderer)
@@ -63,7 +64,8 @@ async def list_user_workflows(
     instances = await service.list_instances_for_user(
         user_id=current_user.user_id,
         created_at_date=created_at_for_service,  # Pass the determined date object
-        status=status_for_service  # Pass the refined status for service (can be None)
+        status=status_for_service,  # Pass the refined status for service (can be None)
+        definition_id=definition_id
     )
 
     # For the template, if 'created_at' (the string query param) was provided, use it.
@@ -76,6 +78,7 @@ async def list_user_workflows(
             "instances": instances,
             "selected_created_at": selected_created_at_str,
             "selected_status": selected_status_for_template,  # Use the newly determined value
-            "workflow_statuses": [s.value for s in WorkflowStatus]  # For dropdown
+            "workflow_statuses": [s.value for s in WorkflowStatus],  # For dropdown
+            "selected_definition_id": definition_id
         }
     )

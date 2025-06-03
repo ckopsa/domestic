@@ -533,7 +533,8 @@ async def test_my_workflows_no_query_parameters(mock_dependencies_for_my_workflo
     mock_service.list_instances_for_user.assert_called_once_with(
         user_id=mock_user.user_id,  # from global mock_user via override_get_current_active_user
         created_at_date=date.today(),
-        status=WorkflowStatus.active
+        status=WorkflowStatus.active,
+        definition_id=None  # Added
     )
     mock_renderer.render.assert_called_once_with(
         "my_workflows.html",
@@ -542,7 +543,8 @@ async def test_my_workflows_no_query_parameters(mock_dependencies_for_my_workflo
             "instances": [],  # Default return from mock_service.list_instances_for_user
             "selected_created_at": date.today().isoformat(),
             "selected_status": "active",
-            "workflow_statuses": [s.value for s in WorkflowStatus]
+            "workflow_statuses": [s.value for s in WorkflowStatus],
+            "selected_definition_id": None  # Added
         }
     )
 
@@ -1054,7 +1056,8 @@ async def test_my_workflows_with_created_at(mock_dependencies_for_my_workflows):
     mock_service.list_instances_for_user.assert_called_once_with(
         user_id=mock_user.user_id,
         created_at_date=test_date_obj,
-        status=WorkflowStatus.active
+        status=WorkflowStatus.active,
+        definition_id=None  # Added
     )
     mock_renderer.render.assert_called_once_with(
         "my_workflows.html",
@@ -1063,7 +1066,8 @@ async def test_my_workflows_with_created_at(mock_dependencies_for_my_workflows):
             "instances": [],
             "selected_created_at": test_date_str,
             "selected_status": "active",
-            "workflow_statuses": [s.value for s in WorkflowStatus]
+            "workflow_statuses": [s.value for s in WorkflowStatus],
+            "selected_definition_id": None  # Added
         }
     )
 
@@ -1079,7 +1083,8 @@ async def test_my_workflows_with_status(mock_dependencies_for_my_workflows):
     mock_service.list_instances_for_user.assert_called_once_with(
         user_id=mock_user.user_id,
         created_at_date=date.today(),
-        status=WorkflowStatus.completed
+        status=WorkflowStatus.completed,
+        definition_id=None  # Added
     )
     mock_renderer.render.assert_called_once_with(
         "my_workflows.html",
@@ -1088,7 +1093,8 @@ async def test_my_workflows_with_status(mock_dependencies_for_my_workflows):
             "instances": [],
             "selected_created_at": date.today().isoformat(),
             "selected_status": "completed",
-            "workflow_statuses": [s.value for s in WorkflowStatus]
+            "workflow_statuses": [s.value for s in WorkflowStatus],
+            "selected_definition_id": None  # Added
         }
     )
 
@@ -1104,7 +1110,8 @@ async def test_my_workflows_with_all_statuses(mock_dependencies_for_my_workflows
     mock_service.list_instances_for_user.assert_called_once_with(
         user_id=mock_user.user_id,
         created_at_date=date.today(),
-        status=None  # Service receives None for "All Statuses"
+        status=None,  # Service receives None for "All Statuses"
+        definition_id=None  # Added
     )
     mock_renderer.render.assert_called_once_with(
         "my_workflows.html",
@@ -1113,7 +1120,8 @@ async def test_my_workflows_with_all_statuses(mock_dependencies_for_my_workflows
             "instances": [],
             "selected_created_at": date.today().isoformat(),
             "selected_status": "",  # Template receives empty string
-            "workflow_statuses": [s.value for s in WorkflowStatus]
+            "workflow_statuses": [s.value for s in WorkflowStatus],
+            "selected_definition_id": None  # Added
         }
     )
 
@@ -1132,7 +1140,8 @@ async def test_my_workflows_with_created_at_and_status(mock_dependencies_for_my_
     mock_service.list_instances_for_user.assert_called_once_with(
         user_id=mock_user.user_id,
         created_at_date=test_date_obj,
-        status=WorkflowStatus.pending
+        status=WorkflowStatus.pending,
+        definition_id=None  # Added
     )
     mock_renderer.render.assert_called_once_with(
         "my_workflows.html",
@@ -1141,7 +1150,8 @@ async def test_my_workflows_with_created_at_and_status(mock_dependencies_for_my_
             "instances": [],
             "selected_created_at": test_date_str,
             "selected_status": "pending",
-            "workflow_statuses": [s.value for s in WorkflowStatus]
+            "workflow_statuses": [s.value for s in WorkflowStatus],
+            "selected_definition_id": None  # Added
         }
     )
 
@@ -1158,7 +1168,8 @@ async def test_my_workflows_invalid_created_at(mock_dependencies_for_my_workflow
     mock_service.list_instances_for_user.assert_called_once_with(
         user_id=mock_user.user_id,
         created_at_date=date.today(),
-        status=WorkflowStatus.active
+        status=WorkflowStatus.active,
+        definition_id=None  # Added
     )
     mock_renderer.render.assert_called_once_with(
         "my_workflows.html",
@@ -1167,7 +1178,8 @@ async def test_my_workflows_invalid_created_at(mock_dependencies_for_my_workflow
             "instances": [],
             "selected_created_at": date.today().isoformat(),
             "selected_status": "active",
-            "workflow_statuses": [s.value for s in WorkflowStatus]
+            "workflow_statuses": [s.value for s in WorkflowStatus],
+            "selected_definition_id": None  # Added
         }
     )
 
@@ -1184,7 +1196,8 @@ async def test_my_workflows_invalid_status(mock_dependencies_for_my_workflows):
     mock_service.list_instances_for_user.assert_called_once_with(
         user_id=mock_user.user_id,
         created_at_date=date.today(),
-        status=WorkflowStatus.active  # Default for invalid status string
+        status=WorkflowStatus.active,  # Default for invalid status string
+        definition_id=None  # Added
     )
     mock_renderer.render.assert_called_once_with(
         "my_workflows.html",
@@ -1193,6 +1206,68 @@ async def test_my_workflows_invalid_status(mock_dependencies_for_my_workflows):
             "instances": [],
             "selected_created_at": date.today().isoformat(),
             "selected_status": "active",  # Reflects the default used
-            "workflow_statuses": [s.value for s in WorkflowStatus]
+            "workflow_statuses": [s.value for s in WorkflowStatus],
+            "selected_definition_id": None  # Added
+        }
+    )
+
+
+@pytest.mark.asyncio
+async def test_my_workflows_with_definition_id_filter(mock_dependencies_for_my_workflows):
+    client = TestClient(app)
+    mock_service, mock_renderer = mock_dependencies_for_my_workflows
+
+    test_definition_id = "test_def_id_123"
+
+    response = client.get(f"/my-workflows?definition_id={test_definition_id}")
+    assert response.status_code == 200
+
+    mock_service.list_instances_for_user.assert_called_once_with(
+        user_id=mock_user.user_id,
+        created_at_date=date.today(), # Default when not provided
+        status=WorkflowStatus.active, # Default when not provided
+        definition_id=test_definition_id
+    )
+    mock_renderer.render.assert_called_once_with(
+        "my_workflows.html",
+        ANY,
+        {
+            "instances": [],
+            "selected_created_at": date.today().isoformat(),
+            "selected_status": "active",
+            "workflow_statuses": [s.value for s in WorkflowStatus],
+            "selected_definition_id": test_definition_id
+        }
+    )
+
+@pytest.mark.asyncio
+async def test_my_workflows_with_definition_id_and_other_filters(mock_dependencies_for_my_workflows):
+    client = TestClient(app)
+    mock_service, mock_renderer = mock_dependencies_for_my_workflows
+
+    test_definition_id = "test_def_id_456"
+    test_date_str = "2023-03-25"
+    test_date_obj = date(2023, 3, 25)
+    test_status = WorkflowStatus.completed
+    test_status_str = "completed"
+
+    response = client.get(f"/my-workflows?definition_id={test_definition_id}&created_at={test_date_str}&status={test_status_str}")
+    assert response.status_code == 200
+
+    mock_service.list_instances_for_user.assert_called_once_with(
+        user_id=mock_user.user_id,
+        created_at_date=test_date_obj,
+        status=test_status,
+        definition_id=test_definition_id
+    )
+    mock_renderer.render.assert_called_once_with(
+        "my_workflows.html",
+        ANY,
+        {
+            "instances": [],
+            "selected_created_at": test_date_str,
+            "selected_status": test_status_str,
+            "workflow_statuses": [s.value for s in WorkflowStatus],
+            "selected_definition_id": test_definition_id
         }
     )

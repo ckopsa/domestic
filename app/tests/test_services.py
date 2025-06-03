@@ -472,7 +472,8 @@ async def test_list_instances_for_user(workflow_service, mock_repositories):
     instance_repo.list_workflow_instances_by_user.assert_called_once_with(
         user_id="test_user",
         created_at_date=None,
-        status=None
+        status=None,
+        definition_id=None  # Added
     )
 
 
@@ -489,10 +490,13 @@ async def test_list_instances_for_user_passthrough_no_filters(workflow_service, 
     user_id = "test_user_no_filters"
     result = await workflow_service.list_instances_for_user(user_id=user_id)
 
+    result = await workflow_service.list_instances_for_user(user_id=user_id, definition_id=None)
+
     instance_repo.list_workflow_instances_by_user.assert_called_once_with(
         user_id=user_id,
         created_at_date=None,
-        status=None
+        status=None,
+        definition_id=None
     )
     assert result == expected_result
 
@@ -505,12 +509,13 @@ async def test_list_instances_for_user_passthrough_with_date(workflow_service, m
 
     user_id = "test_user_date_filter"
     test_date = DateObject(2023, 1, 15)
-    result = await workflow_service.list_instances_for_user(user_id=user_id, created_at_date=test_date)
+    result = await workflow_service.list_instances_for_user(user_id=user_id, created_at_date=test_date, definition_id=None)
 
     instance_repo.list_workflow_instances_by_user.assert_called_once_with(
         user_id=user_id,
         created_at_date=test_date,
-        status=None
+        status=None,
+        definition_id=None
     )
     assert result == expected_result
 
@@ -523,12 +528,13 @@ async def test_list_instances_for_user_passthrough_with_status(workflow_service,
 
     user_id = "test_user_status_filter"
     test_status = WorkflowStatus.pending
-    result = await workflow_service.list_instances_for_user(user_id=user_id, status=test_status)
+    result = await workflow_service.list_instances_for_user(user_id=user_id, status=test_status, definition_id=None)
 
     instance_repo.list_workflow_instances_by_user.assert_called_once_with(
         user_id=user_id,
         created_at_date=None,
-        status=test_status
+        status=test_status,
+        definition_id=None
     )
     assert result == expected_result
 
@@ -551,7 +557,54 @@ async def test_list_instances_for_user_passthrough_with_all_filters(workflow_ser
     instance_repo.list_workflow_instances_by_user.assert_called_once_with(
         user_id=user_id,
         created_at_date=test_date,
-        status=test_status
+        status=test_status,
+        definition_id=None  # Added for consistency
+    )
+    assert result == expected_result
+
+
+@pytest.mark.asyncio
+async def test_list_instances_for_user_passthrough_with_definition_id(workflow_service, mock_repositories):
+    _, instance_repo, _ = mock_repositories
+    expected_result = [MagicMock(spec=WorkflowInstance)]
+    instance_repo.list_workflow_instances_by_user = AsyncMock(return_value=expected_result)
+
+    user_id = "test_user_def_id_filter"
+    test_definition_id = "def_filter_services_test"
+    result = await workflow_service.list_instances_for_user(user_id=user_id, definition_id=test_definition_id)
+
+    instance_repo.list_workflow_instances_by_user.assert_called_once_with(
+        user_id=user_id,
+        created_at_date=None,
+        status=None,
+        definition_id=test_definition_id
+    )
+    assert result == expected_result
+
+
+@pytest.mark.asyncio
+async def test_list_instances_for_user_passthrough_with_all_filters_including_definition_id(workflow_service, mock_repositories):
+    _, instance_repo, _ = mock_repositories
+    expected_result = [MagicMock(spec=WorkflowInstance)]
+    instance_repo.list_workflow_instances_by_user = AsyncMock(return_value=expected_result)
+
+    user_id = "test_user_all_filters_def_id"
+    test_date = DateObject(2023, 4, 25)
+    test_status = WorkflowStatus.active
+    test_definition_id = "def_filter_services_test_all"
+
+    result = await workflow_service.list_instances_for_user(
+        user_id=user_id,
+        created_at_date=test_date,
+        status=test_status,
+        definition_id=test_definition_id
+    )
+
+    instance_repo.list_workflow_instances_by_user.assert_called_once_with(
+        user_id=user_id,
+        created_at_date=test_date,
+        status=test_status,
+        definition_id=test_definition_id
     )
     assert result == expected_result
 
@@ -889,7 +942,8 @@ async def test_list_instances_for_user_filters_archived_status(workflow_service,
     # Act: Call the service method requesting archived instances
     result = await workflow_service.list_instances_for_user(
         user_id=LIST_USER_ID,
-        status=WorkflowStatus.archived
+        status=WorkflowStatus.archived,
+        definition_id=None
     )
 
     # Assert: Service should return what the repository returned.
@@ -901,7 +955,8 @@ async def test_list_instances_for_user_filters_archived_status(workflow_service,
     instance_repo.list_workflow_instances_by_user.assert_called_once_with(
         user_id=LIST_USER_ID,
         created_at_date=None,  # Default if not provided
-        status=WorkflowStatus.archived
+        status=WorkflowStatus.archived,
+        definition_id=None
     )
 
 
@@ -920,7 +975,8 @@ async def test_list_instances_for_user_active_status_excludes_archived(workflow_
     # Act: Call the service method requesting ACTIVE instances
     result = await workflow_service.list_instances_for_user(
         user_id=LIST_USER_ID,
-        status=WorkflowStatus.active
+        status=WorkflowStatus.active,
+        definition_id=None
     )
 
     # Assert: Service returns only active instances, implying archived ones are excluded by the repo filter
@@ -931,7 +987,8 @@ async def test_list_instances_for_user_active_status_excludes_archived(workflow_
     instance_repo.list_workflow_instances_by_user.assert_called_once_with(
         user_id=LIST_USER_ID,
         created_at_date=None,
-        status=WorkflowStatus.active
+        status=WorkflowStatus.active,
+        definition_id=None
     )
 
 
@@ -953,7 +1010,7 @@ async def test_list_instances_for_user_no_status_filter_passes_none_to_repo(work
     instance_repo.list_workflow_instances_by_user = AsyncMock(return_value=mixed_instances)
 
     # Act: Call the service method with no status filter (status=None)
-    result = await workflow_service.list_instances_for_user(user_id=LIST_USER_ID, status=None)
+    result = await workflow_service.list_instances_for_user(user_id=LIST_USER_ID, status=None, definition_id=None)
 
     # Assert: Service returns the mixed list from the repository
     assert len(result) == 2
@@ -964,7 +1021,8 @@ async def test_list_instances_for_user_no_status_filter_passes_none_to_repo(work
     instance_repo.list_workflow_instances_by_user.assert_called_once_with(
         user_id=LIST_USER_ID,
         created_at_date=None,
-        status=None  # This is the key assertion for this test
+        status=None,  # This is the key assertion for this test
+        definition_id=None
     )
 
 
