@@ -1,6 +1,6 @@
 # models.py
 import uuid
-from datetime import date as DateObject, datetime # Added datetime
+from datetime import datetime, date as DateObject # Keep DateObject for other uses if any, ensure datetime is primary
 from typing import Optional, List
 
 from pydantic import BaseModel, Field
@@ -65,7 +65,7 @@ class WorkflowInstance(BaseModel):
     name: str
     user_id: str
     status: WorkflowStatus = WorkflowStatus.active
-    created_at: DateObject = Field(default_factory=DateObject.today)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
     share_token: Optional[str] = None
     due_datetime: Optional[datetime] = None # New field
 
@@ -82,8 +82,9 @@ class WorkflowInstance(BaseModel):
 
     @classmethod
     def from_dict(cls, data: dict):
+        # Updated to handle datetime for created_at
         if isinstance(data.get("created_at"), str):
-            data["created_at"] = DateObject.fromisoformat(data["created_at"])
+            data["created_at"] = datetime.fromisoformat(data["created_at"])
         if isinstance(data.get("due_datetime"), str): # Handle string to datetime conversion
             data["due_datetime"] = datetime.fromisoformat(data["due_datetime"])
         return cls(**data)
@@ -122,8 +123,9 @@ class WorkflowWithTasks(WorkflowInstance): # Assuming this was used somewhere
         # based on actual usage.
 
         # Simplified approach: let Pydantic handle it after type conversion
+        # Updated to handle datetime for created_at
         if isinstance(data.get("created_at"), str):
-            data["created_at"] = DateObject.fromisoformat(data["created_at"])
+            data["created_at"] = datetime.fromisoformat(data["created_at"])
         if isinstance(data.get("due_datetime"), str):
             data["due_datetime"] = datetime.fromisoformat(data["due_datetime"])
         return cls(**data)

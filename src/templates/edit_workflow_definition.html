@@ -16,13 +16,80 @@
         <input type="datetime-local" id="due_datetime" name="due_datetime" class="form-control" value="{{ definition.due_datetime.strftime('%Y-%m-%dT%H:%M') if definition and definition.due_datetime else '' }}">
     </div>
     <div>
-        <label for="task_names_str">Task Names (one per line):</label>
-        <textarea name="task_names_str" id="task_names_str" rows="5" placeholder="Enter one task name per line"
-                  required>{{ "\n".join(definition.task_names) }}</textarea>
+        <h3>Task Definitions</h3>
+        <div id="task-definitions-container">
+            {% if definition and definition.task_definitions %}
+                {% for task in definition.task_definitions | sort(attribute='order') %}
+                <div class="task-definition-item" style="margin-bottom: 10px;">
+                    <label style="margin-right: 5px;">Task {{ loop.index }}:</label>
+                    <input type="text" name="task_names" placeholder="Task Name" value="{{ task.name }}" required style="margin-right: 5px;">
+                    <input type="number" name="task_due_datetime_offsets" placeholder="Due Offset (minutes from start)" value="{{ task.due_datetime_offset_minutes | default(0) }}" min="0" style="margin-right: 5px;">
+                    <button type="button" class="remove-task-btn action-button danger">Remove</button>
+                </div>
+                {% endfor %}
+            {% endif %}
+        </div>
+        <button type="button" id="add-task-btn" class="action-button">Add Task</button>
     </div>
-    <button type="submit" class="action-button submit">Save Changes</button>
+    <button type="submit" class="action-button submit" style="margin-top: 20px;">Save Changes</button>
 </form>
 <a href="/workflow-definitions" class="back-link" style="margin-top:20px; display:inline-block;">← Back to Available
     Definitions</a>
 <a href="/" class="back-link" style="margin-top:20px; display:inline-block; margin-left:15px;">← Back to Home</a>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const tasksContainer = document.getElementById('task-definitions-container');
+    const addTaskBtn = document.getElementById('add-task-btn');
+
+    function createTaskRowHtml(index, name = "", offset = 0) {
+        // HTML for a task row. Using template literals for easier construction.
+        return `
+            <label style="margin-right: 5px;">Task ${index + 1}:</label>
+            <input type="text" name="task_names" placeholder="Task Name" value="${name}" required style="margin-right: 5px;">
+            <input type="number" name="task_due_datetime_offsets" placeholder="Due Offset (minutes from start)" value="${offset}" min="0" style="margin-right: 5px;">
+            <button type="button" class="remove-task-btn action-button danger">Remove</button>
+        `;
+    }
+
+    function addTaskRowEventListeners(taskRowElement) {
+        taskRowElement.querySelector('.remove-task-btn').addEventListener('click', function() {
+            taskRowElement.remove();
+            renumberTaskRows();
+        });
+    }
+
+    function renumberTaskRows() {
+        const allTaskRows = tasksContainer.querySelectorAll('.task-definition-item');
+        allTaskRows.forEach((row, idx) => {
+            row.querySelector('label').textContent = `Task ${idx + 1}:`;
+        });
+    }
+
+    addTaskBtn.addEventListener('click', function () {
+        const currentTaskCount = tasksContainer.querySelectorAll('.task-definition-item').length;
+        const newTaskRow = document.createElement('div');
+        newTaskRow.classList.add('task-definition-item');
+        newTaskRow.style.marginBottom = '10px';
+        newTaskRow.innerHTML = createTaskRowHtml(currentTaskCount);
+        addTaskRowEventListeners(newTaskRow);
+        tasksContainer.appendChild(newTaskRow);
+    });
+
+    // Add event listeners to initially loaded (pre-populated) task rows
+    tasksContainer.querySelectorAll('.task-definition-item').forEach(taskRow => {
+        addTaskRowEventListeners(taskRow);
+    });
+
+    // If no tasks are pre-populated and you want to add one by default:
+    if (tasksContainer.querySelectorAll('.task-definition-item').length === 0) {
+        const firstTaskRow = document.createElement('div');
+        firstTaskRow.classList.add('task-definition-item');
+        firstTaskRow.style.marginBottom = '10px';
+        firstTaskRow.innerHTML = createTaskRowHtml(0);
+        addTaskRowEventListeners(firstTaskRow);
+        tasksContainer.appendChild(firstTaskRow);
+    }
+});
+</script>
 {% endblock %}

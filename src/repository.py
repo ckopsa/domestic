@@ -201,7 +201,8 @@ class PostgreSQLWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanc
             task_def_orm = TaskDefinitionORM(
                 workflow_definition_id=definition_orm.id,
                 name=task_def_data.name,
-                order=task_def_data.order
+                order=task_def_data.order,
+                due_datetime_offset_minutes=task_def_data.due_datetime_offset_minutes
             )
             self.db_session.add(task_def_orm)
 
@@ -225,7 +226,8 @@ class PostgreSQLWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanc
                 task_def_orm = TaskDefinitionORM(
                     workflow_definition_id=db_definition.id,
                     name=task_def_data.name,
-                    order=task_def_data.order
+                    order=task_def_data.order,
+                    due_datetime_offset_minutes=task_def_data.due_datetime_offset_minutes
                 )
                 self.db_session.add(task_def_orm)
 

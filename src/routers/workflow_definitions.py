@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 
 from fastapi import APIRouter, Request, Form, Depends, Query
 from fastapi import status
@@ -51,7 +51,8 @@ async def create_workflow_definition_handler(
         request: Request,
         name: str = Form(...),
         description: str = Form(default=""),
-        task_names_str: str = Form(...),
+        task_names: List[str] = Form(default_factory=list),
+        task_due_datetime_offsets: List[int] = Form(default_factory=list),
         service: WorkflowService = Depends(get_workflow_service),
         current_user: AuthenticatedUser = Depends(get_current_active_user),
         renderer: HtmlRendererInterface = Depends(get_html_renderer)
@@ -59,9 +60,44 @@ async def create_workflow_definition_handler(
     """Handles the submission of a new workflow definition."""
     if isinstance(current_user, RedirectResponse):
         return current_user
+
+    from schemas.task_definition import TaskDefinitionBase # Moved import here to avoid circular dependency issues if any
+    task_definitions_data = []
+    if len(task_names) != len(task_due_datetime_offsets):
+        # This indicates a potential issue with form submission or client-side logic
+        # For now, we'll return an error. A more robust solution might involve more specific error handling
+        # or trying to pair them up as much as possible.
+        return await create_message_page(
+            request,
+            "Creation Failed",
+            "Error",
+            "Mismatch between the number of task names and due date offsets. Please ensure each task has both.",
+            [("← Back to Create Template", "/workflow-definitions/create")],
+            status_code=400,
+            renderer=renderer # Ensure renderer is passed
+        )
+
+    for i, name_str in enumerate(task_names):
+        if not name_str.strip(): # Skip empty task names, though 'required' on input should prevent this
+            continue
+        task_definitions_data.append(
+            TaskDefinitionBase(
+                name=name_str.strip(),
+                description="", # Add a field for this in HTML if needed later
+                order=i,
+                due_datetime_offset_minutes=task_due_datetime_offsets[i]
+            )
+        )
+
     try:
-        task_names = [task.strip() for task in task_names_str.split('\n') if task.strip()]
-        await service.create_new_definition(name=name, description=description, task_names=task_names)
+        # The service method `create_new_definition` will need to be updated to accept `task_definitions`
+        # instead of `task_names`. This change is for a subsequent step.
+        # For now, this will likely cause an error until the service layer is updated.
+        await service.create_new_definition(
+            name=name,
+            description=description,
+            task_definitions=task_definitions_data # Passing the structured list
+        )
         return RedirectResponse(url="/workflow-definitions", status_code=status.HTTP_303_SEE_OTHER)
     except ValueError as e:
         return await create_message_page(
@@ -72,7 +108,7 @@ async def create_workflow_definition_handler(
             [("← Back to Create Template", "/workflow-definitions/create"),
              ("← Back to Definitions", "/workflow-definitions")],
             status_code=400,
-            renderer=renderer
+            renderer=renderer # Ensure renderer is passed in the exception block too
         )
 
 
@@ -108,7 +144,8 @@ async def edit_workflow_definition_handler(
         definition_id: str,
         name: str = Form(...),
         description: str = Form(default=""),
-        task_names_str: str = Form(...),
+        task_names: List[str] = Form(default_factory=list),
+        task_due_datetime_offsets: List[int] = Form(default_factory=list),
         service: WorkflowService = Depends(get_workflow_service),
         current_user: AuthenticatedUser = Depends(get_current_active_user),
         renderer: HtmlRendererInterface = Depends(get_html_renderer)
@@ -116,10 +153,41 @@ async def edit_workflow_definition_handler(
     """Handles the submission of updates to an existing workflow definition."""
     if isinstance(current_user, RedirectResponse):
         return current_user
+
+    from schemas.task_definition import TaskDefinitionBase # Moved import here
+    task_definitions_data = []
+    if len(task_names) != len(task_due_datetime_offsets):
+        return await create_message_page(
+            request,
+            "Update Failed",
+            "Error",
+            "Mismatch between the number of task names and due date offsets. Please ensure each task has both.",
+            [("← Back to Edit Template", f"/workflow-definitions/edit/{definition_id}")],
+            status_code=400,
+            renderer=renderer
+        )
+
+    for i, name_str in enumerate(task_names):
+        if not name_str.strip():
+            continue
+        task_definitions_data.append(
+            TaskDefinitionBase(
+                name=name_str.strip(),
+                description="", # Or fetch from an additional form field if added
+                order=i,
+                due_datetime_offset_minutes=task_due_datetime_offsets[i]
+            )
+        )
+
     try:
-        task_names = [task.strip() for task in task_names_str.split('\n') if task.strip()]
-        updated_definition = await service.update_definition(definition_id=definition_id, name=name,
-                                                             description=description, task_names=task_names)
+        # The service method `update_definition` will need to be updated to accept `task_definitions`
+        # This change is for a subsequent step.
+        updated_definition = await service.update_definition(
+            definition_id=definition_id,
+            name=name,
+            description=description,
+            task_definitions=task_definitions_data # Passing the structured list
+        )
         if not updated_definition:
             return await create_message_page(
                 request,

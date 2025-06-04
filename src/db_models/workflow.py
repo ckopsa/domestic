@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime # Added for default value
 
 from sqlalchemy import Column, String, Text, Date, Enum as SQLAlchemyEnum, ForeignKey, DateTime
 # Remove JSONB from imports if it's no longer used
@@ -31,7 +32,7 @@ class WorkflowInstance(Base):
     name = Column(String, nullable=False)
     user_id = Column(String, index=True, nullable=False)
     status = Column(SQLAlchemyEnum(WorkflowStatus), nullable=False, default=WorkflowStatus.active)
-    created_at = Column(Date, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     share_token = Column(String, unique=True, index=True, nullable=True)
     due_datetime = Column(DateTime, nullable=True)
 
