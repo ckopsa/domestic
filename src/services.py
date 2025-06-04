@@ -47,11 +47,16 @@ class WorkflowService:
 
         for task_def in definition.task_definitions: # Iterate over TaskDefinitionBase from Pydantic WorkflowDefinition
             task_due_datetime: Optional[datetime] = None
-            if task_def.due_datetime_offset_minutes is not None: # Check if offset is defined
-                # created_instance.created_at is now a datetime object
-                offset_minutes = task_def.due_datetime_offset_minutes
-                offset = timedelta(minutes=offset_minutes)
-                task_due_datetime = created_instance.created_at + offset
+            if created_instance.due_datetime:
+                if task_def.due_datetime_offset_minutes is not None:
+                    offset_minutes = task_def.due_datetime_offset_minutes
+                    offset = timedelta(minutes=offset_minutes)
+                    task_due_datetime = created_instance.due_datetime + offset
+                else:
+                    # If task_def.due_datetime_offset_minutes is None, but the instance has a due_datetime,
+                    # the task inherits the instance's due_datetime.
+                    task_due_datetime = created_instance.due_datetime
+            # If created_instance.due_datetime is None, task_due_datetime remains None regardless of task_def offset.
 
             task = TaskInstance(
                 workflow_instance_id=created_instance.id, # Use ID from the created instance

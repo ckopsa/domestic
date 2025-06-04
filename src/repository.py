@@ -331,8 +331,8 @@ class InMemoryWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanceR
         if definition_id:
             instances = [instance for instance in instances if instance.workflow_definition_id == definition_id]
         if created_at_date:
-            # instance.created_at is already a date object.
-            instances = [instance for instance in instances if instance.created_at == created_at_date]
+            # instance.created_at is a datetime object (from model), created_at_date is a DateObject (date)
+            instances = [instance for instance in instances if instance.created_at.date() == created_at_date]
         if status:
             instances = [instance for instance in instances if instance.status == status]
         return sorted(instances, key=lambda i: i.created_at, reverse=True)

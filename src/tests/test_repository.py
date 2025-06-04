@@ -55,23 +55,23 @@ class TestInMemoryListWorkflowInstancesByUser:
     # Define base instances for reuse, ensure created_at is distinct for sorting tests
     instance_1_user_common_def1_active_today = WorkflowInstance(
         id="inst_mem_1", user_id=common_user_id, workflow_definition_id=def_id_1, name="Mem WF1 Active Today",
-        status=WorkflowStatus.active, created_at=(datetime.utcnow() - timedelta(hours=2)).date()
+        status=WorkflowStatus.active, created_at=(datetime.utcnow() - timedelta(hours=2))
     )
     instance_2_user_common_def2_completed_today = WorkflowInstance(
         id="inst_mem_2", user_id=common_user_id, workflow_definition_id=def_id_2, name="Mem WF2 Completed Today",
-        status=WorkflowStatus.completed, created_at=(datetime.utcnow() - timedelta(hours=1)).date()
+        status=WorkflowStatus.completed, created_at=(datetime.utcnow() - timedelta(hours=1))
     )
     instance_3_user_common_def1_active_specific_past = WorkflowInstance(
         id="inst_mem_3", user_id=common_user_id, workflow_definition_id=def_id_1, name="Mem WF3 Active PastDate",
-        status=WorkflowStatus.active, created_at=datetime(2023, 1, 1, 10, 0, 0).date()
+        status=WorkflowStatus.active, created_at=datetime(2023, 1, 1, 10, 0, 0)
     )
     instance_4_user_other_def1_active_today = WorkflowInstance(
         id="inst_mem_4", user_id=other_user_id, workflow_definition_id=def_id_1, name="Mem WF4 OtherUser Active Today",
-        status=WorkflowStatus.active, created_at=datetime.utcnow().date()
+        status=WorkflowStatus.active, created_at=datetime.utcnow()
     )
     instance_5_user_common_def1_active_very_recent = WorkflowInstance(
         id="inst_mem_5", user_id=common_user_id, workflow_definition_id=def_id_1, name="Mem WF5 Active Very Recent",
-        status=WorkflowStatus.active, created_at=datetime.utcnow().date()  # Most recent for sorting
+        status=WorkflowStatus.active, created_at=datetime.utcnow()  # Most recent for sorting
     )
 
     @pytest.mark.asyncio
@@ -122,13 +122,13 @@ class TestInMemoryListWorkflowInstancesByUser:
             deep=True)
 
         repo = InMemoryWorkflowRepository()
-        specific_past_date = self.instance_3_user_common_def1_active_specific_past.created_at
+        specific_past_date_obj = self.instance_3_user_common_def1_active_specific_past.created_at.date()
         results = await repo.list_workflow_instances_by_user(user_id=self.common_user_id,
-                                                             created_at_date=specific_past_date)
+                                                             created_at_date=specific_past_date_obj)
 
         assert len(results) == 1
         assert results[0].id == self.instance_3_user_common_def1_active_specific_past.id
-        assert results[0].created_at == specific_past_date
+        assert results[0].created_at.date() == specific_past_date_obj
 
     @pytest.mark.asyncio
     async def test_list_instances_with_status_filter(self):
@@ -149,9 +149,10 @@ class TestInMemoryListWorkflowInstancesByUser:
 
     @pytest.mark.asyncio
     async def test_list_instances_with_all_filters_including_definition_id(self):
+        target_datetime = datetime(2023, 1, 15, 12, 0, 0)
         target_instance_all_filters = WorkflowInstance(
             id="inst_mem_target", user_id=self.common_user_id, workflow_definition_id=self.def_id_1,
-            name="Mem Target WF", status=WorkflowStatus.active, created_at=datetime(2023, 1, 15, 12, 0, 0).date()
+            name="Mem Target WF", status=WorkflowStatus.active, created_at=target_datetime
         )
         _workflow_instances_db[target_instance_all_filters.id] = target_instance_all_filters.model_copy(deep=True)
         _workflow_instances_db[
@@ -162,11 +163,11 @@ class TestInMemoryListWorkflowInstancesByUser:
             deep=True)
 
         repo = InMemoryWorkflowRepository()
-        filter_date = DateObject(2023, 1, 15)
+        filter_date_obj = DateObject(2023, 1, 15)
 
         results = await repo.list_workflow_instances_by_user(
             user_id=self.common_user_id,
-            created_at_date=filter_date,
+            created_at_date=filter_date_obj,
             status=WorkflowStatus.active,
             definition_id=self.def_id_1
         )
@@ -174,7 +175,7 @@ class TestInMemoryListWorkflowInstancesByUser:
         assert len(results) == 1
         assert results[0].id == target_instance_all_filters.id
         assert results[0].user_id == self.common_user_id
-        assert results[0].created_at == filter_date
+        assert results[0].created_at.date() == filter_date_obj
         assert results[0].status == WorkflowStatus.active
         assert results[0].workflow_definition_id == self.def_id_1
 
@@ -211,11 +212,12 @@ class TestInMemoryListWorkflowInstancesByUser:
         # Ensure created_at times are what we expect for sorting
         # (Re-create with fresh utcnow if test execution is slow)
         inst1 = self.instance_1_user_common_def1_active_today.model_copy(deep=True)
-        inst1.created_at = (datetime.utcnow() - timedelta(days=1)).date()  # Made explicitly one day older
-        inst3 = self.instance_3_user_common_def1_active_specific_past.model_copy(
-            deep=True)  # Already specific past (e.g. 2023-01-01)
+        # Ensure inst1 is older than inst5, and inst3 is the oldest
+        inst1.created_at = datetime.utcnow() - timedelta(days=1) # Older
+        inst3 = self.instance_3_user_common_def1_active_specific_past.model_copy(deep=True)
+        # inst3.created_at is already datetime(2023, 1, 1, 10, 0, 0), which is the oldest
         inst5 = self.instance_5_user_common_def1_active_very_recent.model_copy(deep=True)
-        inst5.created_at = datetime.utcnow().date()  # Today, should be newest if test runs on a later date than inst3
+        inst5.created_at = datetime.utcnow() # Newest
 
         _workflow_instances_db[inst1.id] = inst1
         _workflow_instances_db[inst3.id] = inst3
@@ -469,7 +471,7 @@ class TestUnitPostgreSQLListWorkflowInstancesByUser:
             user_id="user123",
             name="Test Workflow Instance",
             status=WorkflowStatus.active,
-            created_at=datetime(2023, 1, 1, 12, 0, 0).date(),  # Use .date()
+            created_at=datetime(2023, 1, 1, 12, 0, 0),
             workflow_definition_id="def1"
         )
         mock_query_chain.all.return_value = [mock_orm_instance]
@@ -630,7 +632,7 @@ class TestUnitPostgreSQLListWorkflowInstancesByUser:
 
         mock_orm_instance = WorkflowInstanceORM(
             id="wf2", user_id="isolated_user", name="Isolated Workflow",
-            status=WorkflowStatus.active, created_at=datetime(2023, 1, 2, 12, 0, 0).date(),  # Use .date()
+            status=WorkflowStatus.active, created_at=datetime(2023, 1, 2, 12, 0, 0),
             workflow_definition_id="def2"
         )
         mock_query_chain.all.return_value = [mock_orm_instance]
