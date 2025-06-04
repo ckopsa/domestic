@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Request, Form, Depends
 from fastapi import status
 from fastapi.responses import HTMLResponse, RedirectResponse
+from typing import Optional # Ensure Optional is imported
+from datetime import datetime # Ensure datetime is imported
 
 from core.html_renderer import HtmlRendererInterface
 from core.security import AuthenticatedUser, get_current_active_user
@@ -16,13 +18,40 @@ router = APIRouter(prefix="/workflow-instances", tags=["workflow_instances"])
 async def create_workflow_instance_handler(
         request: Request,
         definition_id: str = Form(...),
+        due_datetime_str: Optional[str] = Form(None), # New parameter
         service: WorkflowService = Depends(get_workflow_service),
         current_user: AuthenticatedUser = Depends(get_current_active_user),
         renderer: HtmlRendererInterface = Depends(get_html_renderer)
 ):
     if isinstance(current_user, RedirectResponse):
         return current_user
-    instance = await service.create_workflow_instance(definition_id=definition_id, user_id=current_user.user_id)
+
+    override_due_datetime_obj: Optional[datetime] = None
+    if due_datetime_str:
+        try:
+            # This expects a full ISO 8601 format string like "YYYY-MM-DDTHH:MM:SS"
+            # If only date is provided, fromisoformat might raise error depending on Python version
+            # and the exact string. Consider using dateutil.parser.parse for more flexibility
+            # or ensure the frontend sends a full datetime string.
+            override_due_datetime_obj = datetime.fromisoformat(due_datetime_str)
+        except ValueError:
+            # Optional: Log the error or return a more specific error page
+            # For now, if parsing fails, override_due_datetime_obj remains None,
+            # and the default logic in the service layer will apply.
+            # Consider it a "best-effort" parse for this example.
+            # A production system should have robust error handling here.
+            # return await create_message_page(
+            # request, "Invalid Due Date Format", "Error",
+            # "The due date format provided was not valid. Please use YYYY-MM-DDTHH:MM:SS.",
+            # [("Go back", request.headers.get("Referer", "/"))], status_code=400, renderer=renderer
+            # )
+            pass
+
+    instance = await service.create_workflow_instance(
+        definition_id=definition_id,
+        user_id=current_user.user_id,
+        override_due_datetime=override_due_datetime_obj # Pass parsed datetime
+    )
     if not instance:
         return await create_message_page(
             request, "Creation Failed", "Error", "Could not create workflow instance.",

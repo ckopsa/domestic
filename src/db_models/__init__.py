@@ -1,5 +1,5 @@
-from db_models.base import Base
-from db_models.enums import WorkflowStatus, TaskStatus
-from db_models.task import TaskInstance
-from db_models.task_definition import TaskDefinition
-from db_models.workflow import WorkflowDefinition, WorkflowInstance
+from .base import Base
+from .enums import WorkflowStatus, TaskStatus
+from .task import TaskInstance
+from .task_definition import TaskDefinition
+from .workflow import WorkflowDefinition, WorkflowInstance

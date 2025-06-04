@@ -7,6 +7,9 @@
     <p><strong>ID:</strong> {{ instance.id }}</p>
     <p><strong>Status:</strong> {{ instance.status.upper() }}</p>
     <p><strong>Created At:</strong> {{ instance.created_at.isoformat() }}</p>
+    {% if instance.due_datetime %}
+    <p class="card-text"><strong>Due:</strong> {{ instance.due_datetime.strftime('%Y-%m-%d %H:%M') }}</p>
+    {% endif %}
     {% if is_shared_view %}
         <p class="shared-view-message">
             You are viewing this workflow via a shared link (read-only).
@@ -19,7 +22,11 @@
     <ul>
         {% for task in tasks %}
         <li class="task-item" style="margin-bottom:10px;">
-            <p><strong>Task:</strong> {{ task.name }} - {{ task.status.upper() }}</p>
+            <p><strong>Task:</strong> {{ task.name }} - {{ task.status.upper() }}
+            {% if task.due_datetime %}
+            <small class="text-muted"> (Due: {{ task.due_datetime.strftime('%Y-%m-%d %H:%M') }})</small>
+            {% endif %}
+            </p>
             {% if not is_shared_view %}
                 {% if task.status == "pending" %}
                 <form action="/task-instances/{{ task.id }}/complete" method="post"

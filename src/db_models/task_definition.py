@@ -3,7 +3,7 @@ import uuid
 from sqlalchemy import Column, String, Integer, ForeignKey
 from sqlalchemy.orm import relationship
 
-from db_models.base import Base
+from .base import Base
 
 
 class TaskDefinition(Base):
@@ -13,5 +13,6 @@ class TaskDefinition(Base):
     workflow_definition_id = Column(String, ForeignKey("workflow_definitions.id"), nullable=False, index=True)
     name = Column(String, nullable=False)
     order = Column(Integer, nullable=False)
+    due_datetime_offset_minutes = Column(Integer, nullable=True, default=0)
 
     workflow_definition = relationship("WorkflowDefinition", back_populates="task_definitions")
