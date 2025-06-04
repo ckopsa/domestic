@@ -1,7 +1,7 @@
 """change_workflow_instance_created_at_to_datetime
 
 Revision ID: 64348a0ef10f
-Revises: 202843087950
+Revises: 5ed86f33ce5c
 Create Date: 2024-07-11 12:00:00.000000
 
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = '64348a0ef10f'
-down_revision: Union[str, None] = '202843087950' # Using the ID alembic generated
+down_revision: Union[str, None] = '5ed86f33ce5c' # Using the ID alembic generated
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from core.html_renderer import HtmlRendererInterface
 from core.security import AuthenticatedUser, get_current_active_user
 from dependencies import get_workflow_service, get_html_renderer
+from models import TaskDefinitionBase
 from services import WorkflowService
 from utils import create_message_page
 
@@ -61,7 +62,6 @@ async def create_workflow_definition_handler(
     if isinstance(current_user, RedirectResponse):
         return current_user
 
-    from schemas.task_definition import TaskDefinitionBase # Moved import here to avoid circular dependency issues if any
     task_definitions_data = []
     if len(task_names) != len(task_due_datetime_offsets):
         # This indicates a potential issue with form submission or client-side logic
@@ -154,7 +154,6 @@ async def edit_workflow_definition_handler(
     if isinstance(current_user, RedirectResponse):
         return current_user
 
-    from schemas.task_definition import TaskDefinitionBase # Moved import here
     task_definitions_data = []
     if len(task_names) != len(task_due_datetime_offsets):
         return await create_message_page(
