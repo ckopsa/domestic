@@ -2,12 +2,12 @@ from typing import Tuple
 
 from fastapi import Depends
 
-from app.core.html_renderer import HtmlRendererInterface, Jinja2HtmlRenderer
-from app.database import get_db
-from app.repository import WorkflowDefinitionRepository, WorkflowInstanceRepository, TaskInstanceRepository, \
+from core.html_renderer import HtmlRendererInterface, Jinja2HtmlRenderer
+from database import get_db
+from repository import WorkflowDefinitionRepository, WorkflowInstanceRepository, TaskInstanceRepository, \
     PostgreSQLWorkflowRepository
-from app.services import WorkflowService
-from app.templating import get_templates
+from services import WorkflowService
+from templating import get_templates
 
 
 # Dependency for HTML Renderer

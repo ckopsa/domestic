@@ -3,8 +3,8 @@ import uuid
 from datetime import date as DateObject
 from typing import List, Optional, Dict, Any
 
-from app.models import WorkflowDefinition, WorkflowInstance, TaskInstance, TaskStatus, WorkflowStatus, TaskDefinitionBase
-from app.repository import WorkflowDefinitionRepository, WorkflowInstanceRepository, TaskInstanceRepository
+from models import WorkflowDefinition, WorkflowInstance, TaskInstance, TaskStatus, WorkflowStatus, TaskDefinitionBase
+from repository import WorkflowDefinitionRepository, WorkflowInstanceRepository, TaskInstanceRepository
 
 
 class WorkflowService:
@@ -100,7 +100,7 @@ class WorkflowService:
         return await self.definition_repo.update_workflow_definition(definition_id, name, description, task_definitions)
 
     async def delete_definition(self, definition_id: str) -> None:
-        from app.repository import DefinitionNotFoundError, DefinitionInUseError
+        from repository import DefinitionNotFoundError, DefinitionInUseError
         try:
             await self.definition_repo.delete_workflow_definition(definition_id)
         except DefinitionNotFoundError as e:

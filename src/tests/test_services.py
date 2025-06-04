@@ -1,18 +1,14 @@
-import os
-import sys
-from datetime import date as DateObject
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+from db_models import Base
+from models import WorkflowDefinition, WorkflowInstance, TaskInstance, TaskDefinitionBase, WorkflowStatus, TaskStatus
+from services import WorkflowService
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from app.db_models import Base
-from app.repository import DefinitionNotFoundError, DefinitionInUseError, WorkflowDefinitionRepository, WorkflowInstanceRepository, TaskInstanceRepository
-from app.services import WorkflowService
-from app.models import WorkflowDefinition, WorkflowInstance, TaskInstance, TaskDefinitionBase, WorkflowStatus, TaskStatus
 
+from repository import DefinitionNotFoundError, DefinitionInUseError, WorkflowDefinitionRepository, \
+    WorkflowInstanceRepository, TaskInstanceRepository
 
 SQLALCHEMY_DATABASE_URL_SVC_TEST = "sqlite:///./test_services_db.db" # Unique name for this test file's DB
 engine_svc_test = create_engine(SQLALCHEMY_DATABASE_URL_SVC_TEST, connect_args={"check_same_thread": False})

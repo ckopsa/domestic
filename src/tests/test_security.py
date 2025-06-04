@@ -1,25 +1,14 @@
-import os
-import sys
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
-from fastapi import HTTPException, status, Depends
-from fastapi.security import OAuth2PasswordBearer
+from core.security import AuthenticatedUser, get_current_active_user
+from database import get_db
+from db_models.base import Base
+from fastapi import HTTPException, status
 from fastapi.testclient import TestClient
-from jose import jwt, JWTError
-from pydantic import ValidationError
+from main import app
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-
-from app.main import app
-# Removed 공유_토큰_인증_스키마 from the import below
-# Also removed create_access_token, JWT_SECRET_KEY, ALGORITHM, get_current_user_optional_auth as they are not in app.core.security
-from app.core.security import AuthenticatedUser, get_current_active_user
-from app.database import get_db
-from app.db_models.base import Base
-
 
 # Test specific SQLAlchemy engine (SQLite in-memory for security tests)
 SQLALCHEMY_DATABASE_URL_TEST_SEC = "sqlite:///:memory:?cache=shared"
@@ -28,8 +17,9 @@ engine_test_sec = create_engine(
 )
 TestingSessionLocal_test_sec = sessionmaker(autocommit=False, autoflush=False, bind=engine_test_sec)
 
+
 @pytest.fixture(scope="function")
-def db_session_security_fixture(): # Renamed to avoid conflict
+def db_session_security_fixture():  # Renamed to avoid conflict
     original_bind = getattr(Base.metadata, 'bind', None)
     Base.metadata.bind = engine_test_sec
     Base.metadata.create_all(bind=engine_test_sec)
@@ -45,6 +35,7 @@ def db_session_security_fixture(): # Renamed to avoid conflict
         else:
             Base.metadata.bind = None
 
+
 def override_get_db_for_security_tests():
     db = TestingSessionLocal_test_sec()
     try:
@@ -52,8 +43,9 @@ def override_get_db_for_security_tests():
     finally:
         db.close()
 
+
 @pytest.fixture(scope="function")
-def security_client(db_session_security_fixture, monkeypatch): # Depends on db_session_security_fixture
+def security_client(db_session_security_fixture, monkeypatch):  # Depends on db_session_security_fixture
     original_get_db = app.dependency_overrides.get(get_db)
     original_get_user = app.dependency_overrides.get(get_current_active_user)
 
@@ -76,98 +68,111 @@ def security_client(db_session_security_fixture, monkeypatch): # Depends on db_s
     # No 'else' here as we explicitly want it cleared if this fixture was the one to change it.
 
 
-MOCK_USER_DATA = {"user_id": "test_user_id", "username": "testuser", "email": "test@example.com"} # Changed keys
+MOCK_USER_DATA = {"user_id": "test_user_id", "username": "testuser", "email": "test@example.com"}  # Changed keys
 MOCK_USER = AuthenticatedUser(**MOCK_USER_DATA)
 # Define MOCK_ACCESS_TOKEN as a static string since create_access_token is not available
 MOCK_ACCESS_TOKEN = "mock_access_token_string"
 
 # Mocks for get_current_user
 mock_get_current_user_valid = AsyncMock(return_value=MOCK_USER)
-mock_get_current_user_invalid_user = AsyncMock(side_effect=HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user data"))
-mock_get_current_user_jwt_error = AsyncMock(side_effect=HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="JWT Error"))
-mock_get_current_user_validation_error = AsyncMock(side_effect=HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Validation Error"))
+mock_get_current_user_invalid_user = AsyncMock(
+    side_effect=HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user data"))
+mock_get_current_user_jwt_error = AsyncMock(
+    side_effect=HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="JWT Error"))
+mock_get_current_user_validation_error = AsyncMock(
+    side_effect=HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Validation Error"))
 
 
 @pytest.mark.asyncio
 async def test_get_current_active_user_valid_token(monkeypatch):
-    monkeypatch.setattr("app.core.security.get_current_user", mock_get_current_user_valid)
+    monkeypatch.setattr("core.security.get_current_user", mock_get_current_user_valid)
     # The token argument is removed as get_current_active_user uses Depends(get_current_user)
     user = await get_current_active_user(current_user=await mock_get_current_user_valid())
     assert user.user_id == MOCK_USER_DATA["user_id"]
 
+
 @pytest.mark.asyncio
 async def test_get_current_active_user_missing_sub(monkeypatch):
-    monkeypatch.setattr("app.core.security.get_current_user", mock_get_current_user_invalid_user)
+    monkeypatch.setattr("core.security.get_current_user", mock_get_current_user_invalid_user)
     with pytest.raises(HTTPException) as excinfo:
         await get_current_active_user(current_user=await mock_get_current_user_invalid_user())
     assert excinfo.value.status_code == status.HTTP_401_UNAUTHORIZED
 
+
 @pytest.mark.asyncio
 async def test_get_current_active_user_jwt_error(monkeypatch):
-    monkeypatch.setattr("app.core.security.get_current_user", mock_get_current_user_jwt_error)
+    monkeypatch.setattr("core.security.get_current_user", mock_get_current_user_jwt_error)
     with pytest.raises(HTTPException) as excinfo:
         await get_current_active_user(current_user=await mock_get_current_user_jwt_error())
     assert excinfo.value.status_code == status.HTTP_401_UNAUTHORIZED
 
+
 @pytest.mark.asyncio
 async def test_get_current_active_user_validation_error(monkeypatch):
-    monkeypatch.setattr("app.core.security.get_current_user", mock_get_current_user_validation_error)
+    monkeypatch.setattr("core.security.get_current_user", mock_get_current_user_validation_error)
     with pytest.raises(HTTPException) as excinfo:
         await get_current_active_user(current_user=await mock_get_current_user_validation_error())
     assert excinfo.value.status_code == status.HTTP_401_UNAUTHORIZED
 
-@pytest.mark.skip(reason="get_current_user_optional_auth not found in app.core.security")
+
+@pytest.mark.skip(reason="get_current_user_optional_auth not found in core.security")
 @pytest.mark.asyncio
 async def test_get_current_user_optional_auth_valid_token(monkeypatch):
     monkeypatch.setattr("jose.jwt.decode", mock_decode_token_valid)
     user = await get_current_user_optional_auth(token=MOCK_ACCESS_TOKEN)
-    assert user is not None and user.user_id == MOCK_USER_DATA["user_id"] # Assert against the corrected MOCK_USER_DATA key
+    assert user is not None and user.user_id == MOCK_USER_DATA[
+        "user_id"]  # Assert against the corrected MOCK_USER_DATA key
 
-@pytest.mark.skip(reason="get_current_user_optional_auth not found in app.core.security")
+
+@pytest.mark.skip(reason="get_current_user_optional_auth not found in core.security")
 @pytest.mark.asyncio
 async def test_get_current_user_optional_auth_no_token():
     user = await get_current_user_optional_auth(token=None)
     assert user is None
 
-@pytest.mark.skip(reason="get_current_user_optional_auth not found in app.core.security")
+
+@pytest.mark.skip(reason="get_current_user_optional_auth not found in core.security")
 @pytest.mark.asyncio
 async def test_get_current_user_optional_auth_invalid_token_jwt_error(monkeypatch):
     monkeypatch.setattr("jose.jwt.decode", mock_decode_token_jwt_error)
     user = await get_current_user_optional_auth(token="invalidtoken")
     assert user is None
 
-@pytest.mark.skip(reason="get_current_user_optional_auth not found in app.core.security")
+
+@pytest.mark.skip(reason="get_current_user_optional_auth not found in core.security")
 @pytest.mark.asyncio
 async def test_get_current_user_optional_auth_invalid_token_validation_error(monkeypatch):
     monkeypatch.setattr("jose.jwt.decode", mock_decode_token_validation_error)
     user = await get_current_user_optional_auth(token=MOCK_ACCESS_TOKEN)
     assert user is None
 
+
 # @pytest.mark.skip(reason="This test requires Keycloak to be running and configured, or more extensive mocking of OIDC flow.")
 @pytest.mark.asyncio
 async def test_login_redirect(security_client, monkeypatch):
-    keycloak_server_url = "http://localhost:8080/" # Ensure trailing slash
+    keycloak_server_url = "http://localhost:8080/"  # Ensure trailing slash
     keycloak_realm = "myrealm"
     keycloak_api_client_id = "test-client"
     # keycloak_redirect_uri_encoded = "http%3A%2F%2Flocalhost%2Fapp%2Fcallback" # Simulating an encoded redirect URI
 
-    monkeypatch.setattr("app.config.KEYCLOAK_SERVER_URL", keycloak_server_url)
-    monkeypatch.setattr("app.routers.auth.KEYCLOAK_SERVER_URL", keycloak_server_url)
-    monkeypatch.setattr("app.config.KEYCLOAK_REALM", keycloak_realm)
-    monkeypatch.setattr("app.routers.auth.KEYCLOAK_REALM", keycloak_realm)
-    monkeypatch.setattr("app.config.KEYCLOAK_API_CLIENT_ID", keycloak_api_client_id)
-    monkeypatch.setattr("app.routers.auth.KEYCLOAK_API_CLIENT_ID", keycloak_api_client_id)
+    monkeypatch.setattr("config.KEYCLOAK_SERVER_URL", keycloak_server_url)
+    monkeypatch.setattr("routers.auth.KEYCLOAK_SERVER_URL", keycloak_server_url)
+    monkeypatch.setattr("config.KEYCLOAK_REALM", keycloak_realm)
+    monkeypatch.setattr("routers.auth.KEYCLOAK_REALM", keycloak_realm)
+    monkeypatch.setattr("config.KEYCLOAK_API_CLIENT_ID", keycloak_api_client_id)
+    monkeypatch.setattr("routers.auth.KEYCLOAK_API_CLIENT_ID", keycloak_api_client_id)
     # The KEYCLOAK_REDIRECT_URI might be read by the login endpoint to construct the final redirect to Keycloak
-    monkeypatch.setattr("app.config.KEYCLOAK_REDIRECT_URI", "http://localhost/app/callback")
-    monkeypatch.setattr("app.routers.auth.KEYCLOAK_REDIRECT_URI", "http://localhost/app/callback")
+    monkeypatch.setattr("config.KEYCLOAK_REDIRECT_URI", "http://localhost/app/callback")
+    monkeypatch.setattr("routers.auth.KEYCLOAK_REDIRECT_URI", "http://localhost/app/callback")
 
     response = security_client.get("/login", follow_redirects=False)
-    assert response.status_code == 307 # Standard redirect for login
+    assert response.status_code == 307  # Standard redirect for login
 
     expected_redirect_url_start = f"{keycloak_server_url}realms/{keycloak_realm}/protocol/openid-connect/auth"
     assert response.headers["location"].startswith(expected_redirect_url_start)
     assert f"client_id={keycloak_api_client_id}" in response.headers["location"]
-    assert f"redirect_uri=http://localhost/app/callback" in response.headers["location"] # Check for unencoded redirect_uri
+    assert f"redirect_uri=http://localhost/app/callback" in response.headers[
+        "location"]  # Check for unencoded redirect_uri
     # Check that 'state' query parameter (original URL) is present.
     # For this test, the referer is usually 'http://testserver/' if not specified.
     # The login endpoint uses request.headers.get('referer', '/')
@@ -181,45 +186,48 @@ async def test_login_redirect(security_client, monkeypatch):
 async def test_auth_callback(security_client):
     pass
 
-def test_protected_route_without_auth(security_client, monkeypatch): # Added monkeypatch
+
+def test_protected_route_without_auth(security_client, monkeypatch):  # Added monkeypatch
     # Ensure no user is authenticated for this specific test
     original_get_user = app.dependency_overrides.pop(get_current_active_user, None)
 
     response = security_client.get("/my-workflows", follow_redirects=False)
 
-    if original_get_user: # Restore if it was there
+    if original_get_user:  # Restore if it was there
         app.dependency_overrides[get_current_active_user] = original_get_user
 
     assert response.status_code == 307
     assert "/login" in response.headers["location"].lower()
 
-def test_protected_route_api_without_auth(security_client, monkeypatch): # Added monkeypatch
+
+def test_protected_route_api_without_auth(security_client, monkeypatch):  # Added monkeypatch
     original_get_user = app.dependency_overrides.pop(get_current_active_user, None)
 
     response = security_client.get("/api/my-workflows")
 
-    if original_get_user: # Restore if it was there
+    if original_get_user:  # Restore if it was there
         app.dependency_overrides[get_current_active_user] = original_get_user
 
     assert response.status_code == 401
 
+
 @pytest.mark.asyncio
 async def test_logout(security_client, monkeypatch):
-    keycloak_server_url = "http://localhost:8080/" # Added trailing slash
+    keycloak_server_url = "http://localhost:8080/"  # Added trailing slash
     keycloak_realm = "myrealm"
     monkeypatch.setenv("KEYCLOAK_SERVER_URL", keycloak_server_url)
     monkeypatch.setenv("KEYCLOAK_REALM", keycloak_realm)
-    monkeypatch.setenv("KEYCLOAK_API_CLIENT_ID", "test_client_id") # Add client ID
+    monkeypatch.setenv("KEYCLOAK_API_CLIENT_ID", "test_client_id")  # Add client ID
 
-    # Also directly patch app.config and app.routers.auth in case it was already loaded
-    monkeypatch.setattr("app.config.KEYCLOAK_SERVER_URL", keycloak_server_url)
-    monkeypatch.setattr("app.routers.auth.KEYCLOAK_SERVER_URL", keycloak_server_url)
-    monkeypatch.setattr("app.config.KEYCLOAK_REALM", keycloak_realm)
-    monkeypatch.setattr("app.routers.auth.KEYCLOAK_REALM", keycloak_realm)
-    monkeypatch.setattr("app.config.KEYCLOAK_API_CLIENT_ID", "test_client_id")
-    monkeypatch.setattr("app.routers.auth.KEYCLOAK_API_CLIENT_ID", "test_client_id")
-    monkeypatch.setattr("app.config.KEYCLOAK_REDIRECT_URI", "http://localhost/app/callback")
-    monkeypatch.setattr("app.routers.auth.KEYCLOAK_REDIRECT_URI", "http://localhost/app/callback")
+    # Also directly patch config and routers.auth in case it was already loaded
+    monkeypatch.setattr("config.KEYCLOAK_SERVER_URL", keycloak_server_url)
+    monkeypatch.setattr("routers.auth.KEYCLOAK_SERVER_URL", keycloak_server_url)
+    monkeypatch.setattr("config.KEYCLOAK_REALM", keycloak_realm)
+    monkeypatch.setattr("routers.auth.KEYCLOAK_REALM", keycloak_realm)
+    monkeypatch.setattr("config.KEYCLOAK_API_CLIENT_ID", "test_client_id")
+    monkeypatch.setattr("routers.auth.KEYCLOAK_API_CLIENT_ID", "test_client_id")
+    monkeypatch.setattr("config.KEYCLOAK_REDIRECT_URI", "http://localhost/app/callback")
+    monkeypatch.setattr("routers.auth.KEYCLOAK_REDIRECT_URI", "http://localhost/app/callback")
     monkeypatch.delenv("KEYCLOAK_POST_LOGOUT_REDIRECT_URI", raising=False)
 
     response = security_client.get("/logout", follow_redirects=False)

@@ -3,7 +3,7 @@ import uuid
 from sqlalchemy import Column, String, Integer, ForeignKey
 from sqlalchemy.orm import relationship
 
-from app.db_models.base import Base
+from db_models.base import Base
 
 
 class TaskDefinition(Base):

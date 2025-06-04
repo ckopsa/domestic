@@ -4,11 +4,11 @@ from typing import Optional
 from fastapi import APIRouter, Request, Depends, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from app.core.html_renderer import HtmlRendererInterface
-from app.core.security import AuthenticatedUser, get_current_active_user
-from app.db_models.enums import WorkflowStatus
-from app.dependencies import get_workflow_service, get_html_renderer
-from app.services import WorkflowService
+from core.html_renderer import HtmlRendererInterface
+from core.security import AuthenticatedUser, get_current_active_user
+from db_models.enums import WorkflowStatus
+from dependencies import get_workflow_service, get_html_renderer
+from services import WorkflowService
 
 router = APIRouter(tags=["user_workflows"])
 

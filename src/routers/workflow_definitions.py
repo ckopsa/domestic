@@ -4,11 +4,11 @@ from fastapi import APIRouter, Request, Form, Depends, Query
 from fastapi import status
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from app.core.html_renderer import HtmlRendererInterface
-from app.core.security import AuthenticatedUser, get_current_active_user
-from app.dependencies import get_workflow_service, get_html_renderer
-from app.services import WorkflowService
-from app.utils import create_message_page
+from core.html_renderer import HtmlRendererInterface
+from core.security import AuthenticatedUser, get_current_active_user
+from dependencies import get_workflow_service, get_html_renderer
+from services import WorkflowService
+from utils import create_message_page
 
 router = APIRouter(prefix="/workflow-definitions", tags=["workflow_definitions"])
 

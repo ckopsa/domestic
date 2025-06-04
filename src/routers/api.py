@@ -2,10 +2,10 @@ from typing import List, Dict, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.core.security import AuthenticatedUser, get_current_active_user
-from app.dependencies import get_workflow_service
-from app.models import WorkflowDefinition, WorkflowInstance, TaskInstance
-from app.services import WorkflowService
+from core.security import AuthenticatedUser, get_current_active_user
+from dependencies import get_workflow_service
+from models import WorkflowDefinition, WorkflowInstance, TaskInstance
+from services import WorkflowService
 
 router = APIRouter(prefix="/api", tags=["api"])
 

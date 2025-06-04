@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.responses import HTMLResponse
 
-from app.services import WorkflowService
-from app.dependencies import get_workflow_service, get_html_renderer
-from app.core.html_renderer import HtmlRendererInterface
+from services import WorkflowService
+from dependencies import get_workflow_service, get_html_renderer
+from core.html_renderer import HtmlRendererInterface
 # Ensure app.utils.create_message_page is available or define a similar utility if needed
-from app.utils import create_message_page 
+from utils import create_message_page 
 
 router = APIRouter(prefix="/share", tags=["share"])
 

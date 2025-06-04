@@ -1,13 +1,10 @@
-# main.py
 import os
-import sys
 
-# Add the project root to sys.path to ensure 'app' module can be found
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from app.routers import root, workflow_definitions, workflow_instances, tasks, auth, user_workflows, api, share
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+
+from routers import root, workflow_definitions, workflow_instances, tasks, auth, user_workflows, api, share
 
 app = FastAPI(
     redirect_slashes=False,
@@ -16,7 +13,7 @@ app = FastAPI(
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
 # Mount static files
-app.mount("/static", StaticFiles(directory="app/templates"), name="static")
+app.mount("/static", StaticFiles(directory=f"{os.path.dirname(os.path.abspath(__file__))}/templates"), name="static")
 
 # Include routers
 app.include_router(root.router)

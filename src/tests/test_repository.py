@@ -1,28 +1,24 @@
-import os
-import sys
 from datetime import date as DateObject
+from unittest.mock import MagicMock
 
 import pytest
-
-# Add the project root to sys.path to ensure 'app' module can be found
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-from app.db_models import Base
-from app.repository import PostgreSQLWorkflowRepository, DefinitionNotFoundError, DefinitionInUseError
-from app.models import WorkflowDefinition, TaskInstance, WorkflowInstance, TaskDefinitionBase
-from app.db_models.enums import WorkflowStatus, TaskStatus
-from app.db_models import WorkflowInstance as WorkflowInstanceORM
-from app.db_models.task_definition import TaskDefinition as TaskDefinitionORM
-from app.db_models.workflow import WorkflowDefinition as WorkflowDefinitionORM # Already imported as part of db_models but good to be explicit for ORM usage
-
-from unittest.mock import MagicMock
+from db_models import Base
+from db_models import WorkflowInstance as WorkflowInstanceORM
+from db_models.enums import WorkflowStatus, TaskStatus
+from db_models.workflow import \
+    WorkflowDefinition as WorkflowDefinitionORM  # Already imported as part of db_models but good to be explicit for ORM usage
+from models import WorkflowDefinition, TaskInstance, WorkflowInstance, TaskDefinitionBase
 # Setup for SQLite database for testing
-from datetime import datetime  # Added for mock ORM objects
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from db_models.task_definition import TaskDefinition as TaskDefinitionORM
+from repository import PostgreSQLWorkflowRepository, DefinitionNotFoundError, DefinitionInUseError
+
 # Use in-memory SQLite database for tests
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
-engine = create_engine(SQLALCHEMY_DATABASE_URL, echo=True, connect_args={"check_same_thread": False}) # Added connect_args for SQLite
+engine = create_engine(SQLALCHEMY_DATABASE_URL, echo=True,
+                       connect_args={"check_same_thread": False})  # Added connect_args for SQLite
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
@@ -37,19 +33,21 @@ def db_session():
     # Optionally drop tables after tests if needed, though this can be slow
     Base.metadata.drop_all(bind=engine)
 
+
 # Imports for InMemoryRepository tests
-from app.repository import InMemoryWorkflowRepository, _workflow_instances_db
-from datetime import datetime, timedelta # datetime was already imported, add timedelta
+from repository import InMemoryWorkflowRepository, _workflow_instances_db
+from datetime import datetime, timedelta  # datetime was already imported, add timedelta
+
 
 # Fixture to manage in-memory DB state for InMemoryWorkflowRepository tests
 @pytest.fixture(autouse=True)
-def clear_in_memory_instance_db_for_tests(): # Renamed to be more specific
+def clear_in_memory_instance_db_for_tests():  # Renamed to be more specific
     _workflow_instances_db.clear()
 
 
 class TestInMemoryListWorkflowInstancesByUser:
     # Sample data to be used across tests
-    common_user_id = "user_common_mem" # Changed to avoid potential clashes if tests run weirdly
+    common_user_id = "user_common_mem"  # Changed to avoid potential clashes if tests run weirdly
     other_user_id = "user_other_mem"
     def_id_1 = "def_alpha_mem"
     def_id_2 = "def_beta_mem"
@@ -73,19 +71,25 @@ class TestInMemoryListWorkflowInstancesByUser:
     )
     instance_5_user_common_def1_active_very_recent = WorkflowInstance(
         id="inst_mem_5", user_id=common_user_id, workflow_definition_id=def_id_1, name="Mem WF5 Active Very Recent",
-        status=WorkflowStatus.active, created_at=datetime.utcnow().date() # Most recent for sorting
+        status=WorkflowStatus.active, created_at=datetime.utcnow().date()  # Most recent for sorting
     )
-
 
     @pytest.mark.asyncio
     async def test_list_instances_no_filters_for_user(self):
-        _workflow_instances_db[self.instance_1_user_common_def1_active_today.id] = self.instance_1_user_common_def1_active_today.model_copy(deep=True)
-        _workflow_instances_db[self.instance_2_user_common_def2_completed_today.id] = self.instance_2_user_common_def2_completed_today.model_copy(deep=True)
-        _workflow_instances_db[self.instance_4_user_other_def1_active_today.id] = self.instance_4_user_other_def1_active_today.model_copy(deep=True)
+        _workflow_instances_db[
+            self.instance_1_user_common_def1_active_today.id] = self.instance_1_user_common_def1_active_today.model_copy(
+            deep=True)
+        _workflow_instances_db[
+            self.instance_2_user_common_def2_completed_today.id] = self.instance_2_user_common_def2_completed_today.model_copy(
+            deep=True)
+        _workflow_instances_db[
+            self.instance_4_user_other_def1_active_today.id] = self.instance_4_user_other_def1_active_today.model_copy(
+            deep=True)
 
         repo = InMemoryWorkflowRepository()
         # Pass None for filters not being tested
-        results = await repo.list_workflow_instances_by_user(user_id=self.common_user_id, created_at_date=None, status=None, definition_id=None)
+        results = await repo.list_workflow_instances_by_user(user_id=self.common_user_id, created_at_date=None,
+                                                             status=None, definition_id=None)
 
         assert len(results) == 2
         returned_ids = {r.id for r in results}
@@ -94,8 +98,12 @@ class TestInMemoryListWorkflowInstancesByUser:
 
     @pytest.mark.asyncio
     async def test_list_instances_with_definition_id_filter(self):
-        _workflow_instances_db[self.instance_1_user_common_def1_active_today.id] = self.instance_1_user_common_def1_active_today.model_copy(deep=True)
-        _workflow_instances_db[self.instance_2_user_common_def2_completed_today.id] = self.instance_2_user_common_def2_completed_today.model_copy(deep=True)
+        _workflow_instances_db[
+            self.instance_1_user_common_def1_active_today.id] = self.instance_1_user_common_def1_active_today.model_copy(
+            deep=True)
+        _workflow_instances_db[
+            self.instance_2_user_common_def2_completed_today.id] = self.instance_2_user_common_def2_completed_today.model_copy(
+            deep=True)
 
         repo = InMemoryWorkflowRepository()
         results = await repo.list_workflow_instances_by_user(user_id=self.common_user_id, definition_id=self.def_id_1)
@@ -106,12 +114,17 @@ class TestInMemoryListWorkflowInstancesByUser:
 
     @pytest.mark.asyncio
     async def test_list_instances_with_date_filter(self):
-        _workflow_instances_db[self.instance_1_user_common_def1_active_today.id] = self.instance_1_user_common_def1_active_today.model_copy(deep=True)
-        _workflow_instances_db[self.instance_3_user_common_def1_active_specific_past.id] = self.instance_3_user_common_def1_active_specific_past.model_copy(deep=True)
+        _workflow_instances_db[
+            self.instance_1_user_common_def1_active_today.id] = self.instance_1_user_common_def1_active_today.model_copy(
+            deep=True)
+        _workflow_instances_db[
+            self.instance_3_user_common_def1_active_specific_past.id] = self.instance_3_user_common_def1_active_specific_past.model_copy(
+            deep=True)
 
         repo = InMemoryWorkflowRepository()
         specific_past_date = self.instance_3_user_common_def1_active_specific_past.created_at
-        results = await repo.list_workflow_instances_by_user(user_id=self.common_user_id, created_at_date=specific_past_date)
+        results = await repo.list_workflow_instances_by_user(user_id=self.common_user_id,
+                                                             created_at_date=specific_past_date)
 
         assert len(results) == 1
         assert results[0].id == self.instance_3_user_common_def1_active_specific_past.id
@@ -119,11 +132,16 @@ class TestInMemoryListWorkflowInstancesByUser:
 
     @pytest.mark.asyncio
     async def test_list_instances_with_status_filter(self):
-        _workflow_instances_db[self.instance_1_user_common_def1_active_today.id] = self.instance_1_user_common_def1_active_today.model_copy(deep=True)
-        _workflow_instances_db[self.instance_2_user_common_def2_completed_today.id] = self.instance_2_user_common_def2_completed_today.model_copy(deep=True)
+        _workflow_instances_db[
+            self.instance_1_user_common_def1_active_today.id] = self.instance_1_user_common_def1_active_today.model_copy(
+            deep=True)
+        _workflow_instances_db[
+            self.instance_2_user_common_def2_completed_today.id] = self.instance_2_user_common_def2_completed_today.model_copy(
+            deep=True)
 
         repo = InMemoryWorkflowRepository()
-        results = await repo.list_workflow_instances_by_user(user_id=self.common_user_id, status=WorkflowStatus.completed)
+        results = await repo.list_workflow_instances_by_user(user_id=self.common_user_id,
+                                                             status=WorkflowStatus.completed)
 
         assert len(results) == 1
         assert results[0].id == self.instance_2_user_common_def2_completed_today.id
@@ -136,8 +154,12 @@ class TestInMemoryListWorkflowInstancesByUser:
             name="Mem Target WF", status=WorkflowStatus.active, created_at=datetime(2023, 1, 15, 12, 0, 0).date()
         )
         _workflow_instances_db[target_instance_all_filters.id] = target_instance_all_filters.model_copy(deep=True)
-        _workflow_instances_db[self.instance_1_user_common_def1_active_today.id] = self.instance_1_user_common_def1_active_today.model_copy(deep=True)
-        _workflow_instances_db[self.instance_2_user_common_def2_completed_today.id] = self.instance_2_user_common_def2_completed_today.model_copy(deep=True)
+        _workflow_instances_db[
+            self.instance_1_user_common_def1_active_today.id] = self.instance_1_user_common_def1_active_today.model_copy(
+            deep=True)
+        _workflow_instances_db[
+            self.instance_2_user_common_def2_completed_today.id] = self.instance_2_user_common_def2_completed_today.model_copy(
+            deep=True)
 
         repo = InMemoryWorkflowRepository()
         filter_date = DateObject(2023, 1, 15)
@@ -158,16 +180,21 @@ class TestInMemoryListWorkflowInstancesByUser:
 
     @pytest.mark.asyncio
     async def test_list_instances_with_non_existent_definition_id(self):
-        _workflow_instances_db[self.instance_1_user_common_def1_active_today.id] = self.instance_1_user_common_def1_active_today.model_copy(deep=True)
+        _workflow_instances_db[
+            self.instance_1_user_common_def1_active_today.id] = self.instance_1_user_common_def1_active_today.model_copy(
+            deep=True)
 
         repo = InMemoryWorkflowRepository()
-        results = await repo.list_workflow_instances_by_user(user_id=self.common_user_id, definition_id="def_mem_non_existent")
+        results = await repo.list_workflow_instances_by_user(user_id=self.common_user_id,
+                                                             definition_id="def_mem_non_existent")
 
         assert len(results) == 0
 
     @pytest.mark.asyncio
     async def test_list_instances_returns_empty_for_user_with_no_instances(self):
-        _workflow_instances_db[self.instance_4_user_other_def1_active_today.id] = self.instance_4_user_other_def1_active_today.model_copy(deep=True)
+        _workflow_instances_db[
+            self.instance_4_user_other_def1_active_today.id] = self.instance_4_user_other_def1_active_today.model_copy(
+            deep=True)
 
         repo = InMemoryWorkflowRepository()
         # common_user_id has no instances seeded for this specific test
@@ -184,11 +211,11 @@ class TestInMemoryListWorkflowInstancesByUser:
         # Ensure created_at times are what we expect for sorting
         # (Re-create with fresh utcnow if test execution is slow)
         inst1 = self.instance_1_user_common_def1_active_today.model_copy(deep=True)
-        inst1.created_at = (datetime.utcnow() - timedelta(days=1)).date() # Made explicitly one day older
-        inst3 = self.instance_3_user_common_def1_active_specific_past.model_copy(deep=True) # Already specific past (e.g. 2023-01-01)
+        inst1.created_at = (datetime.utcnow() - timedelta(days=1)).date()  # Made explicitly one day older
+        inst3 = self.instance_3_user_common_def1_active_specific_past.model_copy(
+            deep=True)  # Already specific past (e.g. 2023-01-01)
         inst5 = self.instance_5_user_common_def1_active_very_recent.model_copy(deep=True)
-        inst5.created_at = datetime.utcnow().date() # Today, should be newest if test runs on a later date than inst3
-
+        inst5.created_at = datetime.utcnow().date()  # Today, should be newest if test runs on a later date than inst3
 
         _workflow_instances_db[inst1.id] = inst1
         _workflow_instances_db[inst3.id] = inst3
@@ -211,13 +238,13 @@ async def test_list_workflow_definitions(db_session):
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
     # WorkflowDefinitionORM already imported
-    defn1_orm = WorkflowDefinitionORM( # Renamed to avoid confusion with Pydantic model
+    defn1_orm = WorkflowDefinitionORM(  # Renamed to avoid confusion with Pydantic model
         id="test_def_1",
         name="Test Workflow 1",
         description="First test workflow"
         # task_names removed
     )
-    defn2_orm = WorkflowDefinitionORM( # Renamed
+    defn2_orm = WorkflowDefinitionORM(  # Renamed
         id="test_def_2",
         name="Test Workflow 2",
         description="Second test workflow"
@@ -242,11 +269,11 @@ async def test_list_workflow_definitions(db_session):
 
 
 @pytest.mark.asyncio
-async def test_get_workflow_definition_by_id(db_session): # This will be replaced/augmented
+async def test_get_workflow_definition_by_id(db_session):  # This will be replaced/augmented
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
     # WorkflowDefinitionORM already imported
-    defn_orm = WorkflowDefinitionORM( # Renamed
+    defn_orm = WorkflowDefinitionORM(  # Renamed
         id="test_def_1",
         name="Test Workflow",
         description="A test workflow definition"
@@ -275,7 +302,7 @@ async def test_get_workflow_definition_by_id_includes_task_definitions(db_sessio
 
     defn_orm = WorkflowDefinitionORM(id="test_def_tasks", name="Def With Tasks")
     db_session.add(defn_orm)
-    db_session.commit() # Commit to get ID
+    db_session.commit()  # Commit to get ID
 
     td_orm_1 = TaskDefinitionORM(workflow_definition_id=defn_orm.id, name="Task Alpha", order=0)
     td_orm_2 = TaskDefinitionORM(workflow_definition_id=defn_orm.id, name="Task Beta", order=1)
@@ -283,7 +310,7 @@ async def test_get_workflow_definition_by_id_includes_task_definitions(db_sessio
     db_session.commit()
 
     # Act
-    result = await repo.get_workflow_definition_by_id(defn_orm.id) # Pydantic model
+    result = await repo.get_workflow_definition_by_id(defn_orm.id)  # Pydantic model
 
     # Assert
     assert result is not None
@@ -319,7 +346,7 @@ async def test_list_workflow_definitions_includes_task_definitions(db_session):
     db_session.commit()
 
     # Act
-    results = await repo.list_workflow_definitions() # List of Pydantic models
+    results = await repo.list_workflow_definitions()  # List of Pydantic models
 
     # Assert
     assert len(results) == 2
@@ -355,9 +382,9 @@ async def test_get_workflow_definition_by_id_not_found(db_session):
 async def test_get_tasks_sorted_pending_first_then_order(db_session):
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
-    from app.db_models.workflow import WorkflowInstance as WorkflowInstanceORM
-    from app.db_models.task import TaskInstance as TaskInstanceORM
-    from app.db_models.enums import TaskStatus, WorkflowStatus
+    from db_models.workflow import WorkflowInstance as WorkflowInstanceORM
+    from db_models.task import TaskInstance as TaskInstanceORM
+    from db_models.enums import TaskStatus, WorkflowStatus
     from datetime import datetime
 
     # Create WorkflowInstance
@@ -367,8 +394,8 @@ async def test_get_tasks_sorted_pending_first_then_order(db_session):
         name="Sort Test Workflow Instance",
         user_id="test_user_sort",
         status=WorkflowStatus.active,
-        created_at=datetime.utcnow(), # Use datetime.utcnow() for timestamp
-        workflow_definition_id="def_test_sort_tasks" # Not strictly needed to exist for this test
+        created_at=datetime.utcnow(),  # Use datetime.utcnow() for timestamp
+        workflow_definition_id="def_test_sort_tasks"  # Not strictly needed to exist for this test
     )
     db_session.add(workflow_instance_orm)
 
@@ -442,7 +469,7 @@ class TestUnitPostgreSQLListWorkflowInstancesByUser:
             user_id="user123",
             name="Test Workflow Instance",
             status=WorkflowStatus.active,
-            created_at=datetime(2023, 1, 1, 12, 0, 0).date(), # Use .date()
+            created_at=datetime(2023, 1, 1, 12, 0, 0).date(),  # Use .date()
             workflow_definition_id="def1"
         )
         mock_query_chain.all.return_value = [mock_orm_instance]
@@ -473,7 +500,7 @@ class TestUnitPostgreSQLListWorkflowInstancesByUser:
         # For now, let's check it was called. A more robust check would compare the expression.
         assert str(actual_call[0][0]) == str(WorkflowInstanceORM.user_id == "user123")
         # In the updated version, definition_id is None by default, so no extra filter for it.
-        assert mock_query_chain.filter.call_count == 1 # Only user_id filter initially
+        assert mock_query_chain.filter.call_count == 1  # Only user_id filter initially
 
         # Ensure order_by is called correctly
         # This also involves comparing SQLAlchemy expressions.
@@ -547,21 +574,23 @@ class TestUnitPostgreSQLListWorkflowInstancesByUser:
         repo = PostgreSQLWorkflowRepository(db_session=mock_db_session)
         test_date = DateObject(2023, 6, 20)
         test_status = WorkflowStatus.active
-        test_definition_id = "def_all" # New
-        await repo.list_workflow_instances_by_user(user_id="user123", created_at_date=test_date, status=test_status, definition_id=test_definition_id)
+        test_definition_id = "def_all"  # New
+        await repo.list_workflow_instances_by_user(user_id="user123", created_at_date=test_date, status=test_status,
+                                                   definition_id=test_definition_id)
 
         # Assertions
         # filter calls: user_id, then created_at, then status, then definition_id
-        assert mock_query_chain.filter.call_count == 4 # Updated
+        assert mock_query_chain.filter.call_count == 4  # Updated
         user_id_filter_call = mock_query_chain.filter.call_args_list[0]
         created_at_filter_call = mock_query_chain.filter.call_args_list[1]
         status_filter_call = mock_query_chain.filter.call_args_list[2]
-        definition_id_filter_call = mock_query_chain.filter.call_args_list[3] # New
+        definition_id_filter_call = mock_query_chain.filter.call_args_list[3]  # New
 
         assert str(user_id_filter_call[0][0]) == str(WorkflowInstanceORM.user_id == "user123")
         assert str(created_at_filter_call[0][0]) == str(WorkflowInstanceORM.created_at == test_date)
         assert str(status_filter_call[0][0]) == str(WorkflowInstanceORM.status == test_status)
-        assert str(definition_id_filter_call[0][0]) == str(WorkflowInstanceORM.workflow_definition_id == test_definition_id) # New
+        assert str(definition_id_filter_call[0][0]) == str(
+            WorkflowInstanceORM.workflow_definition_id == test_definition_id)  # New
         mock_query_chain.order_by.assert_called_once()
 
     @pytest.mark.asyncio
@@ -584,7 +613,8 @@ class TestUnitPostgreSQLListWorkflowInstancesByUser:
         definition_id_filter_call = mock_query_chain.filter.call_args_list[1]
 
         assert str(user_id_filter_call[0][0]) == str(WorkflowInstanceORM.user_id == "user123")
-        assert str(definition_id_filter_call[0][0]) == str(WorkflowInstanceORM.workflow_definition_id == test_definition_id)
+        assert str(definition_id_filter_call[0][0]) == str(
+            WorkflowInstanceORM.workflow_definition_id == test_definition_id)
         mock_query_chain.order_by.assert_called_once()
 
     @pytest.mark.asyncio
@@ -600,14 +630,14 @@ class TestUnitPostgreSQLListWorkflowInstancesByUser:
 
         mock_orm_instance = WorkflowInstanceORM(
             id="wf2", user_id="isolated_user", name="Isolated Workflow",
-            status=WorkflowStatus.active, created_at=datetime(2023, 1, 2, 12, 0, 0).date(), # Use .date()
+            status=WorkflowStatus.active, created_at=datetime(2023, 1, 2, 12, 0, 0).date(),  # Use .date()
             workflow_definition_id="def2"
         )
         mock_query_chain.all.return_value = [mock_orm_instance]
 
         repo = PostgreSQLWorkflowRepository(db_session=mock_db_session)
         test_date = DateObject(2023, 7, 1)
-        test_status = WorkflowStatus.active # Changed from .pending to a valid status
+        test_status = WorkflowStatus.active  # Changed from .pending to a valid status
         test_definition_id = "def_iso"
 
         results = await repo.list_workflow_instances_by_user(
@@ -663,11 +693,11 @@ class TestUnitPostgreSQLListWorkflowInstancesByUser:
 async def test_create_workflow_definition(db_session):
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
-    definition_data = WorkflowDefinition( # Pydantic model
+    definition_data = WorkflowDefinition(  # Pydantic model
         id="test_def_1",
         name="Test Workflow",
         description="A test workflow",
-        task_definitions=[ # Changed from task_names
+        task_definitions=[  # Changed from task_names
             TaskDefinitionBase(name="Task 1", order=0),
             TaskDefinitionBase(name="Task 2", order=1)
         ]
@@ -693,7 +723,8 @@ async def test_create_workflow_definition(db_session):
     assert db_defn_orm is not None
     assert db_defn_orm.name == "Test Workflow"
     # Query TaskDefinitionORM objects
-    task_defs_orm = db_session.query(TaskDefinitionORM).filter(TaskDefinitionORM.workflow_definition_id == db_defn_orm.id).order_by(TaskDefinitionORM.order).all()
+    task_defs_orm = db_session.query(TaskDefinitionORM).filter(
+        TaskDefinitionORM.workflow_definition_id == db_defn_orm.id).order_by(TaskDefinitionORM.order).all()
     assert len(task_defs_orm) == 2
     assert task_defs_orm[0].name == "Task 1"
     assert task_defs_orm[0].order == 0
@@ -714,21 +745,23 @@ async def test_update_workflow_definition(db_session):
         description="Original description"
     )
     db_session.add(initial_defn_orm)
-    db_session.commit() # Commit to get ID
+    db_session.commit()  # Commit to get ID
 
     # Initial TaskDefinitionORM objects
-    initial_task_def1_orm = TaskDefinitionORM(workflow_definition_id=initial_defn_orm.id, name="Original Task 1", order=0)
-    initial_task_def2_orm = TaskDefinitionORM(workflow_definition_id=initial_defn_orm.id, name="Original Task 2", order=1)
+    initial_task_def1_orm = TaskDefinitionORM(workflow_definition_id=initial_defn_orm.id, name="Original Task 1",
+                                              order=0)
+    initial_task_def2_orm = TaskDefinitionORM(workflow_definition_id=initial_defn_orm.id, name="Original Task 2",
+                                              order=1)
     db_session.add_all([initial_task_def1_orm, initial_task_def2_orm])
     db_session.commit()
 
-    updated_task_definitions_data = [ # List[TaskDefinitionBase]
+    updated_task_definitions_data = [  # List[TaskDefinitionBase]
         TaskDefinitionBase(name="Updated Task A", order=0),
         TaskDefinitionBase(name="Updated Task B", order=1)
     ]
 
     # Act
-    result = await repo.update_workflow_definition( # Pydantic model result
+    result = await repo.update_workflow_definition(  # Pydantic model result
         definition_id="test_def_1",
         name="Updated Workflow",
         description="Updated description",
@@ -747,11 +780,12 @@ async def test_update_workflow_definition(db_session):
     assert result.task_definitions[1].order == 1
 
     # Verify in database
-    db_session.refresh(initial_defn_orm) # Refresh the instance
+    db_session.refresh(initial_defn_orm)  # Refresh the instance
     assert initial_defn_orm.name == "Updated Workflow"
 
     # Query new TaskDefinitionORM objects
-    task_defs_orm = db_session.query(TaskDefinitionORM).filter(TaskDefinitionORM.workflow_definition_id == initial_defn_orm.id).order_by(TaskDefinitionORM.order).all()
+    task_defs_orm = db_session.query(TaskDefinitionORM).filter(
+        TaskDefinitionORM.workflow_definition_id == initial_defn_orm.id).order_by(TaskDefinitionORM.order).all()
     assert len(task_defs_orm) == 2
     assert task_defs_orm[0].name == "Updated Task A"
     assert task_defs_orm[0].order == 0
@@ -786,7 +820,7 @@ async def test_delete_workflow_definition(db_session):
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
     # WorkflowDefinitionORM already imported
-    defn_orm = WorkflowDefinitionORM( # Renamed
+    defn_orm = WorkflowDefinitionORM(  # Renamed
         id="test_def_1",
         name="Test Workflow",
         description="A test workflow"
@@ -818,7 +852,7 @@ async def test_delete_workflow_definition_in_use(db_session):
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
     # WorkflowDefinitionORM, WorkflowInstanceORM already imported
-    defn_orm = WorkflowDefinitionORM( # Renamed
+    defn_orm = WorkflowDefinitionORM(  # Renamed
         id="test_def_1",
         name="Test Workflow",
         description="A test workflow"
@@ -849,7 +883,7 @@ async def test_get_workflow_instance_by_id(db_session):
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
     # WorkflowDefinitionORM, WorkflowInstanceORM already imported
-    definition_orm = WorkflowDefinitionORM( # Renamed
+    definition_orm = WorkflowDefinitionORM(  # Renamed
         id="test_def_1",
         name="Test Workflow",
         description="A test workflow definition"
@@ -898,7 +932,7 @@ async def test_create_workflow_instance(db_session):
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
     # WorkflowDefinitionORM already imported
-    definition_orm = WorkflowDefinitionORM( # Renamed
+    definition_orm = WorkflowDefinitionORM(  # Renamed
         id="test_def_1",
         name="Test Workflow",
         description="A test workflow"
@@ -928,7 +962,7 @@ async def test_create_workflow_instance(db_session):
     assert created_instance.status == WorkflowStatus.active
 
     # Verify in database
-    from app.db_models.workflow import WorkflowInstance as WorkflowInstanceORM
+    from db_models.workflow import WorkflowInstance as WorkflowInstanceORM
     db_instance = db_session.query(WorkflowInstanceORM).filter(WorkflowInstanceORM.id == "test_wf_1").first()
     assert db_instance is not None
     assert db_instance.user_id == "test_user"
@@ -940,7 +974,7 @@ async def test_update_workflow_instance(db_session):
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
     # WorkflowDefinitionORM, WorkflowInstanceORM already imported
-    definition_orm = WorkflowDefinitionORM( # Renamed
+    definition_orm = WorkflowDefinitionORM(  # Renamed
         id="test_def_1",
         name="Test Workflow",
         description="A test workflow definition"
@@ -1009,19 +1043,19 @@ async def test_list_workflow_instances_by_user(db_session):
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
     # WorkflowDefinitionORM, WorkflowInstanceORM already imported
-    def1_orm = WorkflowDefinitionORM( # Renamed
+    def1_orm = WorkflowDefinitionORM(  # Renamed
         id="test_def_1",
         name="Test Workflow 1",
         description="First test workflow"
         # task_names removed
     )
-    def2_orm = WorkflowDefinitionORM( # Renamed
+    def2_orm = WorkflowDefinitionORM(  # Renamed
         id="test_def_2",
         name="Test Workflow 2",
         description="Second test workflow"
         # task_names removed
     )
-    def3_orm = WorkflowDefinitionORM( # Renamed
+    def3_orm = WorkflowDefinitionORM(  # Renamed
         id="test_def_3",
         name="Test Workflow 3",
         description="Third test workflow"
@@ -1087,7 +1121,7 @@ async def test_list_workflow_instances_by_user(db_session):
     # Act: Test with a definition_id that exists but has no instances for ANY user (if we created such a def)
     # For this test, let's assume test_def_4 is a valid definition ID but no instances use it.
     # We need to create such a definition for this to be a valid test against the DB.
-    def4_orm = WorkflowDefinitionORM(id="test_def_4", name="Unused Def") # task_names removed, Renamed
+    def4_orm = WorkflowDefinitionORM(id="test_def_4", name="Unused Def")  # task_names removed, Renamed
     db_session.add(def4_orm)
     db_session.commit()
     result_filtered_by_unused_def = await repo.list_workflow_instances_by_user("test_user", definition_id="test_def_4")
@@ -1099,7 +1133,7 @@ async def test_create_task_instance(db_session):
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
     # WorkflowDefinitionORM, WorkflowInstanceORM already imported
-    definition_orm = WorkflowDefinitionORM( # Renamed
+    definition_orm = WorkflowDefinitionORM(  # Renamed
         id="test_def_1",
         name="Test Workflow",
         description="A test workflow"
@@ -1139,7 +1173,7 @@ async def test_create_task_instance(db_session):
     assert created_task.status == TaskStatus.pending
 
     # Verify in database
-    from app.db_models.task import TaskInstance as TaskInstanceORM
+    from db_models.task import TaskInstance as TaskInstanceORM
     db_task = db_session.query(TaskInstanceORM).filter(TaskInstanceORM.id == "test_task_1").first()
     assert db_task is not None
     assert db_task.name == "Test Task"
@@ -1150,9 +1184,9 @@ async def test_create_task_instance(db_session):
 async def test_get_tasks_for_workflow_instance(db_session):
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
-    from app.db_models.task import TaskInstance as TaskInstanceORM # Import TaskInstanceORM
+    from db_models.task import TaskInstance as TaskInstanceORM  # Import TaskInstanceORM
     # WorkflowDefinitionORM, WorkflowInstanceORM, TaskInstanceORM already imported
-    definition_orm = WorkflowDefinitionORM( # Renamed
+    definition_orm = WorkflowDefinitionORM(  # Renamed
         id="test_def_1",
         name="Test Workflow",
         description="A test workflow"
@@ -1203,7 +1237,7 @@ async def test_get_tasks_for_workflow_instance_no_tasks(db_session):
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
     # WorkflowDefinitionORM, WorkflowInstanceORM already imported
-    definition_orm = WorkflowDefinitionORM( # Renamed
+    definition_orm = WorkflowDefinitionORM(  # Renamed
         id="test_def_1",
         name="Test Workflow",
         description="A test workflow"
@@ -1234,9 +1268,9 @@ async def test_get_tasks_for_workflow_instance_no_tasks(db_session):
 async def test_get_task_instance_by_id(db_session):
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
-    from app.db_models.task import TaskInstance as TaskInstanceORM # Import TaskInstanceORM
+    from db_models.task import TaskInstance as TaskInstanceORM  # Import TaskInstanceORM
     # WorkflowDefinitionORM, WorkflowInstanceORM, TaskInstanceORM already imported
-    definition_orm = WorkflowDefinitionORM( # Renamed
+    definition_orm = WorkflowDefinitionORM(  # Renamed
         id="test_def_1",
         name="Test Workflow",
         description="A test workflow"
@@ -1294,9 +1328,9 @@ async def test_get_task_instance_by_id_not_found(db_session):
 async def test_update_task_instance(db_session):
     # Arrange
     repo = PostgreSQLWorkflowRepository(db_session)
-    from app.db_models.task import TaskInstance as TaskInstanceORM # Import TaskInstanceORM
+    from db_models.task import TaskInstance as TaskInstanceORM  # Import TaskInstanceORM
     # WorkflowDefinitionORM, WorkflowInstanceORM, TaskInstanceORM already imported
-    definition_orm = WorkflowDefinitionORM( # Renamed
+    definition_orm = WorkflowDefinitionORM(  # Renamed
         id="test_def_1",
         name="Test Workflow",
         description="A test workflow"

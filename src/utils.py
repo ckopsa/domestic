@@ -3,8 +3,8 @@ from typing import List
 from fastapi import Request, Depends
 from fastapi.responses import HTMLResponse
 
-from app.core.html_renderer import HtmlRendererInterface
-from app.dependencies import get_html_renderer
+from core.html_renderer import HtmlRendererInterface
+from dependencies import get_html_renderer
 
 
 async def create_message_page(

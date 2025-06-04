@@ -23,3 +23,11 @@ dependencies = [
 [tool.pytest]
 asyncio_mode = "auto"
 pythonpath = ["."]
+
+#[tool.uv]
+#package = true
+
+[tool.pytest.ini_options]
+pythonpath = [
+    "src"
+]

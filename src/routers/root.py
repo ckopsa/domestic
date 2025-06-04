@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Request, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from app.core.html_renderer import HtmlRendererInterface
-from app.core.security import AuthenticatedUser, get_current_user
-from app.dependencies import get_html_renderer
+from core.html_renderer import HtmlRendererInterface
+from core.security import AuthenticatedUser, get_current_user
+from dependencies import get_html_renderer
 
 router = APIRouter()
 

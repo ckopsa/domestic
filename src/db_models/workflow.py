@@ -4,10 +4,10 @@ from sqlalchemy import Column, String, Text, Date, Enum as SQLAlchemyEnum, Forei
 # Remove JSONB from imports if it's no longer used
 from sqlalchemy.orm import relationship
 
-from app.db_models.base import Base
+from db_models.base import Base
 # Ensure TaskDefinition is imported if it's type hinted, though SQLAlchemy relationships use strings
 # from app.db_models.task_definition import TaskDefinition # May not be needed here
-from app.db_models.enums import WorkflowStatus
+from db_models.enums import WorkflowStatus
 
 
 class WorkflowDefinition(Base):

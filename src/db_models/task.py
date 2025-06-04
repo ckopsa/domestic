@@ -3,8 +3,8 @@ import uuid
 from sqlalchemy import Column, String, Integer, Enum as SQLAlchemyEnum, ForeignKey
 from sqlalchemy.orm import relationship
 
-from app.db_models.base import Base
-from app.db_models.enums import TaskStatus
+from db_models.base import Base
+from db_models.enums import TaskStatus
 
 
 class TaskInstance(Base):
