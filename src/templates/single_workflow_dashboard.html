@@ -6,6 +6,9 @@
         <p><strong>ID:</strong> {{ instance.id }}</p>
         <p><strong>Status:</strong> {{ instance.status.value.upper() if instance.status.value else instance.status.upper() }}</p>
         <p><strong>Created At:</strong> {{ instance.created_at.isoformat() }}</p>
+        {% if instance.due_datetime %}
+        <p><strong>Due Date:</strong> {{ instance.due_datetime.strftime('%Y-%m-%d %H:%M') }}</p>
+        {% endif %}
     </div>
 
     <h2>Tasks Overview</h2>
@@ -21,6 +24,9 @@
                 {% endif %}
                 <li class="task-item-dashboard {% if is_priority %}priority-task{% elif task.status.value == 'completed' %}completed-task{% else %}pending-task{% endif %}">
                     <span class="task-order">{{ loop.index }}.</span> <span class="task-name">{{ task.name }}</span> - <span class="task-status">{{ task.status.value.upper() if task.status.value else task.status.upper() }}</span>{% if is_priority %}<span class="priority-tag"> (Next Up)</span>{% endif %}
+                    {% if task.due_datetime %}
+                    <span class="task-due-date" style="font-size: 0.9em; color: #555;"> (Due: {{ task.due_datetime.strftime('%Y-%m-%d %H:%M') }})</span>
+                    {% endif %}
                 </li>
             {% endfor %}
         </ul>

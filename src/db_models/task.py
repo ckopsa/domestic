@@ -1,10 +1,10 @@
 import uuid
 
-from sqlalchemy import Column, String, Integer, Enum as SQLAlchemyEnum, ForeignKey
+from sqlalchemy import Column, String, Integer, Enum as SQLAlchemyEnum, ForeignKey, DateTime
 from sqlalchemy.orm import relationship
 
-from db_models.base import Base
-from db_models.enums import TaskStatus
+from .base import Base
+from .enums import TaskStatus
 
 
 class TaskInstance(Base):
@@ -15,5 +15,6 @@ class TaskInstance(Base):
     name = Column(String, nullable=False)
     order = Column(Integer, nullable=False)
     status = Column(SQLAlchemyEnum(TaskStatus), nullable=False, default=TaskStatus.pending)
+    due_datetime = Column(DateTime, nullable=True)
 
     workflow_instance = relationship("WorkflowInstance", back_populates="tasks")

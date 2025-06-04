@@ -33,9 +33,12 @@
         <h2>{{ defn.name }}</h2>
         <p>{{ defn.description or "No description." }}</p>
         <p><strong>Tasks:</strong> {{ ", ".join(defn.task_names) or "None" }}</p>
-        <form action="/workflow-instances" method="post" style="margin-top:10px;" data-secure="true">
+        <form action="/workflow-instances" method="post" style="margin-top:10px;" data-secure="true" class="d-inline-block">
             <input type="hidden" name="definition_id" value="{{ defn.id }}">
-            <button type="submit" class="action-button create-wip-link">Start '{{ defn.name }}'</button>
+            <div class="form-group mb-0 d-inline-block" style="vertical-align: middle;">
+                <input type="datetime-local" name="due_datetime_str" class="form-control form-control-sm" title="Override suggested due date (optional)">
+            </div>
+            <button type="submit" class="btn btn-sm btn-success">Start '{{ defn.name }}'</button>
         </form>
         <a href="/workflow-definitions/edit/{{ defn.id }}" class="action-button"
            style="background-color: #f6ad55; margin-left: 10px;">Edit</a>

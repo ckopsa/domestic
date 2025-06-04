@@ -1,6 +1,6 @@
 # services.py
 import uuid
-from datetime import date as DateObject
+from datetime import date as DateObject, datetime, timedelta # Ensure datetime and timedelta
 from typing import List, Optional, Dict, Any
 
 from models import WorkflowDefinition, WorkflowInstance, TaskInstance, TaskStatus, WorkflowStatus, TaskDefinitionBase
@@ -21,26 +21,47 @@ class WorkflowService:
         tasks = await self.task_repo.get_tasks_for_workflow_instance(instance_id)
         return {"instance": instance, "tasks": tasks}
 
-    async def create_workflow_instance(self, definition_id: str, user_id: str) -> Optional[WorkflowInstance]:
-        definition = await self.definition_repo.get_workflow_definition_by_id(definition_id)
+    async def create_workflow_instance(self, definition_id: str, user_id: str, override_due_datetime: Optional[datetime] = None) -> Optional[WorkflowInstance]: # Updated signature
+        definition = await self.definition_repo.get_workflow_definition_by_id(definition_id) # This is a Pydantic model
         if not definition:
             return None
+
+        instance_due_datetime: Optional[datetime] = None
+        if override_due_datetime:
+            instance_due_datetime = override_due_datetime
+        elif definition.due_datetime: # Accessing due_datetime from the Pydantic model
+            instance_due_datetime = definition.due_datetime
 
         instance = WorkflowInstance(
             workflow_definition_id=definition.id,
             name=definition.name,
-            user_id=user_id
+            user_id=user_id,
+            due_datetime=instance_due_datetime # New assignment
+            # created_at will be set by default_factory in Pydantic model
+            # id will be set by default_factory in Pydantic model
         )
-        created_instance = await self.instance_repo.create_workflow_instance(instance)
 
-        for task_def in definition.task_definitions: # Iterate over TaskDefinitionBase objects
+        created_instance = await self.instance_repo.create_workflow_instance(instance) # repo expects Pydantic
+        if not created_instance: # Should not happen if create_workflow_instance raises on failure
+            return None
+
+        for task_def in definition.task_definitions: # Iterate over TaskDefinitionBase from Pydantic WorkflowDefinition
+            task_due_datetime: Optional[datetime] = None
+            if created_instance.due_datetime: # Use due_datetime from the created instance
+                offset_minutes = task_def.due_datetime_offset_minutes if task_def.due_datetime_offset_minutes is not None else 0
+                task_due_datetime = created_instance.due_datetime + timedelta(minutes=offset_minutes)
+
             task = TaskInstance(
-                workflow_instance_id=created_instance.id,
-                name=task_def.name, # Use name from TaskDefinitionBase
-                order=task_def.order # Use order from TaskDefinitionBase
+                workflow_instance_id=created_instance.id, # Use ID from the created instance
+                name=task_def.name,
+                order=task_def.order,
+                due_datetime=task_due_datetime # New assignment
+                # id will be set by default_factory in Pydantic model
+                # status will be set by default_factory
             )
-            await self.task_repo.create_task_instance(task)
-        return created_instance
+            await self.task_repo.create_task_instance(task) # repo expects Pydantic
+
+        return created_instance # Return the Pydantic model of the created instance
 
     async def list_workflow_definitions(self, name: Optional[str] = None, definition_id: Optional[str] = None) -> List[WorkflowDefinition]:
         return await self.definition_repo.list_workflow_definitions(name=name, definition_id=definition_id)
