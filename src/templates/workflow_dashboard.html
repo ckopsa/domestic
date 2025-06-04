@@ -11,6 +11,7 @@
                     <th>Name</th>
                     <th>Status</th>
                     <th>Created At</th>
+                    <th>Due Date</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -20,7 +21,14 @@
                         <td>{{ instance.id }}</td>
                         <td>{{ instance.name }}</td>
                         <td>{{ instance.status.value.upper() if instance.status.value else instance.status.upper() }}</td>
-                        <td>{{ instance.created_at.isoformat() }}</td>
+                        <td>{{ instance.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>
+                            {% if instance.due_datetime %}
+                                {{ instance.due_datetime.strftime('%Y-%m-%d %H:%M') }}
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </td>
                         <td>
                             <a href="/workflow-instances/{{ instance.id }}" class="action-button">View Details</a>
                             <a href="/workflow-instances/{{ instance.id }}/dashboard" class="action-button view-dashboard-button" style="margin-left: 5px;">View Dashboard</a>
