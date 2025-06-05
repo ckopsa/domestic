@@ -9,11 +9,27 @@ from repository import WorkflowDefinitionRepository, WorkflowInstanceRepository,
 from services import WorkflowService
 from templating import get_templates
 
+# Collection+JSON specific imports
+from cj_hooks import CollectionJSONBuilder, PydanticToItemDataArray, PydanticToTemplateDataArray
+
+# Define a base URL for Collection+JSON responses, e.g. the prefix where CJ API is mounted
+CJ_BASE_URL = "/cj"
+
 
 # Dependency for HTML Renderer
 def get_html_renderer() -> HtmlRendererInterface:
     return Jinja2HtmlRenderer(get_templates())
 
+# Dependency for CollectionJSONBuilder
+def get_cj_builder() -> CollectionJSONBuilder:
+    """
+    Provides an instance of the CollectionJSONBuilder, configured for the application.
+    """
+    return CollectionJSONBuilder(
+        base_api_url=CJ_BASE_URL,
+        item_data_strategy=PydanticToItemDataArray(),
+        template_data_strategy=PydanticToTemplateDataArray()
+    )
 
 # --- Dependencies ---
 def get_workflow_repository(db=Depends(get_db)) -> Tuple[
