@@ -8,7 +8,7 @@ from dependencies import get_html_renderer
 router = APIRouter()
 
 
-@router.get("/", response_class=HTMLResponse)
+@router.get("/", response_class=HTMLResponse, name="root")
 async def read_root(
         request: Request,
         current_user: AuthenticatedUser | None = Depends(get_current_user),

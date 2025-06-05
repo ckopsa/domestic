@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="cj-container">
+    <h1>Collection+JSON Form: {{ collection.template.data[0].prompt if collection.template and collection.template.data else "Form" }}</h1>
+    <p>Target: <a href="{{ collection.href }}">{{ collection.href }}</a></p>
+
+    {% if collection.error %}
+        <div class="cj-error">
+            <h2>Error: {{ collection.error.title }} ({{ collection.error.code }})</h2>
+            <p>{{ collection.error.message }}</p>
+            {% if collection.error.details %}<p><small>{{ collection.error.details }}</small></p>{% endif %}
+        </div>
+    {% endif %}
+
+    {% if collection.template %}
+        <div class="cj-form">
+            {# Try to find a 'submit' link for the form action and method, otherwise default #}
+            {% set submit_link = namespace(href=collection.href, method='POST') %}
+            {% for link in collection.links %}
+                {% if link.rel == 'submit' %}
+                    {% set submit_link.href = link.href %}
+                    {% set submit_link.method = link.method %}
+                {% endif %}
+            {% endfor %}
+
+            <form action="{{ submit_link.href }}" method="{{ submit_link.method if submit_link.method in ['GET', 'POST'] else 'POST' }}">
+                {# If method is PUT or DELETE, it's common to use a hidden input and POST #}
+                {% if submit_link.method not in ['GET', 'POST'] %}
+                    <input type="hidden" name="_method" value="{{ submit_link.method }}">
+                {% endif %}
+
+                {% for data_template in collection.template.data %}
+                    <div class="form-field">
+                        <label for="template-{{ data_template.name }}">
+                            {{ data_template.prompt or data_template.name }}
+                            {% if data_template.required %}<span class="required-indicator">*</span>{% endif %}:
+                        </label>
+                        {% if data_template.type == 'boolean' %}
+                            <input type="checkbox"
+                                   id="template-{{ data_template.name }}"
+                                   name="{{ data_template.name }}"
+                                   value="true" {# Common practice for boolean checkboxes #}
+                                   {% if data_template.value == True or data_template.value == 'true' %}checked{% endif %}
+                                   {% if data_template.required %}required{% endif %}>
+                        {% elif data_template.type == 'number' %}
+                            <input type="number"
+                                   id="template-{{ data_template.name }}"
+                                   name="{{ data_template.name }}"
+                                   value="{{ data_template.value if data_template.value is not none }}"
+                                   {% if data_template.required %}required{% endif %}>
+                        {% elif data_template.type == 'datetime' %}
+                             <input type="datetime-local"
+                                   id="template-{{ data_template.name }}"
+                                   name="{{ data_template.name }}"
+                                   value="{{ data_template.value if data_template.value is not none }}"
+                                   {% if data_template.required %}required{% endif %}>
+                        {% else %} {# Default to text input, covers 'text', 'uri', etc. #}
+                            <input type="text"
+                                   id="template-{{ data_template.name }}"
+                                   name="{{ data_template.name }}"
+                                   value="{{ data_template.value if data_template.value is not none }}"
+                                   {% if data_template.required %}required{% endif %}>
+                        {% endif %}
+                        {% if data_template.prompt %}
+                            <small class="prompt-text">{{ data_template.prompt }} (Type: {{ data_template.type }})</small>
+                        {% else %}
+                            <small class="prompt-text">(Type: {{ data_template.type }})</small>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+                <div class="form-actions">
+                    <button type="submit" class="button-primary">
+                        {{ (collection.links | selectattr('rel', 'equalto', 'submit') | first).prompt if (collection.links | selectattr('rel', 'equalto', 'submit') | first) else 'Submit' }}
+                    </button>
+                    {% for link in collection.links %}
+                        {% if link.rel not in ['self', 'submit', 'up'] %} {# Avoid duplicating self/submit, up is usually a back link #}
+                             <a href="{{ link.href }}" class="button button-secondary" rel="{{ link.rel }}" title="{{ link.prompt }}">
+                                {{ link.prompt or link.rel }}
+                             </a>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </form>
+        </div>
+    {% else %}
+        <p>No form template available for this resource.</p>
+    {% endif %}
+
+    {% if collection.links %}
+        <div class="cj-collection-links secondary-links">
+            <h4>Other Links:</h4>
+            <ul>
+                {% for link in collection.links %}
+                     {# Display links that weren't specifically for form submission or are generally useful context #}
+                     {% if link.rel not in ['submit'] %}
+                        <li>
+                            <a href="{{ link.href }}" rel="{{ link.rel }}"
+                               {% if link.prompt %}title="{{ link.prompt }}"{% endif %}
+                               {% if link.method != 'GET' %}data-method="{{ link.method }}"{% endif %}>
+                                {{ link.prompt or link.rel }} ({{ link.href }})
+                            </a>
+                            {% if link.method != 'GET' %}<small> [{{ link.method }}]</small>{% endif %}
+                        </li>
+                    {% endif %}
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    {# Attempt to find an 'up' link for a back button, or default to site root #}
+    {% set back_url = request.url_for('root') %}
+    {% for link in collection.links %}
+        {% if link.rel == 'up' %}
+            {% set back_url = link.href %}
+        {% endif %}
+    {% endfor %}
+    <a href="{{ back_url }}" class="back-link" style="margin-top: 20px;">← Back</a>
+
+</div>
+{% endblock %}

@@ -42,7 +42,7 @@ class WorkflowDefinition(BaseModel, CJHooks):
         from_attributes = True
 
 
-class TaskInstance(BaseModel):
+class TaskInstance(BaseModel, CJHooks):
     id: str = Field(default_factory=lambda: "task_" + str(uuid.uuid4())[:8])
     workflow_instance_id: str
     name: str
@@ -54,7 +54,7 @@ class TaskInstance(BaseModel):
         from_attributes = True
 
 
-class WorkflowInstance(BaseModel):
+class WorkflowInstance(BaseModel, CJHooks):
     id: str = Field(default_factory=lambda: "wf_" + str(uuid.uuid4())[:8])
     workflow_definition_id: str
     name: str

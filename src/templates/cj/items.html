@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="cj-container">
+    <h1>{{ collection.href }}</h1>
+
+    {% if collection.error %}
+        <div class="cj-error">
+            <h2>Error: {{ collection.error.title }} ({{ collection.error.code }})</h2>
+            <p>{{ collection.error.message }}</p>
+            {% if collection.error.details %}<p><small>{{ collection.error.details }}</small></p>{% endif %}
+        </div>
+    {% endif %}
+
+    {% if collection.links %}
+        <div class="cj-collection-links">
+            <h3>Collection Links:</h3>
+            <ul>
+                {% for link in collection.links %}
+                    <li>
+                        <a href="{{ link.href }}" rel="{{ link.rel }}"
+                           {% if link.prompt %}title="{{ link.prompt }}"{% endif %}
+                           {% if link.method != 'GET' %}data-method="{{ link.method }}"{% endif %}>
+                            {{ link.prompt or link.rel }} ({{ link.href }})
+                        </a>
+                        {% if link.method != 'GET' %}<small> [{{ link.method }}]</small>{% endif %}
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    <h2>Items ({{ collection.items | length }})</h2>
+    {% if collection.items %}
+        <div class="cj-items-list">
+            {% for item in collection.items %}
+                <div class="cj-item">
+                    <h3>Item: {{ item.href }}</h3>
+                    {% if item.data %}
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Value</th>
+                                    <th>Prompt</th>
+                                    <th>Type</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for data_point in item.data %}
+                                    <tr>
+                                        <td>{{ data_point.name }}</td>
+                                        <td>{{ data_point.value }}</td>
+                                        <td>{{ data_point.prompt }}</td>
+                                        <td><small>{{ data_point.type }}</small></td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    {% else %}
+                        <p>No data for this item.</p>
+                    {% endif %}
+                    {% if item.links %}
+                        <div class="cj-item-links">
+                            <h4>Item Links:</h4>
+                            <ul>
+                                {% for link in item.links %}
+                                    <li>
+                                        <a href="{{ link.href }}" rel="{{ link.rel }}"
+                                           {% if link.prompt %}title="{{ link.prompt }}"{% endif %}
+                                           {% if link.method != 'GET' %}data-method="{{ link.method }}"{% endif %}>
+                                            {{ link.prompt or link.rel }}
+                                        </a>
+                                        {% if link.method != 'GET' %}<small> [{{ link.method }}]</small>{% endif %}
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p>No items in this collection.</p>
+    {% endif %}
+
+    {% if collection.template %}
+        <div class="cj-template">
+            <h2>Template for New Item</h2>
+            <form action="{{ collection.href }}" method="POST"> {# Default action, might need adjustment based on how 'create' link is handled #}
+                {% for data_template in collection.template.data %}
+                    <div>
+                        <label for="template-{{ data_template.name }}">{{ data_template.prompt or data_template.name }} {% if data_template.required %}(Required){% endif %}:</label>
+                        <input type="{{ 'number' if data_template.type == 'number' else 'text' }}"
+                               id="template-{{ data_template.name }}"
+                               name="{{ data_template.name }}"
+                               value="{{ data_template.value if data_template.value is not none }}"
+                               {% if data_template.required %}required{% endif %}>
+                        <small>({{ data_template.type }})</small>
+                    </div>
+                {% endfor %}
+                <button type="submit">Create Item</button>
+            </form>
+        </div>
+    {% endif %}
+
+    {% if collection.queries %}
+        <div class="cj-queries">
+            <h3>Queries:</h3>
+            <ul>
+                {% for query in collection.queries %}
+                    <li>
+                        <a href="{{ query.href }}" rel="{{ query.rel }}" title="{{ query.prompt or query.name }}">
+                            {{ query.prompt or query.name or query.rel }}
+                        </a>
+                        {# Basic form for query params - could be more sophisticated #}
+                        <form action="{{ query.href }}" method="GET" style="display: inline-block; margin-left: 10px;">
+                            {% for data_param in query.data %}
+                                <input type="text" name="{{ data_param.name }}" placeholder="{{ data_param.prompt or data_param.name }}" value="{{ data_param.value }}">
+                            {% endfor %}
+                            <button type="submit">Query</button>
+                        </form>
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+    <a href="{{ request.url_for('root') }}" class="back-link" style="margin-top: 20px;">← Back to Home</a>
+</div>
+{% endblock %}

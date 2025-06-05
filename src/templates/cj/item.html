@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="cj-container">
+    <h1>Item Details: {{ collection.items[0].href if collection.items else "N/A" }}</h1>
+
+    {% if collection.error %}
+        <div class="cj-error">
+            <h2>Error: {{ collection.error.title }} ({{ collection.error.code }})</h2>
+            <p>{{ collection.error.message }}</p>
+            {% if collection.error.details %}<p><small>{{ collection.error.details }}</small></p>{% endif %}
+        </div>
+    {% endif %}
+
+    {% if collection.links %}
+        <div class="cj-collection-links">
+            <h3>Context Links:</h3>
+            <ul>
+                {% for link in collection.links %}
+                    <li>
+                        <a href="{{ link.href }}" rel="{{ link.rel }}"
+                           {% if link.prompt %}title="{{ link.prompt }}"{% endif %}
+                           {% if link.method != 'GET' %}data-method="{{ link.method }}"{% endif %}>
+                            {{ link.prompt or link.rel }} ({{ link.href }})
+                        </a>
+                        {% if link.method != 'GET' %}<small> [{{ link.method }}]</small>{% endif %}
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    {% if collection.items %}
+        {% set item = collection.items[0] %}
+        <div class="cj-item-detail">
+            <h2>{{ item.href }}</h2>
+            {% if item.data %}
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Value</th>
+                            <th>Prompt</th>
+                            <th>Type</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for data_point in item.data %}
+                            <tr>
+                                <td>{{ data_point.name }}</td>
+                                <td>{{ data_point.value }}</td>
+                                <td>{{ data_point.prompt }}</td>
+                                <td><small>{{ data_point.type }}</small></td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p>No data for this item.</p>
+            {% endif %}
+
+            {% if item.links %}
+                <div class="cj-item-links">
+                    <h3>Item Actions/Links:</h3>
+                    <ul>
+                        {% for link in item.links %}
+                            <li>
+                                <a href="{{ link.href }}" rel="{{ link.rel }}"
+                                   {% if link.prompt %}title="{{ link.prompt }}"{% endif %}
+                                   {% if link.method != 'GET' %}data-method="{{ link.method }}"{% endif %}>
+                                    {{ link.prompt or link.rel }}
+                                </a>
+                                {% if link.method != 'GET' %}<small> [{{ link.method }}]</small>{% endif %}
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
+        </div>
+    {% else %}
+        <p>Item not found or no item provided in the collection.</p>
+    {% endif %}
+
+    {# A single item view might still have a template, e.g., for editing this item #}
+    {% if collection.template %}
+        <div class="cj-template">
+            <h2>Form (e.g., for Editing)</h2>
+            {# This assumes the template is for the item being viewed. #}
+            {# The action URL should ideally be sourced from a 'edit' link or the item's self href for a PUT #}
+            <form action="{{ item.href if item else collection.href }}" method="POST"> {# Adjust method to PUT if that's the convention #}
+                {% for data_template in collection.template.data %}
+                    <div>
+                        <label for="template-{{ data_template.name }}">{{ data_template.prompt or data_template.name }} {% if data_template.required %}(Required){% endif %}:</label>
+                        <input type="{{ 'number' if data_template.type == 'number' else 'text' }}"
+                               id="template-{{ data_template.name }}"
+                               name="{{ data_template.name }}"
+                               value="{{ data_template.value if data_template.value is not none }}"
+                               {% if data_template.required %}required{% endif %}>
+                        <small>({{ data_template.type }})</small>
+                    </div>
+                {% endfor %}
+                <button type="submit">Submit</button> {# Button text might be "Update Item" #}
+            </form>
+        </div>
+    {% endif %}
+    <a href="{{ request.url_for('root') }}" class="back-link" style="margin-top: 20px;">← Back to Home</a>
+</div>
+{% endblock %}
