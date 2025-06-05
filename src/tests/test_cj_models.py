@@ -1,20 +1,13 @@
 import json
-from typing import Optional, List, ClassVar, Dict, Any, Union
+from typing import Optional, List, ClassVar
 
-from pydantic import Field as PydanticField, BaseModel
+from pydantic import Field as PydanticField
 
-from src.cj_models import (
+from cj_models import (
     CollectionJSONRepresentable,
     Link,
     Query,
-    QueryData,
-    TemplateData,
-    ItemData,
-    Template,
-    Item,
-    Collection,
-    CollectionJson,
-    Error
+    QueryData
 )
 
 
@@ -51,7 +44,8 @@ def test_task_definition_cj_representation():
                 resolved_item_href = self._resolve_href(self.cj_href, base_url=base_url)
                 if not self.is_completed:
                     links.append(
-                        Link(rel="mark-complete", href=f"{resolved_item_href.rstrip('/')}/complete", prompt="Mark as Complete",
+                        Link(rel="mark-complete", href=f"{resolved_item_href.rstrip('/')}/complete",
+                             prompt="Mark as Complete",
                              method="POST"))
                 else:
                     links.append(Link(rel="mark-incomplete", href=f"{resolved_item_href.rstrip('/')}/incomplete",
