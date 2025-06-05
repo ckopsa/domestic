@@ -1,11 +1,10 @@
 import uuid
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, ClassVar
 
 from pydantic import BaseModel, Field
 
-from cj_hooks import CJHooks
-from cj_models import Link
+from cj_models import CollectionJSONRepresentable, Link, Query, QueryData
 from db_models.enums import WorkflowStatus, TaskStatus
 
 
@@ -15,28 +14,55 @@ class TaskDefinitionBase(BaseModel):
     due_datetime_offset_minutes: Optional[int] = 0  # New field
 
 
-class WorkflowDefinition(BaseModel, CJHooks):
+class CJTaskDefinition(CollectionJSONRepresentable, TaskDefinitionBase):
+    id: str = Field(default_factory=lambda: "task_def_" + str(uuid.uuid4())[:8])
+    cj_collection_href_template: ClassVar[str] = "/tasks/"
+    cj_item_href_template: ClassVar[str] = "/tasks/{id}/"
+    cj_item_rel: ClassVar[str] = "task"
+    cj_collection_title: ClassVar[str] = "Task Definitions"
+
+    cj_global_links: ClassVar[List[Link]] = [
+        Link(rel="self", href="/tasks/", prompt="All Task Definitions", method="GET"),
+        Link(rel="home", href="/", prompt="API Home", method="GET")
+    ]
+    cj_global_queries: ClassVar[List[Query]] = [
+        Query(
+            rel="search", href="/tasks/search", prompt="Search Task Definitions",
+            name="search_tasks",
+            data=[
+                QueryData(name="name_contains", value="", prompt="Name contains", type="text"),
+                QueryData(name="completed_status", value="", prompt="Completed Status (true/false)", type="boolean")
+            ]
+        )
+    ]
+
+    def get_cj_instance_item_links(self, base_url: str = "") -> List[Link]:
+        links = super().get_cj_instance_item_links(base_url=base_url)  # Gets base edit/delete
+        resolved_item_href = self._resolve_href(self.cj_href or "", base_url=base_url) if self.cj_href else None
+
+        if resolved_item_href and not self.is_completed:
+            links.append(Link(
+                rel="mark-complete",
+                href=f"{resolved_item_href}/complete",
+                prompt="Mark as Complete",
+                method="POST"
+            ))
+        elif resolved_item_href and self.is_completed:
+            links.append(Link(
+                rel="mark-incomplete",
+                href=f"{resolved_item_href}/incomplete",
+                prompt="Mark as Incomplete",
+                method="POST"
+            ))
+        return links
+
+
+class WorkflowDefinition(BaseModel):
     id: str = Field(default_factory=lambda: "def_" + str(uuid.uuid4())[:8])
     name: str
     description: Optional[str] = ""
     task_definitions: List[TaskDefinitionBase] = Field(default_factory=list)
-    due_datetime: Optional[datetime] = None  # New field
-
-    def item_links(self, base_api_url: str, resource_name: str) -> List[Link]:
-        links = super().item_links(base_api_url, resource_name)  # Call mixin's default if desired
-        if self.task_definitions:
-            links.append(Link(
-                rel="task-definitions",
-                href=f"{base_api_url}/{resource_name}/{self.id}/task-definitions",
-                prompt="View Task Definitions"
-            ))
-        links.append(Link(
-            rel="start-instance",
-            href=f"{base_api_url}/workflow-instances",
-            prompt="Start a new instance",
-            method="POST"
-        ))
-        return links
+    due_datetime: Optional[datetime] = None
 
     class Config:
         from_attributes = True
