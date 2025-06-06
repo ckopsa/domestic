@@ -1,19 +1,18 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from typing import List, Optional
 
-from src.models import (
+from core.security import get_current_active_user, AuthenticatedUser
+from dependencies import get_workflow_service
+from models import (
     WorkflowDefinition,
     CJWorkflowDefinition,
     WorkflowInstance,
     CJWorkflowInstance,
     TaskInstance,
     CJTaskInstance,
-    # CJTaskDefinition, # Not used yet, but might be needed later
 )
-from src.cj_models import CollectionJson, Link, Collection # Query, QueryData might be needed for root
-from src.services import WorkflowService
-from src.dependencies import get_workflow_service, get_current_active_user # Assuming get_current_active_user exists
-from src.db_models.user import AuthenticatedUser # Assuming AuthenticatedUser exists
+from cj_models import CollectionJson, Link, Collection # Query, QueryData might be needed for root
+from services import WorkflowService
 
 router = APIRouter(
     prefix="/api/cj",
@@ -286,7 +285,6 @@ async def create_workflow_definition_cj(request: Request, definition_data: Workf
         name=definition_data.name,
         description=definition_data.description,
         task_definitions=definition_data.task_definitions, # Assuming these are TaskDefinitionBase
-        due_datetime=definition_data.due_datetime
     )
 
     # Convert the Pydantic model returned by the service to CJWorkflowDefinition

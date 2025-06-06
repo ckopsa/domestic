@@ -13,6 +13,30 @@ class TaskDefinitionBase(BaseModel):
     order: int
     due_datetime_offset_minutes: Optional[int] = 0  # New field
 
+class TaskInstance(BaseModel):
+    id: str = Field(default_factory=lambda: "task_" + str(uuid.uuid4())[:8])
+    workflow_instance_id: str
+    name: str
+    order: int
+    status: TaskStatus = TaskStatus.pending
+    due_datetime: Optional[datetime] = None  # New field
+
+    class Config:
+        from_attributes = True
+
+
+class WorkflowInstance(BaseModel):
+    id: str = Field(default_factory=lambda: "wf_" + str(uuid.uuid4())[:8])
+    workflow_definition_id: str
+    name: str
+    user_id: str
+    status: WorkflowStatus = WorkflowStatus.active
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    share_token: Optional[str] = None
+    due_datetime: Optional[datetime] = None  # New field
+
+    class Config:
+        from_attributes = True
 
 class CJTaskDefinition(CollectionJSONRepresentable, TaskDefinitionBase):
     id: str = Field(default_factory=lambda: "task_def_" + str(uuid.uuid4())[:8])
@@ -194,27 +218,3 @@ class CJTaskInstance(TaskInstance, CollectionJSONRepresentable):
         return links
 
 
-class TaskInstance(BaseModel):
-    id: str = Field(default_factory=lambda: "task_" + str(uuid.uuid4())[:8])
-    workflow_instance_id: str
-    name: str
-    order: int
-    status: TaskStatus = TaskStatus.pending
-    due_datetime: Optional[datetime] = None  # New field
-
-    class Config:
-        from_attributes = True
-
-
-class WorkflowInstance(BaseModel):
-    id: str = Field(default_factory=lambda: "wf_" + str(uuid.uuid4())[:8])
-    workflow_definition_id: str
-    name: str
-    user_id: str
-    status: WorkflowStatus = WorkflowStatus.active
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    share_token: Optional[str] = None
-    due_datetime: Optional[datetime] = None  # New field
-
-    class Config:
-        from_attributes = True

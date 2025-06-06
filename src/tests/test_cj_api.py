@@ -3,8 +3,8 @@ from fastapi.testclient import TestClient
 
 # Assuming your FastAPI app instance is named 'app' in 'src.main'
 # If it's elsewhere, adjust the import path accordingly.
-from src.main import app
-from src.models import (
+from main import app
+from models import (
     CJWorkflowDefinition,
     WorkflowDefinition,
     TaskDefinitionBase,
@@ -13,8 +13,8 @@ from src.models import (
     CJTaskInstance,
     TaskInstance
 )
-from src.cj_models import CollectionJson, Link, Query, Item, Template
-from src.db_models.enums import WorkflowStatus, TaskStatus # Added
+from cj_models import CollectionJson, Link, Query, Item, Template
+from db_models.enums import WorkflowStatus, TaskStatus # Added
 
 
 @pytest.fixture(scope="module")
