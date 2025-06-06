@@ -23,6 +23,10 @@ class WorkflowDefinitionRepository(ABC):
         pass
 
     @abstractmethod
+    async def get_filtered_workflow_instances(self, user_id: Optional[str] = None, status: Optional[WorkflowStatus] = None) -> List[WorkflowInstance]:
+        pass
+
+    @abstractmethod
     async def get_workflow_definition_by_id(self, definition_id: str) -> Optional[WorkflowDefinition]:
         pass
 
@@ -110,6 +114,15 @@ class PostgreSQLWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanc
         instance = self.db_session.query(WorkflowInstanceORM).filter(WorkflowInstanceORM.id == instance_id).first()
         return WorkflowInstance.model_validate(instance, from_attributes=True) if instance else None
 
+    async def get_filtered_workflow_instances(self, user_id: Optional[str] = None, status: Optional[WorkflowStatus] = None) -> List[WorkflowInstance]:
+        query = self.db_session.query(WorkflowInstanceORM)
+        if user_id:
+            query = query.filter(WorkflowInstanceORM.user_id == user_id)
+        if status:
+            query = query.filter(WorkflowInstanceORM.status == status)
+        instances = query.order_by(WorkflowInstanceORM.created_at.desc()).all()
+        return [WorkflowInstance.model_validate(instance, from_attributes=True) for instance in instances]
+
     async def list_workflow_definitions(self, name: Optional[str] = None, definition_id: Optional[str] = None) -> List[WorkflowDefinition]:
         query = self.db_session.query(WorkflowDefinitionORM)
         if definition_id:
@@ -187,6 +200,12 @@ class PostgreSQLWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanc
             query = query.filter(WorkflowInstanceORM.workflow_definition_id == definition_id)
         instances = query.order_by(WorkflowInstanceORM.created_at.desc()).all()
         return [WorkflowInstance.model_validate(instance, from_attributes=True) for instance in instances]
+
+    async def get_workflow_instance_by_share_token(self, share_token: str) -> Optional[WorkflowInstance]:
+        instance_orm = self.db_session.query(WorkflowInstanceORM).filter(WorkflowInstanceORM.share_token == share_token).first()
+        if instance_orm:
+            return WorkflowInstance.model_validate(instance_orm, from_attributes=True)
+        return None
 
     async def create_workflow_definition(self, definition_data: WorkflowDefinition) -> WorkflowDefinition:
         task_definitions_data = definition_data.task_definitions
@@ -342,6 +361,14 @@ class InMemoryWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanceR
             if instance.share_token == share_token:
                 return instance.model_copy(deep=True)
         return None
+
+    async def get_filtered_workflow_instances(self, user_id: Optional[str] = None, status: Optional[WorkflowStatus] = None) -> List[WorkflowInstance]:
+        instances = [instance.model_copy(deep=True) for instance in _workflow_instances_db.values()]
+        if user_id:
+            instances = [inst for inst in instances if inst.user_id == user_id]
+        if status:
+            instances = [inst for inst in instances if inst.status == status]
+        return sorted(instances, key=lambda i: i.created_at, reverse=True)
 
     async def create_workflow_definition(self, definition_data: WorkflowDefinition) -> WorkflowDefinition:
         new_definition = definition_data.model_copy(deep=True)
