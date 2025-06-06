@@ -28,7 +28,7 @@ class TaskInstance(BaseModel):
 class WorkflowInstance(BaseModel):
     id: str = Field(default_factory=lambda: "wf_" + str(uuid.uuid4())[:8])
     workflow_definition_id: str
-    name: str
+    name: Optional[str] = None # Made name optional
     user_id: str
     status: WorkflowStatus = WorkflowStatus.active
     created_at: datetime = Field(default_factory=datetime.utcnow)
@@ -76,6 +76,14 @@ class WorkflowDefinition(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class WorkflowInstanceCreateRequest(BaseModel):
+    definition_id: str
+    name: Optional[str] = None
+    # Add other fields if the API is meant to accept them at creation,
+    # e.g., due_datetime: Optional[datetime] = None
+    # For now, only definition_id and optional name. User will be from auth.
 
 
 class CJWorkflowDefinition(WorkflowDefinition, CollectionJSONRepresentable):

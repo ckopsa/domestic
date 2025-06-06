@@ -6,7 +6,8 @@ from sqlalchemy import create_engine # Added for potential test-specific engine
 # Assuming your FastAPI app instance is named 'app' in 'src.main'
 # If it's elsewhere, adjust the import path accordingly.
 from main import app
-from database import engine as main_engine # Import the main engine
+# Remove main_engine import, use a test-specific engine
+from database import get_db # To override app dependency
 from db_models.base import Base # Import the Base for metadata
 from core.security import get_current_active_user # For mocking
 from core.security import AuthenticatedUser # For mocking
@@ -22,35 +23,62 @@ from models import (
 from cj_models import CollectionJson, Link, Query, Item, Template
 from db_models.enums import WorkflowStatus, TaskStatus # Added
 
+# Test specific SQLAlchemy engine for cj_api tests
+SQLALCHEMY_DATABASE_URL_TEST_CJ = "sqlite:///./test_cj_api.sqlite?cache=shared"
+engine_test_cj = create_engine(
+    SQLALCHEMY_DATABASE_URL_TEST_CJ, echo=False, connect_args={"check_same_thread": False}
+)
+TestingSessionLocal_test_cj = sessionmaker(autocommit=False, autoflush=False, bind=engine_test_cj)
 
-@pytest.fixture(scope="session", autouse=True)
-def setup_test_database():
-    """
-    Create tables before tests run and drop them after.
-    Applied automatically to all test sessions.
-    """
-    Base.metadata.create_all(bind=main_engine)
-    yield
-    Base.metadata.drop_all(bind=main_engine)
 
-@pytest.fixture(scope="module")
-def client(setup_test_database): # Ensure DB setup runs before client fixture
+@pytest.fixture(scope="function") # Changed scope to function for better test isolation
+def db_session_cj_fixture(): # Renamed to be more specific, similar to other test files
+    original_bind = getattr(Base.metadata, 'bind', None)
+    Base.metadata.bind = engine_test_cj
+    Base.metadata.create_all(bind=engine_test_cj)
+    session = TestingSessionLocal_test_cj()
+    try:
+        yield session
+    finally:
+        session.close()
+        Base.metadata.drop_all(bind=engine_test_cj)
+        if original_bind is not None:
+            Base.metadata.bind = original_bind
+        else:
+            Base.metadata.bind = None # Ensure Base.metadata.bind is cleared if it was None
+
+
+def override_get_db_for_cj_tests():
+    db = TestingSessionLocal_test_cj()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@pytest.fixture(scope="function") # Changed scope to function
+def client(db_session_cj_fixture, monkeypatch): # Depends on the new db_session_cj_fixture
     """
-    Test client for the FastAPI application.
+    Test client for the FastAPI application, with DB override for cj_api tests.
     """
+    monkeypatch.setitem(app.dependency_overrides, get_db, override_get_db_for_cj_tests)
+
     with TestClient(app) as c:
         yield c
 
+    monkeypatch.delitem(app.dependency_overrides, get_db, raising=False)
+
+
 # Placeholder for tests
-def test_example():
-    assert True
+# def test_example(): # Commenting out example test as it's not needed
+#     assert True
 
 
 def test_cj_workflow_definition_serialization():
     """
     Tests the Collection+JSON serialization methods of the CJWorkflowDefinition model.
     """
-    base_url = "http://localhost:8000"
+    base_url = "http://testserver" # Changed from localhost:8000
     context = {'base_url': base_url}
 
     # Sample Task Definitions
@@ -164,7 +192,9 @@ def test_get_workflow_definitions_cj(client: TestClient):
     assert isinstance(cj_response.collection.items, list)
     if cj_response.collection.items:
         for item in cj_response.collection.items:
-            assert item.href is not None and item.href.startswith(f"http://testserver{CJWorkflowDefinition.cj_collection_href_template}")
+            item_id = next(d.value for d in item.data if d.name == "id") # Get ID from item data
+            expected_item_href = f"http://testserver{CJWorkflowDefinition.cj_item_href_template.format(id=item_id)}"
+            assert item.href == expected_item_href
             assert item.rel == CJWorkflowDefinition.cj_item_rel
             assert isinstance(item.data, list)
             # Further checks on item.data fields can be added if there's known test data
@@ -205,10 +235,13 @@ def test_post_workflow_definition_cj(client: TestClient):
     created_item = cj_response.collection.items[0]
     assert created_item.rel == CJWorkflowDefinition.cj_item_rel
     assert created_item.href is not None
-    assert created_item.href.startswith(f"http://testserver{CJWorkflowDefinition.cj_collection_href_template}")
+    # Extract ID from the item data to correctly format the expected item href
+    created_id_from_data = next(d.value for d in created_item.data if d.name == "id")
+    expected_created_item_href = f"http://testserver{CJWorkflowDefinition.cj_item_href_template.format(id=created_id_from_data)}"
+    assert created_item.href == expected_created_item_href
 
     # Extract ID from the href for further checks if needed
-    created_id = created_item.href.rstrip('/').split('/')[-1]
+    created_id = created_item.href.rstrip('/').split('/')[-1] # This part is fine if template is as expected
     assert created_id is not None and created_id != ""
 
     item_data_dict = {d.name: d.value for d in created_item.data}
@@ -299,7 +332,7 @@ def test_cj_workflow_instance_serialization():
     """
     Tests the Collection+JSON serialization methods of the CJWorkflowInstance model.
     """
-    base_url = "http://localhost:8000"
+    base_url = "http://testserver" # Changed from localhost:8000
     context = {'base_url': base_url}
 
     wf_instance_id = "wf_test123"
@@ -402,7 +435,9 @@ def test_get_workflow_instances_cj(client: TestClient):
     assert isinstance(cj_response.collection.items, list)
     if cj_response.collection.items:
         for item_cj in cj_response.collection.items: # Renamed to avoid conflict with Item model
-            assert item_cj.href is not None and item_cj.href.startswith(f"http://testserver{CJWorkflowInstance.cj_collection_href_template}")
+            item_id = next(d.value for d in item_cj.data if d.name == "id")
+            expected_item_href = f"http://testserver{CJWorkflowInstance.cj_item_href_template.format(id=item_id)}"
+            assert item_cj.href == expected_item_href
             assert item_cj.rel == CJWorkflowInstance.cj_item_rel
             assert isinstance(item_cj.data, list)
 
@@ -478,9 +513,11 @@ def test_post_workflow_instance_cj(client: TestClient):
     created_instance_item = cj_response.collection.items[0]
     assert created_instance_item.rel == CJWorkflowInstance.cj_item_rel
     assert created_instance_item.href is not None
-    assert created_instance_item.href.startswith(f"http://testserver{CJWorkflowInstance.cj_collection_href_template}")
+    created_instance_id_from_data = next(d.value for d in created_instance_item.data if d.name == "id")
+    expected_created_instance_href = f"http://testserver{CJWorkflowInstance.cj_item_href_template.format(id=created_instance_id_from_data)}"
+    assert created_instance_item.href == expected_created_instance_href
 
-    created_instance_id = created_instance_item.href.rstrip('/').split('/')[-1]
+    created_instance_id = created_instance_item.href.rstrip('/').split('/')[-1] # Fine if template is as expected
     assert created_instance_id is not None and created_instance_id != ""
 
     item_data_dict = {d.name: d.value for d in created_instance_item.data}
@@ -590,7 +627,7 @@ def test_cj_task_instance_serialization():
     """
     Tests the Collection+JSON serialization methods of the CJTaskInstance model.
     """
-    base_url = "http://localhost:8000"
+    base_url = "http://testserver" # Changed from localhost:8000
     context = {'base_url': base_url}
 
     task_id = "task_test123"
@@ -729,13 +766,16 @@ def test_get_tasks_for_workflow_instance_cj(client: TestClient):
     if workflow_def_data["task_definitions"]:
         assert len(cj_response.collection.items) == len(workflow_def_data["task_definitions"])
         for item in cj_response.collection.items:
-            assert item.href is not None and item.href.startswith(f"http://testserver{CJTaskInstance.cj_collection_href_template}")
+            item_id = next(d.value for d in item.data if d.name == "id")
+            expected_item_href = f"http://testserver{CJTaskInstance.cj_item_href_template.format(id=item_id)}"
+            assert item.href == expected_item_href
             assert item.rel == CJTaskInstance.cj_item_rel
             assert isinstance(item.data, list)
             item_data_names = {d.name for d in item.data}
             assert "id" in item_data_names
             assert "name" in item_data_names
-            assert "workflow_instance_id" in item_data_names and item_data_names["workflow_instance_id"] == instance_id
+            assert "workflow_instance_id" in item_data_names
+            assert next(d.value for d in item.data if d.name == "workflow_instance_id") == instance_id
             assert "status" in item_data_names
             # Check for task-specific links (e.g., complete, parent instance)
             task_item_links_rels = {link.rel for link in item.links}

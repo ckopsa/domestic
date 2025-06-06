@@ -34,7 +34,7 @@ class WorkflowService:
             name=instance_data.name or definition.name, # Use instance_data.name, fallback to def.name
             user_id=instance_data.user_id, # Must be provided
             status=instance_data.status or WorkflowStatus.pending, # Default to pending if not provided
-            due_datetime=instance_data.due_datetime # Use provided or None
+            due_datetime=instance_data.due_datetime or definition.due_datetime # Use definition's due_datetime if not provided on instance_data
             # id and created_at will be handled by Pydantic default_factory or DB
         )
 

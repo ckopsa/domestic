@@ -52,8 +52,14 @@ async def test_create_workflow_instance_success(workflow_service_existing, mock_
     )
     instance_repo.create_workflow_instance = AsyncMock(return_value=instance)
     task_repo.create_task_instance = AsyncMock(side_effect=lambda task: task)
-    # Original test used workflow_service, updated to workflow_service_existing
-    result = await workflow_service_existing.create_workflow_instance("test_def_1", user_id="test_user")
+
+    # Construct WorkflowInstance model for the service call
+    input_instance_data = WorkflowInstance(
+        workflow_definition_id="test_def_1",
+        user_id="test_user",
+        name="Test Workflow" # Provide a name, or service will use definition name
+    )
+    result = await workflow_service_existing.create_workflow_instance(input_instance_data)
     assert result is not None
     assert result.id == "test_inst_1"
     assert task_repo.create_task_instance.call_count == 2
@@ -136,7 +142,12 @@ async def test_update_definition_empty_task_list(workflow_service_existing, mock
 async def test_create_workflow_instance_definition_not_found(workflow_service_existing, mock_repositories): # Uses renamed fixture
     definition_repo, _, _ = mock_repositories
     definition_repo.get_workflow_definition_by_id = AsyncMock(return_value=None)
-    result = await workflow_service_existing.create_workflow_instance("test_def_1", user_id="test_user") # Uses renamed fixture
+    input_instance_data = WorkflowInstance(
+        workflow_definition_id="test_def_1",
+        user_id="test_user",
+        name="Test WF if Def Not Found" # Name is needed for WorkflowInstance model
+    )
+    result = await workflow_service_existing.create_workflow_instance(input_instance_data) # Uses renamed fixture
     assert result is None
 
 @pytest.mark.asyncio
@@ -414,8 +425,13 @@ async def test_create_instance_no_dates(workflow_service_new, mock_definition_re
     mock_task_repo_new.create_task_instance.side_effect = mock_create_task
 
     # Act
+    input_instance_data = WorkflowInstance(
+            workflow_definition_id=def_id,
+            user_id=user_id,
+            name="Test Def No Date" # Service will use definition name if this is None and model allows
+        )
     # Using workflow_service_new fixture
-    created_instance = await workflow_service_new.create_workflow_instance(definition_id=def_id, user_id=user_id)
+    created_instance = await workflow_service_new.create_workflow_instance(input_instance_data)
 
     # Assert
     assert created_instance is not None
@@ -458,7 +474,13 @@ async def test_create_instance_with_definition_date(workflow_service_new, mock_d
         return task_model
     mock_task_repo_new.create_task_instance.side_effect = mock_create_task
 
-    created_instance = await workflow_service_new.create_workflow_instance(definition_id=def_id, user_id=user_id)
+    input_instance_data = WorkflowInstance(
+        workflow_definition_id=def_id,
+        user_id=user_id,
+        name="Test Def With Date" # Name for the instance
+        # Not providing due_datetime, so it should pick up from the definition
+    )
+    created_instance = await workflow_service_new.create_workflow_instance(input_instance_data)
 
     assert created_instance is not None
     assert created_instance.due_datetime == def_due
@@ -494,9 +516,13 @@ async def test_create_instance_with_override_date(workflow_service_new, mock_def
         return task_model
     mock_task_repo_new.create_task_instance.side_effect = mock_create_task
 
-    created_instance = await workflow_service_new.create_workflow_instance(
-        definition_id=def_id, user_id=user_id, override_due_datetime=override_due
+    input_instance_data = WorkflowInstance(
+        workflow_definition_id=def_id,
+        user_id=user_id,
+        name="Test Def Override",
+        due_datetime=override_due # Pass override_due as due_datetime in the model
     )
+    created_instance = await workflow_service_new.create_workflow_instance(input_instance_data)
 
     assert created_instance is not None
     assert created_instance.due_datetime == override_due
@@ -527,12 +553,17 @@ async def test_create_instance_override_with_no_def_date(workflow_service_new, m
         return task_model
     mock_task_repo_new.create_task_instance.side_effect = mock_create_task
 
-    created_instance = await workflow_service_new.create_workflow_instance(
-        definition_id=def_id, user_id=user_id, override_due_datetime=override_due
+    input_instance_data = WorkflowInstance(
+        workflow_definition_id=def_id,
+        user_id=user_id,
+        name="Test Def Override No Def Date", # Correct name for this test context
+        due_datetime=override_due # Client explicitly sets due_datetime for the instance
     )
+    created_instance = await workflow_service_new.create_workflow_instance(input_instance_data)
 
     assert created_instance is not None
-    assert created_instance.due_datetime == override_due
+    assert created_instance.due_datetime == override_due # Instance due_datetime is the override
 
-    assert len(created_tasks_args) == 1
+    assert len(created_tasks_args) == 1 # This test's definition has one task
+    # Task due_datetime is based on override_due and its offset
     assert created_tasks_args[0].due_datetime == override_due + timedelta(minutes=-30)

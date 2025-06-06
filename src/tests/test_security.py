@@ -178,7 +178,17 @@ async def test_login_redirect(security_client, monkeypatch):
     # The login endpoint uses request.headers.get('referer', '/')
     # and then passes this as the 'state' parameter.
     # If no referer is provided, it defaults to '/', which doesn't require URL encoding.
-    assert "state=/" in response.headers["location"]
+    # Let's test with a more complex referer that needs encoding.
+    referer_url = "http://testserver/some/path?query=value&another=param"
+    response = security_client.get("/login", headers={"Referer": referer_url}, follow_redirects=False)
+    assert response.status_code == 307  # Standard redirect for login
+    assert response.headers["location"].startswith(expected_redirect_url_start)
+    assert f"client_id={keycloak_api_client_id}" in response.headers["location"]
+    assert f"redirect_uri=http://localhost/app/callback" in response.headers["location"]
+
+    from urllib.parse import quote_plus
+    expected_state = quote_plus(referer_url)
+    assert f"state={expected_state}" in response.headers["location"]
 
 
 @pytest.mark.skip(reason="Skipping OIDC callback test due to external dependency on Keycloak/complex mocking.")
