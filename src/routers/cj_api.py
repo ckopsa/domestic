@@ -1,6 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from typing import List, Optional
 
+from fastapi.templating import Jinja2Templates # Added
+from fastapi.responses import HTMLResponse # Added
+
 from core.security import get_current_active_user, AuthenticatedUser
 from dependencies import get_workflow_service
 from models import (
@@ -13,6 +16,8 @@ from models import (
 )
 from cj_models import CollectionJson, Link, Collection # Query, QueryData might be needed for root
 from services import WorkflowService
+
+templates = Jinja2Templates(directory="src/templates") # Added
 
 router = APIRouter(
     prefix="/api/cj",
@@ -60,7 +65,14 @@ async def get_cj_api_root(request: Request):
 
     # We need to import Collection from cj_models to construct this properly
     # from src.cj_models import Collection # Already imported at the top
-    return CollectionJson(collection=Collection(**collection_data))
+    collection_json_data = CollectionJson(collection=Collection(**collection_data))
+
+    if "text/html" in request.headers.get("accept", ""):
+        return templates.TemplateResponse(
+            request, "cj_template.html",
+            {"collection": collection_json_data.collection}
+        )
+    return collection_json_data
 
 
 # --- Workflow Instance Endpoints ---
@@ -95,10 +107,16 @@ async def list_workflow_instances_cj(
         CJWorkflowInstance.model_validate(instance) for instance in db_instances
     ]
 
-    return CJWorkflowInstance.to_cj_representation(
+    collection_json_data = CJWorkflowInstance.to_cj_representation(
         instances=cj_instances_list,
         context={'base_url': str(request.base_url)}
     )
+    if "text/html" in request.headers.get("accept", ""):
+        return templates.TemplateResponse(
+            request, "cj_template.html",
+            {"collection": collection_json_data.collection}
+        )
+    return collection_json_data
 
 
 # --- Task Instance Endpoints ---
@@ -128,12 +146,18 @@ async def list_task_instances_for_workflow_cj(
     # We can override the title, and potentially the main collection href if the model/method supports it.
     # For now, we rely on item 'href' and 'rel' to be correct and link back.
     # A more sophisticated approach might involve passing a collection_href_override.
-    return CJTaskInstance.to_cj_representation(
+    collection_json_data = CJTaskInstance.to_cj_representation(
         instances=cj_tasks_list,
         context={'base_url': str(request.base_url)},
         collection_title_override=f"Tasks for Workflow Instance {instance_id}",
         collection_href_override=str(request.url)
     )
+    if "text/html" in request.headers.get("accept", ""):
+        return templates.TemplateResponse(
+            request, "cj_template.html",
+            {"collection": collection_json_data.collection}
+        )
+    return collection_json_data
 
 @router.get("/task-instances/{task_id}", response_model=CollectionJson, summary="Get a specific Task Instance in CJ format")
 async def get_task_instance_cj(
@@ -150,10 +174,16 @@ async def get_task_instance_cj(
 
     cj_task = CJTaskInstance.model_validate(db_task)
 
-    return CJTaskInstance.to_cj_representation(
+    collection_json_data = CJTaskInstance.to_cj_representation(
         instances=cj_task,
         context={'base_url': str(request.base_url)}
     )
+    if "text/html" in request.headers.get("accept", ""):
+        return templates.TemplateResponse(
+            request, "cj_template.html",
+            {"collection": collection_json_data.collection}
+        )
+    return collection_json_data
 
 @router.post("/task-instances/{task_id}/complete", response_model=CollectionJson, summary="Mark a Task Instance as complete and return CJ representation")
 async def complete_task_instance_cj(
@@ -178,10 +208,16 @@ async def complete_task_instance_cj(
 
     cj_updated_task = CJTaskInstance.model_validate(updated_task_instance)
 
-    return CJTaskInstance.to_cj_representation(
+    collection_json_data = CJTaskInstance.to_cj_representation(
         instances=cj_updated_task,
         context={'base_url': str(request.base_url)}
     )
+    if "text/html" in request.headers.get("accept", ""):
+        return templates.TemplateResponse(
+            request, "cj_template.html",
+            {"collection": collection_json_data.collection}
+        )
+    return collection_json_data
 
 @router.post("/task-instances/{task_id}/undo-complete", response_model=CollectionJson, summary="Undo Task Instance completion and return CJ representation")
 async def undo_complete_task_instance_cj(
@@ -206,10 +242,16 @@ async def undo_complete_task_instance_cj(
 
     cj_updated_task = CJTaskInstance.model_validate(updated_task_instance)
 
-    return CJTaskInstance.to_cj_representation(
+    collection_json_data = CJTaskInstance.to_cj_representation(
         instances=cj_updated_task,
         context={'base_url': str(request.base_url)}
     )
+    if "text/html" in request.headers.get("accept", ""):
+        return templates.TemplateResponse(
+            request, "cj_template.html",
+            {"collection": collection_json_data.collection}
+        )
+    return collection_json_data
 
 @router.post("/workflow-instances/", response_model=CollectionJson, status_code=status.HTTP_201_CREATED, summary="Create Workflow Instance and return CJ representation")
 async def create_workflow_instance_cj(
@@ -228,10 +270,16 @@ async def create_workflow_instance_cj(
 
     created_cj_instance = CJWorkflowInstance.model_validate(created_db_instance)
 
-    return CJWorkflowInstance.to_cj_representation(
+    collection_json_data = CJWorkflowInstance.to_cj_representation(
         instances=created_cj_instance,
         context={'base_url': str(request.base_url)}
     )
+    if "text/html" in request.headers.get("accept", ""):
+        return templates.TemplateResponse(
+            request, "cj_template.html",
+            {"collection": collection_json_data.collection}
+        )
+    return collection_json_data
 
 @router.get("/workflow-instances/{instance_id}", response_model=CollectionJson, summary="Get a specific Workflow Instance in CJ format")
 async def get_workflow_instance_cj(
@@ -248,10 +296,16 @@ async def get_workflow_instance_cj(
 
     cj_instance = CJWorkflowInstance.model_validate(db_instance)
 
-    return CJWorkflowInstance.to_cj_representation(
+    collection_json_data = CJWorkflowInstance.to_cj_representation(
         instances=cj_instance,
         context={'base_url': str(request.base_url)}
     )
+    if "text/html" in request.headers.get("accept", ""):
+        return templates.TemplateResponse(
+            request, "cj_template.html",
+            {"collection": collection_json_data.collection}
+        )
+    return collection_json_data
 
 
 @router.get("/workflow-definitions/", response_model=CollectionJson, summary="List Workflow Definitions in CJ format")
@@ -265,10 +319,16 @@ async def list_workflow_definitions_cj(request: Request, service: WorkflowServic
         CJWorkflowDefinition.model_validate(definition.model_dump()) for definition in db_definitions
     ]
 
-    return CJWorkflowDefinition.to_cj_representation(
+    collection_json_data = CJWorkflowDefinition.to_cj_representation(
         instances=cj_definitions_list,
         context={'base_url': str(request.base_url)}
     )
+    if "text/html" in request.headers.get("accept", ""):
+        return templates.TemplateResponse(
+            request, "cj_template.html",
+            {"collection": collection_json_data.collection}
+        )
+    return collection_json_data
 
 
 @router.post("/workflow-definitions/", response_model=CollectionJson, status_code=status.HTTP_201_CREATED, summary="Create Workflow Definition and return CJ representation")
@@ -290,10 +350,16 @@ async def create_workflow_definition_cj(request: Request, definition_data: Workf
     # The service returns a WorkflowDefinition Pydantic model, so model_validate is appropriate
     created_cj_definition = CJWorkflowDefinition.model_validate(created_db_definition.model_dump())
 
-    return CJWorkflowDefinition.to_cj_representation(
+    collection_json_data = CJWorkflowDefinition.to_cj_representation(
         instances=created_cj_definition, # Pass a single instance
         context={'base_url': str(request.base_url)}
     )
+    if "text/html" in request.headers.get("accept", ""):
+        return templates.TemplateResponse(
+            request, "cj_template.html",
+            {"collection": collection_json_data.collection}
+        )
+    return collection_json_data
 
 
 @router.get("/workflow-definitions/{definition_id}", response_model=CollectionJson, summary="Get a specific Workflow Definition in CJ format")
@@ -315,7 +381,13 @@ async def get_workflow_definition_cj(definition_id: str, request: Request, servi
     # Then convert to CJWorkflowDefinition
     cj_definition = CJWorkflowDefinition.model_validate(pydantic_definition.model_dump())
 
-    return CJWorkflowDefinition.to_cj_representation(
+    collection_json_data = CJWorkflowDefinition.to_cj_representation(
         instances=cj_definition, # Pass a single instance
         context={'base_url': str(request.base_url)}
     )
+    if "text/html" in request.headers.get("accept", ""):
+        return templates.TemplateResponse(
+            request, "cj_template.html",
+            {"collection": collection_json_data.collection}
+        )
+    return collection_json_data
