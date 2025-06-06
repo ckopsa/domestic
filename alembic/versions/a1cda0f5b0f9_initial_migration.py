@@ -1,16 +1,16 @@
-"""create workflow and task tables for postgresql
+"""Initial migration
 
-Revision ID: initial
+Revision ID: a1cda0f5b0f9
 Revises: 
-Create Date: 2025-05-29 10:00:00.000000
+Create Date: 2025-06-05 22:34:31.631653
 
 """
 from alembic import op
 import sqlalchemy as sa
-from src.db_models.enums import WorkflowStatus, TaskStatus
+
 
 # revision identifiers, used by Alembic.
-revision = 'initial'
+revision = 'a1cda0f5b0f9'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -22,29 +22,44 @@ def upgrade() -> None:
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('name', sa.String(), nullable=False),
     sa.Column('description', sa.Text(), nullable=True),
-    sa.Column('task_names', sa.Text(), nullable=False),
+    sa.Column('due_datetime', sa.DateTime(), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_workflow_definitions_id'), 'workflow_definitions', ['id'], unique=False)
-    
+    op.create_table('task_definitions',
+    sa.Column('id', sa.String(), nullable=False),
+    sa.Column('workflow_definition_id', sa.String(), nullable=False),
+    sa.Column('name', sa.String(), nullable=False),
+    sa.Column('order', sa.Integer(), nullable=False),
+    sa.Column('due_datetime_offset_minutes', sa.Integer(), nullable=True),
+    sa.ForeignKeyConstraint(['workflow_definition_id'], ['workflow_definitions.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_task_definitions_id'), 'task_definitions', ['id'], unique=False)
+    op.create_index(op.f('ix_task_definitions_workflow_definition_id'), 'task_definitions', ['workflow_definition_id'], unique=False)
     op.create_table('workflow_instances',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('workflow_definition_id', sa.String(), nullable=False),
     sa.Column('name', sa.String(), nullable=False),
-    sa.Column('status', sa.Enum(WorkflowStatus), nullable=False),
-    sa.Column('created_at', sa.Date(), nullable=False),
+    sa.Column('user_id', sa.String(), nullable=False),
+    sa.Column('status', sa.Enum('active', 'completed', 'archived', 'pending', name='workflowstatus'), nullable=False),
+    sa.Column('created_at', sa.DateTime(), nullable=False),
+    sa.Column('share_token', sa.String(), nullable=True),
+    sa.Column('due_datetime', sa.DateTime(), nullable=True),
     sa.ForeignKeyConstraint(['workflow_definition_id'], ['workflow_definitions.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_workflow_instances_id'), 'workflow_instances', ['id'], unique=False)
+    op.create_index(op.f('ix_workflow_instances_share_token'), 'workflow_instances', ['share_token'], unique=True)
+    op.create_index(op.f('ix_workflow_instances_user_id'), 'workflow_instances', ['user_id'], unique=False)
     op.create_index(op.f('ix_workflow_instances_workflow_definition_id'), 'workflow_instances', ['workflow_definition_id'], unique=False)
-    
     op.create_table('task_instances',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('workflow_instance_id', sa.String(), nullable=False),
     sa.Column('name', sa.String(), nullable=False),
     sa.Column('order', sa.Integer(), nullable=False),
-    sa.Column('status', sa.Enum(TaskStatus), nullable=False),
+    sa.Column('status', sa.Enum('pending', 'completed', 'in_progress', name='taskstatus'), nullable=False),
+    sa.Column('due_datetime', sa.DateTime(), nullable=True),
     sa.ForeignKeyConstraint(['workflow_instance_id'], ['workflow_instances.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
@@ -59,8 +74,13 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_task_instances_id'), table_name='task_instances')
     op.drop_table('task_instances')
     op.drop_index(op.f('ix_workflow_instances_workflow_definition_id'), table_name='workflow_instances')
+    op.drop_index(op.f('ix_workflow_instances_user_id'), table_name='workflow_instances')
+    op.drop_index(op.f('ix_workflow_instances_share_token'), table_name='workflow_instances')
     op.drop_index(op.f('ix_workflow_instances_id'), table_name='workflow_instances')
     op.drop_table('workflow_instances')
+    op.drop_index(op.f('ix_task_definitions_workflow_definition_id'), table_name='task_definitions')
+    op.drop_index(op.f('ix_task_definitions_id'), table_name='task_definitions')
+    op.drop_table('task_definitions')
     op.drop_index(op.f('ix_workflow_definitions_id'), table_name='workflow_definitions')
     op.drop_table('workflow_definitions')
     # ### end Alembic commands ###
