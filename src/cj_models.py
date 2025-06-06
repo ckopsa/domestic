@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Optional, List, Dict, Any, ClassVar, Union
+from datetime import datetime
 
 from pydantic import BaseModel, Field as PydanticField, computed_field
 from pydantic_core import PydanticUndefined
@@ -72,7 +73,6 @@ class CollectionJson(BaseModel):
     error: Optional[Error] = PydanticField(None, description="Error details, if any")
 
 
-
 class CollectionJSONRepresentable(BaseModel):
     cj_collection_href_template: ClassVar[str] = "/items/"
     cj_item_href_template: ClassVar[str] = "/items/{id}/"
@@ -84,15 +84,22 @@ class CollectionJSONRepresentable(BaseModel):
 
     id: Union[int, str, None] = PydanticField(None, title="Identifier", json_schema_extra={"cj_read_only": True})
 
-
     @classmethod
     def _get_base_url_from_context(cls, context: Optional[Dict[str, Any]] = None) -> str:
         return context.get("base_url", "") if context else ""
 
     @classmethod
-    def _resolve_href(cls, template: str, base_url: str, **kwargs) -> str:
-        full_template = (base_url.rstrip('/') + "/" + template.lstrip('/'))
-        return full_template.format(**kwargs)
+    def _resolve_href(cls, context: Optional[Dict[str, Any]], template_str: str, **kwargs) -> str:
+        formatted_template = template_str.format(**kwargs)
+
+        if formatted_template.startswith("http://") or formatted_template.startswith("https://"):
+            return formatted_template
+
+        base_url = cls._get_base_url_from_context(context)
+        base_url = base_url.rstrip('/')
+        template_path = formatted_template.lstrip('/')
+
+        return f"{base_url}/{template_path}"
 
     @classmethod
     def get_cj_template_data_definitions(cls, context: Optional[Dict[str, Any]] = None) -> List[TemplateData]:
@@ -102,28 +109,22 @@ class CollectionJSONRepresentable(BaseModel):
             if json_extra.get("cj_internal") or json_extra.get("cj_read_only_for_template",
                                                                json_extra.get("cj_read_only")):
                 continue
-
             prompt = field_info.title or field_name.replace('_', ' ').capitalize()
             default_value = field_info.get_default(call_default_factory=True)
-
             value_for_template: Optional[str] = ""
             if default_value is not None and default_value is not PydanticUndefined:
                 value_for_template = str(default_value)
-
             td_dict: Dict[str, Any] = {
                 "name": field_info.alias or field_name,
                 "value": value_for_template,
                 "prompt": prompt,
                 "required": field_info.is_required()
             }
-
             if cj_type := json_extra.get("cj_type"):
                 td_dict["type"] = cj_type
-
             for k, v in json_extra.items():
                 if k.startswith("cj_template_attr_"):
                     td_dict[k.replace("cj_template_attr_", "")] = v
-
             template_data_list.append(TemplateData(**td_dict))
         return template_data_list
 
@@ -143,46 +144,44 @@ class CollectionJSONRepresentable(BaseModel):
     def get_cj_instance_item_data(self, context: Optional[Dict[str, Any]] = None) -> List[ItemData]:
         item_data_list: List[ItemData] = []
         instance_dict = self.model_dump(exclude={"cj_href"}, by_alias=True, mode='python')
-
         for field_name, field_info in self.__class__.model_fields.items():
             json_extra = field_info.json_schema_extra or {}
             if json_extra.get("cj_internal") or field_name == "cj_href":
                 continue
-
             dict_key = field_info.alias or field_name
             value = instance_dict.get(dict_key)
             prompt = field_info.title or field_name.replace('_', ' ').capitalize()
-
+            if isinstance(value, datetime):
+                value = value.isoformat()
             id_dict: Dict[str, Any] = {"name": dict_key, "value": value, "prompt": prompt}
-
             if cj_type := json_extra.get("cj_type"):
                 id_dict["type"] = cj_type
-
             for k, v in json_extra.items():
                 if k.startswith("cj_item_attr_"):
                     id_dict[k.replace("cj_item_attr_", "")] = v
-
             item_data_list.append(ItemData(**id_dict))
         return item_data_list
 
-    def get_cj_instance_item_links(self, base_url: str = "") -> List[Link]:
+    def get_cj_instance_item_links(self, context: Optional[Dict[str, Any]] = None) -> List[Link]:
         links: List[Link] = []
         if self.cj_href:
-            resolved_cj_href = self._resolve_href(self.cj_href, base_url=base_url)
+            resolved_cj_href = self.__class__._resolve_href(context=context, template_str=self.cj_href)
             links.append(Link(rel="edit", href=resolved_cj_href, prompt=f"Edit {self.__class__.__name__}", method="GET"))
             links.append(Link(rel="delete", href=resolved_cj_href, prompt=f"Delete {self.__class__.__name__}", method="DELETE"))
         return links
 
     def to_cj_item(self, context: Optional[Dict[str, Any]] = None) -> Item:
-        base_url = self._get_base_url_from_context(context)
         item_rel_from_config = (self.model_config or {}).get("cj_item_rel", self.__class__.cj_item_rel)
-        resolved_cj_href = self._resolve_href(self.cj_href or "", base_url=base_url) if self.cj_href else self._resolve_href(self.__class__.cj_item_href_template.format(id="undefined"), base_url=base_url)
+        item_href_template = self.cj_href or self.__class__.cj_item_href_template.format(id="undefined")
+        resolved_cj_href = self.__class__._resolve_href(context=context, template_str=item_href_template)
+
+        item_links = self.get_cj_instance_item_links(context=context)
 
         return Item(
             href=resolved_cj_href,
             rel=item_rel_from_config,
             data=self.get_cj_instance_item_data(context=context),
-            links=self.get_cj_instance_item_links(base_url=base_url)
+            links=item_links
         )
 
     @classmethod
@@ -191,18 +190,27 @@ class CollectionJSONRepresentable(BaseModel):
                              collection_links_override: Optional[List[Link]] = None,
                              collection_queries_override: Optional[List[Query]] = None,
                              collection_title_override: Optional[str] = None,
+                             collection_href_override: Optional[str] = None,
                              error_details: Optional[Error] = None,
                              context: Optional[Dict[str, Any]] = None
                              ) -> CollectionJson:
-        base_url = cls._get_base_url_from_context(context)
-        collection_href = cls._resolve_href(cls.cj_collection_href_template, base_url=base_url)
+
+        # Determine the correct collection href
+        # If collection_href_override is provided, it's used.
+        # Otherwise, the default class cj_collection_href_template is used.
+        # _resolve_href will handle prepending base_url if the template is not a full URL,
+        # or return it directly if it's already a full URL.
+        href_template_to_use = collection_href_override if collection_href_override is not None else cls.cj_collection_href_template
+        coll_href = cls._resolve_href(context=context, template_str=href_template_to_use)
+
+        collection_title = collection_title_override if collection_title_override else cls.cj_collection_title
 
         global_links = [
-            Link(**{**link_def.model_dump(), "href": cls._resolve_href(link_def.href, base_url=base_url)})
+            Link(**{**link_def.model_dump(), "href": cls._resolve_href(context=context, template_str=link_def.href)})
             for link_def in (collection_links_override or cls.cj_global_links)
         ]
         global_queries = [
-            Query(**{**query_def.model_dump(), "href": cls._resolve_href(query_def.href, base_url=base_url)})
+            Query(**{**query_def.model_dump(), "href": cls._resolve_href(context=context, template_str=query_def.href)})
             for query_def in (collection_queries_override or cls.cj_global_queries)
         ]
 
@@ -213,8 +221,8 @@ class CollectionJSONRepresentable(BaseModel):
 
         collection_obj = Collection(
             version=cls.cj_version,
-            href=collection_href,
-            title=collection_title_override or cls.cj_collection_title,
+            href=coll_href,
+            title=collection_title,
             links=global_links,
             items=items_list,
             queries=global_queries

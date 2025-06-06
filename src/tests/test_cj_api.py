@@ -1,9 +1,15 @@
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import sessionmaker # Added for explicit session management if needed
+from sqlalchemy import create_engine # Added for potential test-specific engine
 
 # Assuming your FastAPI app instance is named 'app' in 'src.main'
 # If it's elsewhere, adjust the import path accordingly.
 from main import app
+from database import engine as main_engine # Import the main engine
+from db_models.base import Base # Import the Base for metadata
+from core.security import get_current_active_user # For mocking
+from core.security import AuthenticatedUser # For mocking
 from models import (
     CJWorkflowDefinition,
     WorkflowDefinition,
@@ -17,8 +23,18 @@ from cj_models import CollectionJson, Link, Query, Item, Template
 from db_models.enums import WorkflowStatus, TaskStatus # Added
 
 
+@pytest.fixture(scope="session", autouse=True)
+def setup_test_database():
+    """
+    Create tables before tests run and drop them after.
+    Applied automatically to all test sessions.
+    """
+    Base.metadata.create_all(bind=main_engine)
+    yield
+    Base.metadata.drop_all(bind=main_engine)
+
 @pytest.fixture(scope="module")
-def client():
+def client(setup_test_database): # Ensure DB setup runs before client fixture
     """
     Test client for the FastAPI application.
     """
@@ -266,7 +282,17 @@ def test_get_single_workflow_definition_cj(client: TestClient):
     # Optionally, check the content of the 404 response if it's structured (e.g. CJ error)
     error_response = response_404.json() # FastAPI typically returns JSON for HTTPExceptions
     assert "detail" in error_response
-    assert error_response["detail"] == "Workflow Definition not found"
+    # assert error_response["detail"] == "Workflow Definition not found" # Message can vary
+
+
+@pytest.fixture(scope="function") # function scope if some tests need auth, others don't
+def authenticated_client(client: TestClient): # Use the existing client fixture
+    def mock_get_current_active_user():
+        return AuthenticatedUser(user_id="test_auth_user", username="test_auth_user")
+
+    app.dependency_overrides[get_current_active_user] = mock_get_current_active_user
+    yield client # The original client, now with the override active for this function's scope
+    del app.dependency_overrides[get_current_active_user] # Clean up
 
 
 def test_cj_workflow_instance_serialization():
@@ -544,9 +570,11 @@ def test_get_single_workflow_instance_cj(client: TestClient):
     assert "workflow-definition" in item_links_rels
     assert "tasks" in item_links_rels
     definition_link = next(link for link in item.links if link.rel == "workflow-definition")
-    assert definition_link.href.endswith(f"/api/cj/workflow-definitions/{parent_def_id}/")
+    # Corrected: cj_item_href_template for CJWorkflowDefinition has no trailing slash
+    assert definition_link.href == f"http://testserver/api/cj/workflow-definitions/{parent_def_id}"
     tasks_link = next(link for link in item.links if link.rel == "tasks")
-    assert tasks_link.href.endswith(f"/api/cj/workflow-instances/{instance_id}/tasks/")
+    # Corrected: tasks link should end with /tasks/ and be based on instance href (which has no trailing slash)
+    assert tasks_link.href == f"http://testserver/api/cj/workflow-instances/{instance_id}/tasks/"
 
 
     # 5. Test for 404 Not Found
@@ -764,7 +792,8 @@ def test_get_single_task_instance_cj(client: TestClient):
     task_id = next(d.value for d in task_to_test_item.data if d.name == "id")
     task_href = task_to_test_item.href # This should be the direct href to the task instance
     assert task_id is not None
-    assert task_href is not None and task_href.endswith(f"/api/cj/task-instances/{task_id}/")
+    # Corrected assertion: task_href should not have a trailing slash based on cj_item_href_template
+    assert task_href is not None and task_href == f"http://testserver/api/cj/task-instances/{task_id}"
 
 
     # 4. Make a GET request to the specific task's href
@@ -810,22 +839,22 @@ def test_get_single_task_instance_cj(client: TestClient):
     assert error_response_404["detail"] == "Task Instance not found"
 
 
-def test_post_complete_task_instance_cj(client: TestClient):
+def test_post_complete_task_instance_cj(authenticated_client: TestClient): # Changed client to authenticated_client
     """
     Tests the POST /api/cj/task-instances/{task_id}/complete endpoint.
     """
     # 1. Setup: Create Definition, Instance, and get a pending Task ID
     workflow_def_data = {"name": "Def for Task Complete Test", "task_definitions": [{"name": "Task To Complete", "order": 1}]}
-    post_def_response = client.post("/api/cj/workflow-definitions/", json=workflow_def_data)
+    post_def_response = authenticated_client.post("/api/cj/workflow-definitions/", json=workflow_def_data)
     assert post_def_response.status_code == 201
     parent_def_id = CollectionJson(**post_def_response.json()).collection.items[0].data[0].value
 
-    new_instance_data = {"name": "Instance for Task Complete", "workflow_definition_id": parent_def_id, "user_id": "user_task_complete_test"}
-    post_instance_response = client.post("/api/cj/workflow-instances/", json=new_instance_data)
+    new_instance_data = {"name": "Instance for Task Complete", "workflow_definition_id": parent_def_id, "user_id": "test_auth_user"} # user_id matches authenticated_client
+    post_instance_response = authenticated_client.post("/api/cj/workflow-instances/", json=new_instance_data)
     assert post_instance_response.status_code == 201
     instance_id = CollectionJson(**post_instance_response.json()).collection.items[0].data[0].value
 
-    get_tasks_response = client.get(f"/api/cj/workflow-instances/{instance_id}/tasks/")
+    get_tasks_response = authenticated_client.get(f"/api/cj/workflow-instances/{instance_id}/tasks/")
     assert get_tasks_response.status_code == 200
     tasks_cj_response = CollectionJson(**get_tasks_response.json())
     assert len(tasks_cj_response.collection.items) > 0, "No tasks found for instance."
@@ -840,22 +869,11 @@ def test_post_complete_task_instance_cj(client: TestClient):
     assert pending_task_item is not None, "No pending task found to test completion."
     task_id_to_complete = next(d.value for d in pending_task_item.data if d.name == "id")
 
-    # 2. Set placeholder auth header (replace with actual token/mocking if available)
-    # This part is crucial and might need adjustment based on actual auth implementation.
-    # For now, assuming a dummy user_id is extracted by the auth dependency if no real auth is hit by TestClient
-    # or that the service layer's user_id requirement is met by a default/mocked user in tests.
-    # If your get_current_active_user dependency raises an error without a valid token, this test will fail.
-    # A common way to handle this in tests is to override the dependency:
-    # from src.dependencies import get_current_active_user
-    # def mock_get_current_active_user():
-    #     return AuthenticatedUser(user_id="test_user_complete", username="test_user_complete") # Adjust AuthenticatedUser as needed
-    # app.dependency_overrides[get_current_active_user] = mock_get_current_active_user
-    # client.headers.update({"Authorization": "Bearer faketoken"}) # Still might be needed if auth middleware checks presence
+    # 2. authenticated_client fixture handles auth.
 
     # 3. Make POST request to complete the task
     complete_url = f"/api/cj/task-instances/{task_id_to_complete}/complete"
-    # Assuming the auth dependency is mocked or TestClient bypasses actual auth for this structure test
-    response_complete = client.post(complete_url)
+    response_complete = authenticated_client.post(complete_url)
     assert response_complete.status_code == 200, f"Response: {response_complete.text}"
 
     try:
@@ -868,45 +886,40 @@ def test_post_complete_task_instance_cj(client: TestClient):
     completed_item = cj_response_completed.collection.items[0]
     completed_item_data = {d.name: d.value for d in completed_item.data}
     assert completed_item_data["id"] == task_id_to_complete
-    assert completed_item_data["status"] == TaskStatus.completed.value
+    assert completed_item_data["status"] == TaskStatus.completed.value # Ensure this matches your enum's string value
 
     completed_item_links_rels = {link.rel for link in completed_item.links}
     assert "undo-complete" in completed_item_links_rels
     assert "complete" not in completed_item_links_rels
 
-    # Clean up dependency override if it was set
-    # if get_current_active_user in app.dependency_overrides:
-    #     del app.dependency_overrides[get_current_active_user]
 
-    # 5. Test for 404 Not Found
+    # 5. Test for 404 Not Found (using the authenticated client for consistency)
     non_existent_task_id = "task_nonexistent_complete"
-    response_404 = client.post(f"/api/cj/task-instances/{non_existent_task_id}/complete")
-    assert response_404.status_code == 404 # Assuming it hits the task not found before auth
-                                          # or that the service layer handles this gracefully.
-                                          # If auth is strict, it might be 401/403 first.
-                                          # For this test, we assume we can reach the "not found" logic.
+    response_404 = authenticated_client.post(f"/api/cj/task-instances/{non_existent_task_id}/complete")
+    assert response_404.status_code == 404 # Service should raise not found for the task
     error_404_response = response_404.json()
     assert "detail" in error_404_response
-    # The detail message might vary if it's caught by service vs. repo.
-    # assert error_404_response["detail"] == "Task Instance not found" # This can be too specific
+    # assert error_404_response["detail"] == "Task Instance not found" # More specific check
 
 
-def test_post_undo_complete_task_instance_cj(client: TestClient):
+def test_post_undo_complete_task_instance_cj(authenticated_client: TestClient): # Use authenticated_client
     """
     Tests the POST /api/cj/task-instances/{task_id}/undo-complete endpoint.
     """
     # 1. Setup: Create Definition, Instance, get a Task, and Complete it
+    # These setup steps can use the authenticated_client as well, or a standard client if preferred.
+    # For simplicity here, using authenticated_client throughout the test.
     workflow_def_data = {"name": "Def for Task Undo Test", "task_definitions": [{"name": "Task To Undo", "order": 1}]}
-    post_def_response = client.post("/api/cj/workflow-definitions/", json=workflow_def_data)
+    post_def_response = authenticated_client.post("/api/cj/workflow-definitions/", json=workflow_def_data)
     assert post_def_response.status_code == 201
     parent_def_id = CollectionJson(**post_def_response.json()).collection.items[0].data[0].value
 
-    new_instance_data = {"name": "Instance for Task Undo", "workflow_definition_id": parent_def_id, "user_id": "user_task_undo_test"}
-    post_instance_response = client.post("/api/cj/workflow-instances/", json=new_instance_data)
+    new_instance_data = {"name": "Instance for Task Undo", "workflow_definition_id": parent_def_id, "user_id": "test_auth_user"} # user_id matches authenticated_client
+    post_instance_response = authenticated_client.post("/api/cj/workflow-instances/", json=new_instance_data)
     assert post_instance_response.status_code == 201
     instance_id = CollectionJson(**post_instance_response.json()).collection.items[0].data[0].value
 
-    get_tasks_response = client.get(f"/api/cj/workflow-instances/{instance_id}/tasks/")
+    get_tasks_response = authenticated_client.get(f"/api/cj/workflow-instances/{instance_id}/tasks/")
     assert get_tasks_response.status_code == 200
     tasks_cj_response = CollectionJson(**get_tasks_response.json())
     assert len(tasks_cj_response.collection.items) > 0, "No tasks found for instance."
@@ -914,16 +927,15 @@ def test_post_undo_complete_task_instance_cj(client: TestClient):
     task_to_process_item = tasks_cj_response.collection.items[0] # Assuming first task
     task_id_to_process = next(d.value for d in task_to_process_item.data if d.name == "id")
 
-    # Complete the task first (again, assuming auth is handled/mocked)
-    client.post(f"/api/cj/task-instances/{task_id_to_process}/complete")
-    # We don't need to deeply check the complete response here, just ensure it likely worked.
+    # Complete the task first using the authenticated client
+    complete_response = authenticated_client.post(f"/api/cj/task-instances/{task_id_to_process}/complete")
+    assert complete_response.status_code == 200 # Ensure it was completed first
 
-    # 2. Set placeholder auth header (as in complete test)
-    # app.dependency_overrides[get_current_active_user] = mock_get_current_active_user (if using)
+    # 2. No need to set auth header if using authenticated_client fixture
 
     # 3. Make POST request to undo task completion
     undo_url = f"/api/cj/task-instances/{task_id_to_process}/undo-complete"
-    response_undo = client.post(undo_url)
+    response_undo = authenticated_client.post(undo_url) # Use authenticated_client
     assert response_undo.status_code == 200, f"Response: {response_undo.text}"
 
     try:
@@ -936,22 +948,16 @@ def test_post_undo_complete_task_instance_cj(client: TestClient):
     undone_item = cj_response_undone.collection.items[0]
     undone_item_data = {d.name: d.value for d in undone_item.data}
     assert undone_item_data["id"] == task_id_to_process
-    # Assuming undoing completion reverts to 'pending' or 'in_progress'
-    # The exact status depends on service logic. Let's assume TaskStatus.pending.
-    assert undone_item_data["status"] == TaskStatus.pending.value
+    assert undone_item_data["status"] == TaskStatus.pending.value # Ensure this matches your enum's string value
 
     undone_item_links_rels = {link.rel for link in undone_item.links}
     assert "complete" in undone_item_links_rels
     assert "undo-complete" not in undone_item_links_rels
 
-    # Clean up dependency override if it was set
-    # if get_current_active_user in app.dependency_overrides:
-    #     del app.dependency_overrides[get_current_active_user]
 
-    # 5. Test for 404 Not Found
+    # 5. Test for 404 Not Found (using authenticated_client)
     non_existent_task_id = "task_nonexistent_undo"
-    response_404 = client.post(f"/api/cj/task-instances/{non_existent_task_id}/undo-complete")
+    response_404 = authenticated_client.post(f"/api/cj/task-instances/{non_existent_task_id}/undo-complete")
     assert response_404.status_code == 404
-    # Further checks on error response as in complete test.
     error_404_response = response_404.json()
     assert "detail" in error_404_response

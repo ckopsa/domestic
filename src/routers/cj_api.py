@@ -221,11 +221,11 @@ async def create_workflow_instance_cj(
     """
     Creates a new workflow instance and returns its representation in Collection+JSON format.
     """
-    created_db_instance = await service.create_workflow_instance(
-        definition_id=instance_data.workflow_definition_id,
-        user_id=instance_data.user_id, # Assuming this is provided or handled by auth
-        override_due_datetime=instance_data.due_datetime
-    )
+    # instance_data is already a WorkflowInstance Pydantic model from the request body
+    created_db_instance = await service.create_workflow_instance(instance_data)
+
+    if not created_db_instance:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Could not create workflow instance, possibly due to invalid definition ID.")
 
     created_cj_instance = CJWorkflowInstance.model_validate(created_db_instance)
 

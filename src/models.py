@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import Optional, List, ClassVar
+from typing import Optional, List, ClassVar, Dict, Any # Added Dict and Any
 
 from pydantic import BaseModel, Field
 
@@ -41,7 +41,7 @@ class WorkflowInstance(BaseModel):
 class CJTaskDefinition(CollectionJSONRepresentable, TaskDefinitionBase):
     id: str = Field(default_factory=lambda: "task_def_" + str(uuid.uuid4())[:8])
     cj_collection_href_template: ClassVar[str] = "/api/cj/task-definitions/"
-    cj_item_href_template: ClassVar[str] = "/api/cj/task-definitions/{id}/"
+    cj_item_href_template: ClassVar[str] = "/api/cj/task-definitions/{id}" # Removed trailing slash
     cj_item_rel: ClassVar[str] = "task-definition" # More specific rel
     cj_collection_title: ClassVar[str] = "Task Definitions"
 
@@ -60,14 +60,10 @@ class CJTaskDefinition(CollectionJSONRepresentable, TaskDefinitionBase):
         )
     ]
 
-    def get_cj_instance_item_links(self, base_url: str = "") -> List[Link]:
-        # Task definitions themselves don't have actions like complete/incomplete.
-        # They are typically managed as part of a WorkflowDefinition.
-        # The super() call might provide edit/delete links if cj_href is resolvable
-        # and those are generically provided by CollectionJSONRepresentable.
-        # If task definitions are only ever edited via their parent workflow definition,
-        # this could return an empty list. For now, returning super() is fine.
-        links = super().get_cj_instance_item_links(base_url=base_url)
+    # Signature already updated in previous step, just ensuring super() call is correct.
+    def get_cj_instance_item_links(self, context: Optional[Dict[str, Any]] = None) -> List[Link]:
+        # base_url = self.__class__._get_base_url_from_context(context) # Not needed if super handles context
+        links = super().get_cj_instance_item_links(context=context)
         return links
 
 
@@ -84,7 +80,7 @@ class WorkflowDefinition(BaseModel):
 
 class CJWorkflowDefinition(WorkflowDefinition, CollectionJSONRepresentable):
     cj_collection_href_template: ClassVar[str] = "/api/cj/workflow-definitions/"
-    cj_item_href_template: ClassVar[str] = "/api/cj/workflow-definitions/{id}/"
+    cj_item_href_template: ClassVar[str] = "/api/cj/workflow-definitions/{id}" # Removed trailing slash
     cj_item_rel: ClassVar[str] = "workflow-definition"
     cj_collection_title: ClassVar[str] = "Workflow Definitions"
 
@@ -110,7 +106,7 @@ class CJWorkflowDefinition(WorkflowDefinition, CollectionJSONRepresentable):
 
 class CJWorkflowInstance(WorkflowInstance, CollectionJSONRepresentable):
     cj_collection_href_template: ClassVar[str] = "/api/cj/workflow-instances/"
-    cj_item_href_template: ClassVar[str] = "/api/cj/workflow-instances/{id}/"
+    cj_item_href_template: ClassVar[str] = "/api/cj/workflow-instances/{id}" # Removed trailing slash
     cj_item_rel: ClassVar[str] = "workflow-instance"
     cj_collection_title: ClassVar[str] = "Workflow Instances"
 
@@ -132,25 +128,28 @@ class CJWorkflowInstance(WorkflowInstance, CollectionJSONRepresentable):
         )
     ]
 
-    def get_cj_instance_item_links(self, base_url: str = "") -> List[Link]:
-        links = super().get_cj_instance_item_links(base_url=base_url)
+    # Signature already updated, ensure calls to _resolve_href and super() are correct
+    def get_cj_instance_item_links(self, context: Optional[Dict[str, Any]] = None) -> List[Link]:
+        links = super().get_cj_instance_item_links(context=context)
         links.append(
             Link(
                 rel="workflow-definition",
-                href=self._resolve_href(
-                    CJWorkflowDefinition.cj_item_href_template.format(id=self.workflow_definition_id),
-                    base_url=base_url
+                href=self.__class__._resolve_href(
+                    context=context,
+                    template_str=CJWorkflowDefinition.cj_item_href_template.format(id=self.workflow_definition_id)
                 ),
                 prompt="Parent Workflow Definition",
                 method="GET",
             )
         )
+        # Construct the instance's own href path first for the tasks link
+        instance_item_path = self.cj_item_href_template.format(id=self.id)
         links.append(
             Link(
                 rel="tasks",
-                href=self._resolve_href(
-                    f"{self.cj_item_href_template.format(id=self.id)}tasks/", # Note: constructing task collection URL
-                    base_url=base_url
+                href=self.__class__._resolve_href(
+                    context=context,
+                    template_str=f"{instance_item_path}/tasks/"
                 ),
                 prompt="Task Instances for this Workflow",
                 method="GET",
@@ -161,7 +160,7 @@ class CJWorkflowInstance(WorkflowInstance, CollectionJSONRepresentable):
 
 class CJTaskInstance(TaskInstance, CollectionJSONRepresentable):
     cj_collection_href_template: ClassVar[str] = "/api/cj/task-instances/"
-    cj_item_href_template: ClassVar[str] = "/api/cj/task-instances/{id}/"
+    cj_item_href_template: ClassVar[str] = "/api/cj/task-instances/{id}" # Removed trailing slash
     cj_item_rel: ClassVar[str] = "task-instance"
     cj_collection_title: ClassVar[str] = "Task Instances"
 
@@ -181,21 +180,23 @@ class CJTaskInstance(TaskInstance, CollectionJSONRepresentable):
         )
     ]
 
-    def get_cj_instance_item_links(self, base_url: str = "") -> List[Link]:
-        links = super().get_cj_instance_item_links(base_url=base_url)
+    # Signature already updated, ensure calls to _resolve_href and super() are correct
+    def get_cj_instance_item_links(self, context: Optional[Dict[str, Any]] = None) -> List[Link]:
+        links = super().get_cj_instance_item_links(context=context)
         links.append(
             Link(
                 rel="workflow-instance",
-                href=self._resolve_href(
-                    CJWorkflowInstance.cj_item_href_template.format(id=self.workflow_instance_id),
-                    base_url=base_url
+                href=self.__class__._resolve_href(
+                    context=context,
+                    template_str=CJWorkflowInstance.cj_item_href_template.format(id=self.workflow_instance_id)
                 ),
                 prompt="Parent Workflow Instance",
                 method="GET",
             )
         )
-        # Example action links - can be conditional based on task status
-        resolved_item_href = self._resolve_href(self.cj_href or "", base_url=base_url) if self.cj_href else None
+
+        resolved_item_href = self.__class__._resolve_href(context=context, template_str=(self.cj_href or "")) if self.cj_href else None
+
         if resolved_item_href:
             if self.status == TaskStatus.pending or self.status == TaskStatus.in_progress:
                 links.append(
@@ -210,7 +211,7 @@ class CJTaskInstance(TaskInstance, CollectionJSONRepresentable):
                 links.append(
                     Link(
                         rel="undo-complete",
-                        href=f"{resolved_item_href}/undo-complete", # Assuming such an endpoint exists
+                        href=f"{resolved_item_href}/undo-complete",
                         prompt="Undo Task Completion",
                         method="POST",
                     )
