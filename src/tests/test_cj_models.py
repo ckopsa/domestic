@@ -32,9 +32,9 @@ def test_task_definition_cj_representation():
             )
         ]
 
-        id: Optional[int] = PydanticField(None, title="Task ID", json_schema_extra={"cj_read_only": True})
-        name: str = PydanticField(..., title="Task Name", description="The name of the task.")
-        order: int = PydanticField(..., title="Display Order")
+        id: Optional[int] = PydanticField(None, title="Task ID", json_schema_extra={"cj_type": "number", "cj_read_only": True})
+        name: str = PydanticField(..., title="Task Name", description="The name of the task.", json_schema_extra={"cj_type": "text"})
+        order: int = PydanticField(..., title="Display Order", json_schema_extra={"cj_type": "number"})
         is_completed: bool = PydanticField(False, title="Completed", json_schema_extra={"cj_type": "boolean"})
         description: Optional[str] = PydanticField(None, title="Description", json_schema_extra={"cj_type": "textarea"})
 
@@ -79,14 +79,14 @@ def test_task_definition_cj_representation():
       "value": "",
       "prompt": "Task Name",
       "required": true,
-      "type": null
+      "type": "text"
     },
     {
       "name": "order",
       "value": "",
       "prompt": "Display Order",
       "required": true,
-      "type": null
+      "type": "number"
     },
     {
       "name": "is_completed",
@@ -120,19 +120,19 @@ def test_task_definition_cj_representation():
       "name": "id",
       "value": 1,
       "prompt": "Task ID",
-      "type": null
+      "type": "number"
     },
     {
       "name": "name",
       "value": "Finalize Q2 report",
       "prompt": "Task Name",
-      "type": null
+      "type": "text"
     },
     {
       "name": "order",
       "value": 1,
       "prompt": "Display Order",
-      "type": null
+      "type": "number"
     },
     {
       "name": "is_completed",
@@ -189,19 +189,19 @@ def test_task_definition_cj_representation():
       "name": "id",
       "value": 2,
       "prompt": "Task ID",
-      "type": null
+      "type": "number"
     },
     {
       "name": "name",
       "value": "Plan team offsite",
       "prompt": "Task Name",
-      "type": null
+      "type": "text"
     },
     {
       "name": "order",
       "value": 2,
       "prompt": "Display Order",
-      "type": null
+      "type": "number"
     },
     {
       "name": "is_completed",
@@ -304,14 +304,14 @@ def test_task_definition_cj_representation():
         "value": "",
         "prompt": "Task Name",
         "required": true,
-        "type": null
+        "type": "text"
       },
       {
         "name": "order",
         "value": "",
         "prompt": "Display Order",
         "required": true,
-        "type": null
+        "type": "number"
       },
       {
         "name": "is_completed",
@@ -371,19 +371,19 @@ def test_task_definition_cj_representation():
             "name": "id",
             "value": 1,
             "prompt": "Task ID",
-            "type": null
+            "type": "number"
           },
           {
             "name": "name",
             "value": "Finalize Q2 report",
             "prompt": "Task Name",
-            "type": null
+            "type": "text"
           },
           {
             "name": "order",
             "value": 1,
             "prompt": "Display Order",
-            "type": null
+            "type": "number"
           },
           {
             "name": "is_completed",
@@ -433,19 +433,19 @@ def test_task_definition_cj_representation():
             "name": "id",
             "value": 2,
             "prompt": "Task ID",
-            "type": null
+            "type": "number"
           },
           {
             "name": "name",
             "value": "Plan team offsite",
             "prompt": "Task Name",
-            "type": null
+            "type": "text"
           },
           {
             "name": "order",
             "value": 2,
             "prompt": "Display Order",
-            "type": null
+            "type": "number"
           },
           {
             "name": "is_completed",
@@ -518,14 +518,14 @@ def test_task_definition_cj_representation():
         "value": "",
         "prompt": "Task Name",
         "required": true,
-        "type": null
+        "type": "text"
       },
       {
         "name": "order",
         "value": "",
         "prompt": "Display Order",
         "required": true,
-        "type": null
+        "type": "number"
       },
       {
         "name": "is_completed",
@@ -585,19 +585,19 @@ def test_task_definition_cj_representation():
             "name": "id",
             "value": 1,
             "prompt": "Task ID",
-            "type": null
+            "type": "number"
           },
           {
             "name": "name",
             "value": "Finalize Q2 report",
             "prompt": "Task Name",
-            "type": null
+            "type": "text"
           },
           {
             "name": "order",
             "value": 1,
             "prompt": "Display Order",
-            "type": null
+            "type": "number"
           },
           {
             "name": "is_completed",
@@ -670,14 +670,14 @@ def test_task_definition_cj_representation():
         "value": "",
         "prompt": "Task Name",
         "required": true,
-        "type": null
+        "type": "text"
       },
       {
         "name": "order",
         "value": "",
         "prompt": "Display Order",
         "required": true,
-        "type": null
+        "type": "number"
       },
       {
         "name": "is_completed",
