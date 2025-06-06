@@ -16,10 +16,11 @@ router = APIRouter(tags=["auth"])
 async def redirect_to_keycloak_login(request: Request, redirect: str = None):
     """Redirect to Keycloak login page, storing the original URL for post-login redirect."""
     original_url = redirect if redirect else str(request.headers.get('referer', '/'))
+    encoded_original_url = quote_plus(original_url)
     login_url = (
         f"{KEYCLOAK_SERVER_URL}realms/{KEYCLOAK_REALM}/protocol/openid-connect/auth"
         f"?client_id={KEYCLOAK_API_CLIENT_ID}&response_type=code&redirect_uri={KEYCLOAK_REDIRECT_URI}"
-        f"&state={original_url}"
+        f"&state={encoded_original_url}"
     )
     return RedirectResponse(url=login_url)
 

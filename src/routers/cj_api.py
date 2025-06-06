@@ -132,8 +132,7 @@ async def list_task_instances_for_workflow_cj(
         instances=cj_tasks_list,
         context={'base_url': str(request.base_url)},
         collection_title_override=f"Tasks for Workflow Instance {instance_id}",
-        # If to_cj_representation supported collection_href_override:
-        # collection_href_override=str(request.url)
+        collection_href_override=str(request.url)
     )
 
 @router.get("/task-instances/{task_id}", response_model=CollectionJson, summary="Get a specific Task Instance in CJ format")

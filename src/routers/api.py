@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from core.security import AuthenticatedUser, get_current_active_user
 from dependencies import get_workflow_service
-from models import WorkflowDefinition, WorkflowInstance, TaskInstance
+from models import WorkflowDefinition, WorkflowInstance, TaskInstance, WorkflowInstanceCreateRequest # Added WorkflowInstanceCreateRequest
 from services import WorkflowService
 
 router = APIRouter(prefix="/api", tags=["api"])
@@ -77,14 +77,23 @@ async def delete_workflow_definition(
 
 @router.post("/workflow-instances", response_model=WorkflowInstance, status_code=status.HTTP_201_CREATED)
 async def create_workflow_instance(
-        definition_id: dict,  # Expecting a dict with 'definition_id' key for form data compatibility
+        payload: WorkflowInstanceCreateRequest, # Changed to use the new Pydantic model
         service: WorkflowService = Depends(get_workflow_service),
         current_user: AuthenticatedUser = Depends(get_current_active_user)
 ):
     """API endpoint to create a workflow instance from a definition."""
-    instance = await service.create_workflow_instance(definition_id.get("definition_id"), current_user.user_id)
+    # Construct the full WorkflowInstance Pydantic model to pass to the service
+    instance_data = WorkflowInstance(
+        workflow_definition_id=payload.definition_id,
+        user_id=current_user.user_id,
+        name=payload.name # Will use Pydantic model's default if payload.name is None
+        # Other fields like id, created_at, status, due_datetime will use defaults
+        # from WorkflowInstance Pydantic model or be set by the service/repository.
+    )
+    instance = await service.create_workflow_instance(instance_data) # Call service with the model
     if not instance:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to create instance")
+        # Consider more specific error based on why instance creation failed (e.g., def not found)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Could not create workflow instance. Ensure definition_id is valid.")
     return instance
 
 

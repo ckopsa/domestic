@@ -38,10 +38,20 @@ def test_task_definition_cj_representation():
         is_completed: bool = PydanticField(False, title="Completed", json_schema_extra={"cj_type": "boolean"})
         description: Optional[str] = PydanticField(None, title="Description", json_schema_extra={"cj_type": "textarea"})
 
-        def get_cj_instance_item_links(self, base_url: str = "") -> List[Link]:
-            links = super().get_cj_instance_item_links(base_url=base_url)
+        # Changed signature to accept context
+        def get_cj_instance_item_links(self, context: Optional[dict] = None) -> List[Link]:
+            links = super().get_cj_instance_item_links(context=context) # Pass context to super
             if self.cj_href:
-                resolved_item_href = self._resolve_href(self.cj_href, base_url=base_url)
+                # _resolve_href is called by super() or by CollectionJSONRepresentable.to_cj_item to get the item's main href.
+                # Here, we need to resolve the cj_href again if it wasn't already fully resolved with base_url.
+                # The parent to_cj_item method already resolves the item's main href using context.
+                # For constructing action URLs, we use that resolved href.
+                # Let's assume self.cj_href is a path template like "/tasks/{id}/"
+                # and it needs context for full resolution if not already done.
+                # The `resolved_cj_href` in the parent `to_cj_item` is what we should ideally use or re-resolve.
+                # For this local override, we ensure `self.cj_href` is resolved using the provided context.
+                resolved_item_href = self.__class__._resolve_href(context, template_str=self.cj_href)
+
                 if not self.is_completed:
                     links.append(
                         Link(rel="mark-complete", href=f"{resolved_item_href.rstrip('/')}/complete",
