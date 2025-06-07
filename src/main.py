@@ -6,8 +6,14 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from routers import root, workflow_definitions, workflow_instances, tasks, auth, user_workflows, api, share
 
+
+def generate_unique_id(route: "APIRoute") -> str:
+    operation_id = f"{route.name}"
+    return operation_id
+
+
 app = FastAPI(
-    redirect_slashes=False,
+    generate_unique_id_function=generate_unique_id
 )
 
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")

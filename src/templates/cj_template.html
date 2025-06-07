@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% if collection %}
+<div class="collection">
+    <h1>
+        <a href="{{ collection.href }}" rel="self">
+            {{ collection.title | default('Collection') }}
+        </a>
+    </h1>
+
+    {% if collection.links %}
+    <div class="links">
+        <h2>Links</h2>
+        {% for link in collection.links %}
+        <a href="{{ link.href }}" rel="{{ link.rel }}" {% if link.prompt %}title="{{ link.prompt }}" {% endif %} {% if
+           link.method %}data-method="{{ link.method }}" {% endif %}>
+            {{ link.prompt | default(link.rel) }}
+        </a>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if collection.items %}
+    <h2>Items</h2>
+    {% for item in collection.items %}
+    <div class="item">
+        <h3><a href="{{ item.href }}">Navigate to Instance</a></h3>
+        {% if item.data %}
+        <h4>Data</h4>
+        {% for data_point in item.data %}
+        <div class="data-item">
+            <p><strong>{{ data_point.prompt or data_point.name }}:</strong> {{ data_point.value }}</p>
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        {% if item.links %}
+        <div class="item-links">
+            <h4>Item Links</h4>
+            {% for link in item.links %}
+            <a href="{{ link.href }}" rel="{{ link.rel }}" {% if link.prompt %}title="{{ link.prompt }}" {% endif %} {%
+               if link.method %}data-method="{{ link.method }}" {% endif %}>
+                {{ link.prompt | default(link.rel) }}
+            </a>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    {% if collection.queries %}
+    <div class="queries">
+        <h2>Queries</h2>
+        {% for query in collection.queries %}
+        <form action="{{ query.href }}" method="{{ query.method | default('GET') }}">
+            <fieldset>
+                <legend>{{ query.prompt | default(query.rel | default('Query')) }}</legend>
+                <p><strong>Rel:</strong> {{ query.rel }}</p>
+                <p><strong>Href:</strong> {{ query.href }}</p>
+                {% if query.data %}
+                {% for data_item in query.data %}
+                <div>
+                    <label for="query_{{ query.rel }}_{{ data_item.name }}">{{ data_item.prompt |
+                        default(data_item.name) }}:</label>
+                    <input type="text" id="query_{{ query.rel }}_{{ data_item.name }}" name="{{ data_item.name }}"
+                           value="{{ data_item.value | default('') }}">
+                </div>
+                {% endfor %}
+                {% endif %}
+                <button type="submit">Submit</button>
+            </fieldset>
+        </form>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if template %}
+    <div class="template-section">
+        <h2>Template</h2>
+        <form action="{{ collection.href }}" method="POST"> {# Assuming POST to collection href for creation #}
+            <fieldset>
+                <legend>{{ template.prompt | default('New Item Data') }}</legend>
+                {% for data_item in template.data %}
+                <div>
+                    <label for="template_{{ data_item.name }}">{{ data_item.prompt | default(data_item.name) }}:</label>
+                    <input type="text" id="template_{{ data_item.name }}" name="{{ data_item.name }}"
+                           value="{{ data_item.value | default('') }}">
+                </div>
+                {% endfor %}
+                <button type="submit">Submit</button>
+            </fieldset>
+        </form>
+    </div>
+    {% endif %}
+
+</div>
+{% else %}
+<p>No CollectionJSON data provided.</p>
+{% endif %}
+{% endblock %}

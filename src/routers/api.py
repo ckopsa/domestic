@@ -124,7 +124,7 @@ async def complete_task(
 
 
 @router.get("/my-workflows", response_model=Dict[str, List[WorkflowInstance]])
-async def list_user_workflows(
+async def my_list_user_workflows(
         service: WorkflowService = Depends(get_workflow_service),
         current_user: AuthenticatedUser = Depends(get_current_active_user)
 ):
