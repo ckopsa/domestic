@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
-from routers import root, auth, api
+from routers import root, auth, workflow_definitions
 
 
 def generate_unique_id(route: "APIRoute") -> str:
@@ -24,4 +24,4 @@ app.mount("/static", StaticFiles(directory=f"{os.path.dirname(os.path.abspath(__
 # Include routers
 app.include_router(root.router)
 app.include_router(auth.router)
-app.include_router(api.router)
+app.include_router(workflow_definitions.router)
