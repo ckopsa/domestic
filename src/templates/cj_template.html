@@ -20,12 +20,20 @@
            {% if data_item.maximum is not none %}max="{{ data_item.maximum }}"{% endif %}
            {% if data_item.pattern %}pattern="{{ data_item.pattern }}"{% endif %}
            {% if data_item.required %}required{% endif %}>
-    {% else %} {# Default to text input, includes specific handling for text-like types if data_item.input_type is 'text', 'email', 'url', etc. #}
-    <input type="{{ data_item.input_type | default('text') }}" id="{{ id_prefix }}_{{ data_item.name }}" name="{{ data_item.name }}" value="{{ data_item.value | default('') }}"
-           {% if data_item.pattern %}pattern="{{ data_item.pattern }}"{% endif %}
-           {% if data_item.min_length is not none %}minlength="{{ data_item.min_length }}"{% endif %}
-           {% if data_item.max_length is not none %}maxlength="{{ data_item.max_length }}"{% endif %}
-           {% if data_item.required %}required{% endif %}>
+    {% else %} {# Default to text input or other specified input_type, or textarea if render_hint suggests #}
+        {% if data_item.render_hint == 'textarea' %}
+            <textarea id="{{ id_prefix }}_{{ data_item.name }}" name="{{ data_item.name }}"
+                   {% if data_item.pattern %}pattern="{{ data_item.pattern }}"{% endif %}
+                   {% if data_item.min_length is not none %}minlength="{{ data_item.min_length }}"{% endif %}
+                   {% if data_item.max_length is not none %}maxlength="{{ data_item.max_length }}"{% endif %}
+                   {% if data_item.required %}required{% endif %}>{{ data_item.value | default('') }}</textarea>
+        {% else %}
+            <input type="{{ data_item.input_type | default('text') }}" id="{{ id_prefix }}_{{ data_item.name }}" name="{{ data_item.name }}" value="{{ data_item.value | default('') }}"
+                   {% if data_item.pattern %}pattern="{{ data_item.pattern }}"{% endif %}
+                   {% if data_item.min_length is not none %}minlength="{{ data_item.min_length }}"{% endif %}
+                   {% if data_item.max_length is not none %}maxlength="{{ data_item.max_length }}"{% endif %}
+                   {% if data_item.required %}required{% endif %}>
+        {% endif %}
     {% endif %}
 </div>
 {% endmacro %}
