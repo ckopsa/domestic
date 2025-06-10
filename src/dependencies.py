@@ -1,7 +1,8 @@
 from typing import Tuple
 
-from fastapi import Depends, Request
+from fastapi import Depends
 
+import cj_models
 from core.html_renderer import HtmlRendererInterface, Jinja2HtmlRenderer
 from database import get_db
 from repository import WorkflowDefinitionRepository, WorkflowInstanceRepository, TaskInstanceRepository, \
@@ -35,3 +36,10 @@ def get_workflow_service(
 
 def get_transition_registry() -> TransitionManager:
     return TransitionManager()
+
+
+def get_collection_json_representor(
+        transition_manager: TransitionManager = Depends(get_transition_registry)
+) -> cj_models.CollectionJsonRepresentor:
+    """Provides an instance of the CollectionJsonRepresentor."""
+    return cj_models.CollectionJsonRepresentor(transition_manager=transition_manager)

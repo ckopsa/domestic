@@ -104,8 +104,8 @@ class WorkflowService:
                                     task_definitions: List[TaskDefinitionBase]) -> WorkflowDefinition:
         if not name.strip():
             raise ValueError("Definition name cannot be empty.")
-        if not task_definitions:
-            raise ValueError("A definition must have at least one task.")
+        # if not task_definitions:
+        #     raise ValueError("A definition must have at least one task.")
 
         # task_definitions is already List[TaskDefinitionBase]
         definition = WorkflowDefinition(

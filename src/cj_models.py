@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from typing import Optional, List, Union
 
+import fastapi
 from pydantic import BaseModel, Field as PydanticField
+
+from transitions import TransitionManager
 
 
 class Link(BaseModel):
@@ -55,6 +58,8 @@ class Collection(BaseModel):
 
 class Template(BaseModel):
     data: List[TemplateData] = PydanticField(default_factory=list)
+    href: Optional[str] = None
+    method: Optional[str] = PydanticField("POST", description="HTTP method for the template")
     prompt: Optional[str] = None
 
 
@@ -69,3 +74,98 @@ class CollectionJson(BaseModel):
     collection: Collection
     template: Optional[Template] = PydanticField(None, description="Template for the collection")
     error: Optional[Error] = PydanticField(None, description="Error details, if any")
+
+
+def to_collection_json_data(self: BaseModel, href="") -> Item:
+    """
+    Converts a Pydantic model instance into a Collection+JSON 'data' array.
+    'self' will be the model instance when this is called.
+    """
+    schema = self.schema()
+    model_dict = self.dict()
+    cj_data = []
+
+    for name, definition in schema.get("properties", {}).items():
+        cj_data.append(ItemData(
+            name=name,
+            value=model_dict.get(name),
+            prompt=definition.get("title") or name.replace("_", " ").title(),
+            type=definition.get("type"),
+        ))
+    return Item(
+        href=href,
+        rel="item",
+        data=cj_data
+    )
+
+
+BaseModel.to_cj_data = to_collection_json_data
+
+
+class CollectionJsonRepresentor:
+    def __init__(self, transition_manager: TransitionManager):
+        self.transition_manager = transition_manager
+
+    def to_collection_json(
+            self,
+            request: fastapi.Request,
+            models: list[BaseModel],
+            context: Optional[dict] = None,
+            item_context_mapper: Optional[callable] = None
+    ) -> CollectionJson:
+        """
+        Converts a list of Pydantic models into a Collection+JSON representation.
+        """
+
+        transitions = self.transition_manager.get_transitions(request)
+        for transition in transitions:
+            if transition.href:
+                transition.href = transition.href.format(**context) if context else transition.href
+        links = [transition.to_link() for transition in transitions if not transition.properties]
+        template = []
+        for transition in [transition for transition in transitions if transition.href and transition.method == "POST"]:
+            it_template = transition.to_template()
+            if transition.href:
+                it_template.href = transition.href
+            else:
+                it_template.href = str(request.url)
+            if transition.method:
+                it_template.method = transition.method
+            else:
+                it_template.method = "POST"
+
+            template.append(it_template)
+        if template:
+            template = template[0]
+        else:
+            template = None
+
+        items = []
+        item_transitions = self.transition_manager.get_item_transitions(request)
+        for item_model in models:
+            item_links = []
+            for transition in item_transitions:
+                link_href = transition.href
+                if item_context_mapper:
+                    link_href = link_href.format(**item_context_mapper(item_model))
+                if context:
+                    link_href = link_href.format(**context)
+                if not transition.properties:
+                    link = transition.to_link()
+                    link.href = link_href
+                    item_links.append(link)
+            item = item_model.to_cj_data(href="")
+            item.links.extend(item_links)
+            items.append(item)
+
+        return CollectionJson(
+            collection=Collection(
+                href=str(request.url),
+                version="1.0",
+                items=items,
+                queries=[],
+                links=links,
+                title="Title"
+            ),
+            template=template
+        )

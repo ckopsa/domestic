@@ -7,48 +7,6 @@ from pydantic import BaseModel
 
 import cj_models
 
-
-# --- Core Data Enumerations (Unchanged) ---
-class StatusEnum(str, Enum):
-    PENDING = "pending"
-    ACTIVE = "active"
-    SUSPENDED = "suspended"
-    CLOSED = "closed"
-
-
-# ... other data enums ...
-class DivisionEnum(str, Enum):
-    DRY_GOODS = "DryGoods"
-    HARDWARE = "Hardware"
-    SOFTWARE = "Software"
-    GROCERY = "Grocery"
-    PHARMACY = "Pharmacy"
-    MILITARY = "Military"
-
-
-class ActivityTypeEnum(str, Enum):
-    EMAIL = "email"
-    IN_PERSON = "inperson"
-    PHONE = "phone"
-    LETTER = "letter"
-
-
-# --- NEW: Hypermedia Enumerations for Static Analysis ---
-class TransitionId(str, Enum):
-    """Strongly-typed identifiers for transitions."""
-    SELF = "self"
-    HOME = "home"
-    LIST = "list"
-    FILTER = "filter"
-    CREATE_WIP = "createWIP"
-    READ_WIP = "readWIP"
-    ADD_COMPANY = "addCompany"
-    ADD_ACCOUNT = "addAccount"
-    ADD_ACTIVITY = "addActivity"
-    APPROVE = "approve"
-    REJECT = "reject"
-
-
 class RelType(str, Enum):
     """Strongly-typed relation types for hypermedia links."""
     SELF = "self"
@@ -79,7 +37,7 @@ class Form(BaseModel):
     title: str
     method: str
     properties: list[dict]
-    
+
     def to_link(self):
         return cj_models.Link(
             rel=self.rel,
@@ -87,7 +45,7 @@ class Form(BaseModel):
             prompt=self.title,
             method=self.method,
         )
-    
+
     def to_query(self):
         return cj_models.Query(
             rel=self.rel,
@@ -95,10 +53,15 @@ class Form(BaseModel):
             prompt=self.title,
             data=[cj_models.TemplateData(**prop) for prop in self.properties],
         )
-    
+
     def to_template(self):
+        template_data = []
+        for prop in self.properties:
+            template_data.append(cj_models.TemplateData(
+                **prop
+            ))
         return cj_models.Template(
-            data=[cj_models.TemplateData(**prop) for prop in self.properties],
+            data=template_data,
             prompt=self.title,
         )
 
@@ -145,13 +108,7 @@ class TransitionManager:
                 if request_body:
                     content = request_body.get("content", {})
                     if "application/json" in content:
-                        body_schema_ref = content.get("application/json", {}).get("schema", {}).get(
-                            "$ref")
-                        if body_schema_ref:
-                            schema_name = body_schema_ref.split('/')[-1]
-                            body_props = schema.get("components", {}).get("schemas", {}).get(schema_name, {}).get(
-                                "properties", {})
-                            # params.extend(body_props.keys())
+                        pass # TODO Implement JSON schema extraction
                     elif "application/x-www-form-urlencoded" in content:
                         form_schema = content.get("application/x-www-form-urlencoded", {}).get("schema", {})
                         if form_schema:
@@ -161,7 +118,7 @@ class TransitionManager:
                                 for name, props in form_schema.get("properties", {}).items():
                                     params.append(FormProperty(
                                         name=name,
-                                        value=None,
+                                        value=props.get("default") or "" if props.get("type", "string") == "string" else None,
                                         type=props.get("type", "string"),
                                         required=name in form_schema.get("required", []),
                                         prompt=props.get("title", name),
@@ -170,7 +127,7 @@ class TransitionManager:
                                 # params.extend(form_schema.get("properties", {}).keys())
                                 pass
                 self.page_transitions[operation.get("operationId")] = operation.get("pageTransitions", [])
-                self.item_transitions[operation.get("operationId")] = operation.get("pageTransitions", [])
+                self.item_transitions[operation.get("operationId")] = operation.get("itemTransitions", [])
                 self.routes_info[operation.get("operationId")] = Form(
                     id=operation.get("operationId"),
                     name=operation.get("operationId"),
@@ -182,22 +139,36 @@ class TransitionManager:
                     properties=[prop.dict() for prop in params],
                 )
 
-    def get_transitions(self, context_tags: str, request: Request, item: Optional[Dict] = None) -> List[Form]:
+    def get_transitions(
+            self,
+            request: Request,
+    ) -> List[Form]:
         """
         Get all valid transitions by filtering the app's known routes against the context.
         """
         self._load_routes_from_schema(request)
         forms_to_render: List[Form] = []
-        context_tag_set = set(context_tags.split())
         function_name = request.scope.get('endpoint').__name__
         for transition_id in self.page_transitions.get(function_name, []):
             if transition_id not in self.routes_info:
                 continue
             route_info = self.routes_info.get(transition_id)
+            forms_to_render.append(route_info)
+        return forms_to_render
 
-            # template_tags = set(route_info["tags"].split())
-            # if not template_tags.issubset(context_tag_set):
-            #     continue
-
+    def get_item_transitions(
+            self,
+            request: Request,
+    ) -> List[Form]:
+        """
+        Get item-specific transitions by filtering the app's known routes against the context.
+        """
+        self._load_routes_from_schema(request)
+        forms_to_render: List[Form] = []
+        function_name = request.scope.get('endpoint').__name__
+        for transition_id in self.item_transitions.get(function_name, []):
+            if transition_id not in self.routes_info:
+                continue
+            route_info = self.routes_info.get(transition_id)
             forms_to_render.append(route_info)
         return forms_to_render

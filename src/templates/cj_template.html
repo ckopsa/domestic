@@ -79,7 +79,7 @@
     {% if template %}
     <div class="template-section">
         <h2>Template</h2>
-        <form action="{{ collection.href }}" method="POST"> {# Assuming POST to collection href for creation #}
+        <form action="{{ template.href }}" method="{{ template.method }}"> {# Assuming POST to collection href for creation #}
             <fieldset>
                 <legend>{{ template.prompt | default('New Item Data') }}</legend>
                 {% for data_item in template.data %}

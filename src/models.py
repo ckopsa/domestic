@@ -8,9 +8,13 @@ from db_models.enums import WorkflowStatus, TaskStatus
 
 
 class TaskDefinitionBase(BaseModel):
-    name: str
-    order: int
-    due_datetime_offset_minutes: Optional[int] = 0  # New field
+    name: str = Field(..., description="Name of the task", title="Task Name",
+                      examples=["Review Document", "Approve Budget"])
+    order: int = Field(..., description="Order of the task in the workflow", title="Task Order")
+    due_datetime_offset_minutes: Optional[int] = Field(0,
+                                                       description="Offset in minutes for the task's due date from the workflow instance's due date",
+                                                       title="Due Date Offset"
+                                                       )
 
 
 class TaskInstance(BaseModel):
@@ -48,6 +52,21 @@ class WorkflowDefinition(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class WorkflowDefinitionCreateRequest(BaseModel):
+    name: str
+    description: Optional[str] = ""
+
+
+class SimpleWorkflowDefinitionCreateRequest(BaseModel):
+    name: str
+    description: Optional[str] = ""
+    task_definitions: str = Field(
+        ...,
+        description="Newline-separated list of task names",
+        title="Task Definitions"
+    )
 
 
 class WorkflowInstanceCreateRequest(BaseModel):
