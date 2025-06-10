@@ -1,17 +1,12 @@
 from __future__ import annotations
 
-from typing import Annotated
-
-from fastapi import APIRouter, Request, Depends, Form, status
+from fastapi import APIRouter, Request, Depends, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 import cj_models
-import models
-from cj_models import CollectionJson
 from core.html_renderer import HtmlRendererInterface
 from core.security import AuthenticatedUser, get_current_user
-from dependencies import get_html_renderer, get_workflow_service, get_collection_json_representor
-from services import WorkflowService
+from dependencies import get_html_renderer, get_collection_json_representor
 
 router = APIRouter()
 
@@ -29,6 +24,7 @@ async def healthcheck():
         "pageTransitions": [
             "home",
             "get_workflow_definitions",
+            "get_workflow_instances",
         ],
     },
     response_class=HTMLResponse

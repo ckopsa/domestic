@@ -65,6 +65,38 @@ async def get_workflow_definitions(
     )
 
 
+@router.post(
+    "/{definition_id}/createInstance",
+    summary="Create Workflow Instance",
+)
+async def create_workflow_instance_from_definition(
+        request: Request,
+        definition_id: str,
+        current_user: AuthenticatedUser | None = Depends(get_current_user),
+        service: WorkflowService = Depends(get_workflow_service),
+):
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+
+    definition = await service.list_workflow_definitions(definition_id=definition_id)
+    if not definition:
+        return HTMLResponse(status_code=404, content="Workflow Definition not found")
+    definition = definition[0]
+    new_instance = await service.create_workflow_instance(
+        models.WorkflowInstance(
+            workflow_definition_id=definition_id,
+            user_id=current_user.user_id,
+            name=definition.name,
+            due_datetime=definition.due_datetime,
+        )
+    )
+
+    return RedirectResponse(
+        url=f"/workflow-instances/{new_instance.id}",  # Placeholder URL
+        status_code=303
+    )
+
+
 @router.get(
     "/{definition_id}",
     response_model=CollectionJson,
@@ -73,6 +105,7 @@ async def get_workflow_definitions(
             "home",
             "get_workflow_definitions",
             "view_workflow_definition",
+            "create_workflow_instance_from_definition",
             "create_workflow_definition_form",
         ],
     },
