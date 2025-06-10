@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Dict
+from typing import Dict, Union
 from typing import Optional, List
 
 from fastapi import Request
