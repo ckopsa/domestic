@@ -22,6 +22,13 @@ class ItemData(BaseModel):
     value: Union[str, bool, int, float, dict, list, None] = PydanticField(None, description="Value of the data item")
     prompt: Optional[str] = PydanticField(None, description="Human Readable prompt for the data")
     type: Optional[str] = PydanticField(None, description="Type of the data")
+    input_type: Optional[str] = PydanticField(None, description="Suggested input type (e.g., 'text', 'checkbox', 'number', 'select')")
+    options: Optional[List[str]] = PydanticField(None, description="List of options for 'select' input type")
+    pattern: Optional[str] = PydanticField(None, description="Regex pattern for validation")
+    min_length: Optional[int] = PydanticField(None, description="Minimum string length for validation")
+    max_length: Optional[int] = PydanticField(None, description="Maximum string length for validation")
+    minimum: Optional[Union[int, float]] = PydanticField(None, description="Minimum value for number range validation")
+    maximum: Optional[Union[int, float]] = PydanticField(None, description="Maximum value for number range validation")
 
 
 class QueryData(ItemData):

@@ -1,6 +1,35 @@
 {% extends "base.html" %}
 
 {% block content %}
+
+{# Define a macro for rendering form inputs #}
+{% macro render_input(data_item, id_prefix) %}
+<div>
+    <label for="{{ id_prefix }}_{{ data_item.name }}">{{ data_item.prompt | default(data_item.name) }}:</label>
+    {% if data_item.input_type == 'select' and data_item.options %}
+    <select id="{{ id_prefix }}_{{ data_item.name }}" name="{{ data_item.name }}" {% if data_item.required %}required{% endif %}>
+        {% for option_val in data_item.options %}
+        <option value="{{ option_val }}" {% if option_val == data_item.value %}selected{% endif %}>{{ option_val }}</option>
+        {% endfor %}
+    </select>
+    {% elif data_item.input_type == 'checkbox' %}
+    <input type="checkbox" id="{{ id_prefix }}_{{ data_item.name }}" name="{{ data_item.name }}" {% if data_item.value %}checked{% endif %} {% if data_item.required %}required{% endif %}>
+    {% elif data_item.input_type == 'number' %}
+    <input type="number" id="{{ id_prefix }}_{{ data_item.name }}" name="{{ data_item.name }}" value="{{ data_item.value | default('') }}"
+           {% if data_item.minimum is not none %}min="{{ data_item.minimum }}"{% endif %}
+           {% if data_item.maximum is not none %}max="{{ data_item.maximum }}"{% endif %}
+           {% if data_item.pattern %}pattern="{{ data_item.pattern }}"{% endif %}
+           {% if data_item.required %}required{% endif %}>
+    {% else %} {# Default to text input, includes specific handling for text-like types if data_item.input_type is 'text', 'email', 'url', etc. #}
+    <input type="{{ data_item.input_type | default('text') }}" id="{{ id_prefix }}_{{ data_item.name }}" name="{{ data_item.name }}" value="{{ data_item.value | default('') }}"
+           {% if data_item.pattern %}pattern="{{ data_item.pattern }}"{% endif %}
+           {% if data_item.min_length is not none %}minlength="{{ data_item.min_length }}"{% endif %}
+           {% if data_item.max_length is not none %}maxlength="{{ data_item.max_length }}"{% endif %}
+           {% if data_item.required %}required{% endif %}>
+    {% endif %}
+</div>
+{% endmacro %}
+
 {% if collection %}
 <div class="collection">
     <h1>
@@ -61,12 +90,7 @@
                 <p><strong>Href:</strong> {{ query.href }}</p>
                 {% if query.data %}
                 {% for data_item in query.data %}
-                <div>
-                    <label for="query_{{ query.rel }}_{{ data_item.name }}">{{ data_item.prompt |
-                        default(data_item.name) }}:</label>
-                    <input type="text" id="query_{{ query.rel }}_{{ data_item.name }}" name="{{ data_item.name }}"
-                           value="{{ data_item.value | default('') }}">
-                </div>
+                {{ render_input(data_item, "query_" + query.rel) }}
                 {% endfor %}
                 {% endif %}
                 <button type="submit">Submit</button>
@@ -83,11 +107,7 @@
             <fieldset>
                 <legend>{{ template.prompt | default('New Item Data') }}</legend>
                 {% for data_item in template.data %}
-                <div>
-                    <label for="template_{{ data_item.name }}">{{ data_item.prompt | default(data_item.name) }}:</label>
-                    <input type="text" id="template_{{ data_item.name }}" name="{{ data_item.name }}"
-                           value="{{ data_item.value | default('') }}">
-                </div>
+                {{ render_input(data_item, "template") }}
                 {% endfor %}
                 <button type="submit">Submit</button>
             </fieldset>
