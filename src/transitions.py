@@ -26,6 +26,13 @@ class FormProperty(BaseModel):
     prompt: str
     value: str | bool | int | float | None = None  # Allow multiple types
     required: bool = False
+    input_type: Optional[str] = None
+    options: Optional[List[str]] = None
+    pattern: Optional[str] = None
+    min_length: Optional[int] = None
+    max_length: Optional[int] = None
+    minimum: Optional[Union[int, float]] = None
+    maximum: Optional[Union[int, float]] = None
 
 
 class Form(BaseModel):
@@ -116,12 +123,39 @@ class TransitionManager:
                                 schema_name = form_schema["$ref"].split('/')[-1]
                                 form_schema = schema.get("components", {}).get("schemas", {}).get(schema_name, {})
                                 for name, props in form_schema.get("properties", {}).items():
+                                    # Extract additional schema details
+                                    enum_values = props.get("enum")
+                                    schema_pattern = props.get("pattern")
+                                    min_length = props.get("minLength")
+                                    max_length = props.get("maxLength")
+                                    minimum = props.get("minimum")
+                                    maximum = props.get("maximum")
+                                    schema_type = props.get("type", "string")
+
+                                    # Determine input_type
+                                    input_type = schema_type  # Default
+                                    if schema_type == 'boolean':
+                                        input_type = 'checkbox'
+                                    elif schema_type == 'integer' or schema_type == 'number':
+                                        input_type = 'number'
+                                    elif schema_type == 'string' and enum_values:
+                                        input_type = 'select'
+                                    elif schema_type == 'string':
+                                        input_type = 'text'  # Explicitly 'text' for string
+
                                     params.append(FormProperty(
                                         name=name,
-                                        value=props.get("default") or "" if props.get("type", "string") == "string" else None,
-                                        type=props.get("type", "string"),
+                                        value=props.get("default") or "" if schema_type == "string" else props.get("default"),
+                                        type=schema_type,
                                         required=name in form_schema.get("required", []),
                                         prompt=props.get("title", name),
+                                        input_type=input_type,
+                                        options=enum_values,
+                                        pattern=schema_pattern,
+                                        min_length=min_length,
+                                        max_length=max_length,
+                                        minimum=minimum,
+                                        maximum=maximum,
                                     ))
                             else:
                                 # params.extend(form_schema.get("properties", {}).keys())
