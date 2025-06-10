@@ -65,7 +65,10 @@ class SimpleWorkflowDefinitionCreateRequest(BaseModel):
     task_definitions: str = Field(
         ...,
         description="Newline-separated list of task names",
-        title="Task Definitions"
+        title="Task Definitions",
+        json_schema_extra={
+            "x-render-hint": "textarea",
+        }
     )
 
 
