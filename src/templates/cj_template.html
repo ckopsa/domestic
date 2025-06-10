@@ -4,35 +4,35 @@
 
 {# Define a macro for rendering form inputs #}
 {% macro render_input(data_item, id_prefix) %}
-<div>
-    <label for="{{ id_prefix }}_{{ data_item.name }}">{{ data_item.prompt | default(data_item.name) }}:</label>
+<div class="mb-4">
+    <label for="{{ id_prefix }}_{{ data_item.name }}" class="block mb-1.5 font-bold text-gray-300">{{ data_item.prompt | default(data_item.name) }}:</label>
     {% if data_item.input_type == 'select' and data_item.options %}
-    <select id="{{ id_prefix }}_{{ data_item.name }}" name="{{ data_item.name }}" {% if data_item.required %}required{% endif %}>
+    <select id="{{ id_prefix }}_{{ data_item.name }}" name="{{ data_item.name }}" {% if data_item.required %}required{% endif %} class="w-full p-2.5 border border-neutral-700 bg-neutral-800 text-gray-300 rounded text-base transition-colors transition-shadow duration-200 ease-in-out focus:border-purple-700 focus:ring focus:ring-purple-700 focus:ring-opacity-50 focus:outline-none">
         {% for option_val in data_item.options %}
         <option value="{{ option_val }}" {% if option_val == data_item.value %}selected{% endif %}>{{ option_val }}</option>
         {% endfor %}
     </select>
     {% elif data_item.input_type == 'checkbox' %}
-    <input type="checkbox" id="{{ id_prefix }}_{{ data_item.name }}" name="{{ data_item.name }}" {% if data_item.value %}checked{% endif %} {% if data_item.required %}required{% endif %}>
+    <input type="checkbox" id="{{ id_prefix }}_{{ data_item.name }}" name="{{ data_item.name }}" {% if data_item.value %}checked{% endif %} {% if data_item.required %}required{% endif %} class="mr-2 align-middle">
     {% elif data_item.input_type == 'number' %}
     <input type="number" id="{{ id_prefix }}_{{ data_item.name }}" name="{{ data_item.name }}" value="{{ data_item.value | default('') }}"
            {% if data_item.minimum is not none %}min="{{ data_item.minimum }}"{% endif %}
            {% if data_item.maximum is not none %}max="{{ data_item.maximum }}"{% endif %}
            {% if data_item.pattern %}pattern="{{ data_item.pattern }}"{% endif %}
-           {% if data_item.required %}required{% endif %}>
+           {% if data_item.required %}required{% endif %} class="w-full p-2.5 border border-neutral-700 bg-neutral-800 text-gray-300 rounded text-base transition-colors transition-shadow duration-200 ease-in-out focus:border-purple-700 focus:ring focus:ring-purple-700 focus:ring-opacity-50 focus:outline-none">
     {% else %} {# Default to text input or other specified input_type, or textarea if render_hint suggests #}
         {% if data_item.render_hint == 'textarea' %}
             <textarea id="{{ id_prefix }}_{{ data_item.name }}" name="{{ data_item.name }}"
                    {% if data_item.pattern %}pattern="{{ data_item.pattern }}"{% endif %}
                    {% if data_item.min_length is not none %}minlength="{{ data_item.min_length }}"{% endif %}
                    {% if data_item.max_length is not none %}maxlength="{{ data_item.max_length }}"{% endif %}
-                   {% if data_item.required %}required{% endif %}>{{ data_item.value | default('') }}</textarea>
+                   {% if data_item.required %}required{% endif %} class="w-full p-2.5 border border-neutral-700 bg-neutral-800 text-gray-300 rounded text-base transition-colors transition-shadow duration-200 ease-in-out focus:border-purple-700 focus:ring focus:ring-purple-700 focus:ring-opacity-50 focus:outline-none">{{ data_item.value | default('') }}</textarea>
         {% else %}
             <input type="{{ data_item.input_type | default('text') }}" id="{{ id_prefix }}_{{ data_item.name }}" name="{{ data_item.name }}" value="{{ data_item.value | default('') }}"
                    {% if data_item.pattern %}pattern="{{ data_item.pattern }}"{% endif %}
                    {% if data_item.min_length is not none %}minlength="{{ data_item.min_length }}"{% endif %}
                    {% if data_item.max_length is not none %}maxlength="{{ data_item.max_length }}"{% endif %}
-                   {% if data_item.required %}required{% endif %}>
+                   {% if data_item.required %}required{% endif %} class="w-full p-2.5 border border-neutral-700 bg-neutral-800 text-gray-300 rounded text-base transition-colors transition-shadow duration-200 ease-in-out focus:border-purple-700 focus:ring focus:ring-purple-700 focus:ring-opacity-50 focus:outline-none">
         {% endif %}
     {% endif %}
 </div>
@@ -40,18 +40,18 @@
 
 {% if collection %}
 <div class="collection">
-    <h1>
-        <a href="{{ collection.href }}" rel="self">
+    <h1 class="text-gray-300 mb-5">
+        <a href="{{ collection.href }}" rel="self" class="text-purple-700 no-underline transition-colors duration-200 ease-in-out hover:text-orange-500 hover:underline">
             {{ collection.title | default('Collection') }}
         </a>
     </h1>
 
     {% if collection.links %}
     <div class="links">
-        <h2>Links</h2>
+        <h2 class="text-gray-300 mt-8 mb-4 border-b border-neutral-700 pb-2.5">Links</h2>
         {% for link in collection.links %}
         <a href="{{ link.href }}" rel="{{ link.rel }}" {% if link.prompt %}title="{{ link.prompt }}" {% endif %} {% if
-           link.method %}data-method="{{ link.method }}" {% endif %}>
+           link.method %}data-method="{{ link.method }}" {% endif %} class="text-purple-700 no-underline transition-colors duration-200 ease-in-out hover:text-orange-500 hover:underline">
             {{ link.prompt | default(link.rel) }}
         </a>
         {% endfor %}
@@ -59,25 +59,25 @@
     {% endif %}
 
     {% if collection.items %}
-    <h2>Items</h2>
+    <h2 class="text-gray-300 mt-8 mb-4 border-b border-neutral-700 pb-2.5">Items</h2>
     {% for item in collection.items %}
-    <div class="item">
-        <h3><a href="{{ item.href }}">Navigate to Instance</a></h3>
+    <div class="bg-neutral-700 border border-neutral-700 rounded-md p-4 mb-4">
+        <h3 class="text-lg font-semibold text-gray-300 mb-2"><a href="{{ item.href }}" class="text-purple-700 no-underline transition-colors duration-200 ease-in-out hover:text-orange-500 hover:underline">Navigate to Instance</a></h3>
         {% if item.data %}
-        <h4>Data</h4>
+        <h4 class="text-md font-semibold text-gray-300 mt-4 mb-2">Data</h4>
         {% for data_point in item.data %}
         <div class="data-item">
-            <p><strong>{{ data_point.prompt or data_point.name }}:</strong> {{ data_point.value }}</p>
+            <p class="leading-relaxed mb-2.5"><strong>{{ data_point.prompt or data_point.name }}:</strong> {{ data_point.value }}</p>
         </div>
         {% endfor %}
         {% endif %}
 
         {% if item.links %}
         <div class="item-links">
-            <h4>Item Links</h4>
+            <h4 class="text-md font-semibold text-gray-300 mt-4 mb-2">Item Links</h4>
             {% for link in item.links %}
             <a href="{{ link.href }}" rel="{{ link.rel }}" {% if link.prompt %}title="{{ link.prompt }}" {% endif %} {%
-               if link.method %}data-method="{{ link.method }}" {% endif %}>
+               if link.method %}data-method="{{ link.method }}" {% endif %} class="text-purple-700 no-underline transition-colors duration-200 ease-in-out hover:text-orange-500 hover:underline">
                 {{ link.prompt | default(link.rel) }}
             </a>
             {% endfor %}
@@ -89,19 +89,19 @@
 
     {% if collection.queries %}
     <div class="queries">
-        <h2>Queries</h2>
+        <h2 class="text-gray-300 mt-8 mb-4 border-b border-neutral-700 pb-2.5">Queries</h2>
         {% for query in collection.queries %}
         <form action="{{ query.href }}" method="{{ query.method | default('GET') }}">
             <fieldset>
                 <legend>{{ query.prompt | default(query.rel | default('Query')) }}</legend>
-                <p><strong>Rel:</strong> {{ query.rel }}</p>
-                <p><strong>Href:</strong> {{ query.href }}</p>
+                <p class="leading-relaxed mb-2.5"><strong>Rel:</strong> {{ query.rel }}</p>
+                <p class="leading-relaxed mb-2.5"><strong>Href:</strong> {{ query.href }}</p>
                 {% if query.data %}
                 {% for data_item in query.data %}
                 {{ render_input(data_item, "query_" + query.rel) }}
                 {% endfor %}
                 {% endif %}
-                <button type="submit">Submit</button>
+                <button type="submit" class="bg-purple-700 text-gray-300 py-2 px-4 border-none rounded-md cursor-pointer text-base transition duration-200 ease-in-out shadow-md hover:bg-orange-500 hover:-translate-y-px active:translate-y-0">Submit</button>
             </fieldset>
         </form>
         {% endfor %}
@@ -110,14 +110,14 @@
 
     {% if template %}
     <div class="template-section">
-        <h2>Template</h2>
+        <h2 class="text-gray-300 mt-8 mb-4 border-b border-neutral-700 pb-2.5">Template</h2>
         <form action="{{ template.href }}" method="{{ template.method }}"> {# Assuming POST to collection href for creation #}
             <fieldset>
                 <legend>{{ template.prompt | default('New Item Data') }}</legend>
                 {% for data_item in template.data %}
                 {{ render_input(data_item, "template") }}
                 {% endfor %}
-                <button type="submit">Submit</button>
+                <button type="submit" class="bg-purple-700 text-gray-300 py-2 px-4 border-none rounded-md cursor-pointer text-base transition duration-200 ease-in-out shadow-md hover:bg-orange-500 hover:-translate-y-px active:translate-y-0">Submit</button>
             </fieldset>
         </form>
     </div>
@@ -125,6 +125,6 @@
 
 </div>
 {% else %}
-<p>No CollectionJSON data provided.</p>
+<p class="leading-relaxed mb-2.5">No CollectionJSON data provided.</p>
 {% endif %}
 {% endblock %}
