@@ -33,6 +33,7 @@ class FormProperty(BaseModel):
     max_length: Optional[int] = None
     minimum: Optional[Union[int, float]] = None
     maximum: Optional[Union[int, float]] = None
+    render_hint: Optional[str] = None
 
 
 class Form(BaseModel):
@@ -131,6 +132,7 @@ class TransitionManager:
                                     minimum = props.get("minimum")
                                     maximum = props.get("maximum")
                                     schema_type = props.get("type", "string")
+                                    render_hint = props.get("x-render-hint") # Extract render_hint
 
                                     # Determine input_type
                                     input_type = schema_type  # Default
@@ -156,6 +158,7 @@ class TransitionManager:
                                         max_length=max_length,
                                         minimum=minimum,
                                         maximum=maximum,
+                                        render_hint=render_hint, # Pass render_hint
                                     ))
                             else:
                                 # params.extend(form_schema.get("properties", {}).keys())
