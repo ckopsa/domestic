@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ title | default('Simple Checklist MVP') }}</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-<div class="container">
+<body class="font-sans m-5 bg-black text-gray-300" style="height: 100vh;">
+<div class="container max-w-3xl mx-auto p-5 bg-neutral-800 rounded-lg shadow-md">
     {% block content %}
     {% endblock %}
 </div>

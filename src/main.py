@@ -18,9 +18,6 @@ app = FastAPI(
 
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
-# Mount static files
-app.mount("/static", StaticFiles(directory=f"{os.path.dirname(os.path.abspath(__file__))}/templates"), name="static")
-
 # Include routers
 app.include_router(root.router)
 app.include_router(auth.router)
