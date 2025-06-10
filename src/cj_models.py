@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 from typing import Optional, List, Union
 
 import fastapi
@@ -19,7 +20,7 @@ class Link(BaseModel):
 
 class ItemData(BaseModel):
     name: str
-    value: Union[str, bool, int, float, dict, list, None] = PydanticField(None, description="Value of the data item")
+    value: Union[str, bool, int, float, dict, list, None, datetime.datetime, datetime.date] = PydanticField(None, description="Value of the data item")
     prompt: Optional[str] = PydanticField(None, description="Human Readable prompt for the data")
     type: Optional[str] = PydanticField(None, description="Type of the data")
     input_type: Optional[str] = PydanticField(None, description="Suggested input type (e.g., 'text', 'checkbox', 'number', 'select')")

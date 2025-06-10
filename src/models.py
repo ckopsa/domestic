@@ -38,6 +38,7 @@ class WorkflowInstance(BaseModel):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     share_token: Optional[str] = None
     due_datetime: Optional[datetime] = None  # New field
+    tasks: List[TaskInstance] = []
 
     class Config:
         from_attributes = True
