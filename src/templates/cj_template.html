@@ -83,6 +83,24 @@
             {% endfor %}
         </div>
         {% endif %}
+
+    {# Item-Level Templates Section #}
+    {% if item.templates and item.templates|length > 0 %}
+    <h4 class="text-lg mt-4 mb-2">Item Actions</h4>
+    {% for item_tmpl in item.templates %}
+    <form action="{{ item_tmpl.href }}" method="{{ item_tmpl.method }}">
+        <fieldset class="border border-gray-600 p-3 rounded-md mt-2 mb-2">
+            <legend class="text-md font-semibold px-2 text-gray-300">{{ item_tmpl.prompt | default('Action') }}</legend>
+            {% for data_item in item_tmpl.data %}
+            {{ render_input(data_item, "template_item_" + (item.href | replace("/", "_") | replace(":", "_")) + "_" + loop.index) }}
+            {% endfor %}
+            <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded-md cursor-pointer text-sm transition-all duration-200 ease-in-out shadow hover:shadow-md transform hover:-translate-y-px active:translate-y-0 mt-2">Submit</button>
+        </fieldset>
+    </form>
+    {% endfor %}
+    {% endif %}
+    {# End of Item-Level Templates Section #}
+
     </div>
     {% endfor %}
     {% endif %}
@@ -108,20 +126,24 @@
     </div>
     {% endif %}
 
-    {% if template %}
+    {# Page-Level Templates Section #}
+    {% if template and template|length > 0 %}
     <div class="template-section mt-6">
-        <h2 class="text-gray-100 text-2xl mt-8 mb-4 border-b border-gray-700 pb-2">Template</h2>
-        <form action="{{ template.href }}" method="{{ template.method }}"> {# Assuming POST to collection href for creation #}
-            <fieldset class="border border-gray-700 p-4 rounded-md">
-                <legend class="text-lg font-semibold px-2 text-gray-200">{{ template.prompt | default('New Item Data') }}</legend>
-                {% for data_item in template.data %}
-                {{ render_input(data_item, "template") }}
+        <h2 class="text-gray-100 text-2xl mt-8 mb-4 border-b border-gray-700 pb-2">Page Actions</h2>
+        {% for tmpl in template %}
+        <form action="{{ tmpl.href }}" method="{{ tmpl.method }}">
+            <fieldset class="border border-gray-700 p-4 rounded-md mb-3"> {# Added mb-3 for spacing between forms #}
+                <legend class="text-lg font-semibold px-2 text-gray-200">{{ tmpl.prompt | default('Action') }}</legend>
+                {% for data_item in tmpl.data %}
+                {{ render_input(data_item, "template_page_" + loop.index) }}
                 {% endfor %}
-                <button type="submit" class="bg-purple-600 hover:bg-orange-500 text-gray-100 py-2 px-4 rounded-md cursor-pointer text-base transition-all duration-200 ease-in-out shadow-md hover:shadow-lg transform hover:-translate-y-0.5 active:translate-y-0">Submit</button>
+                <button type="submit" class="bg-purple-600 hover:bg-orange-500 text-gray-100 py-2 px-4 rounded-md cursor-pointer text-base transition-all duration-200 ease-in-out shadow-md hover:shadow-lg transform hover:-translate-y-0.5 active:translate-y-0 mt-2">Submit</button>
             </fieldset>
         </form>
+        {% endfor %}
     </div>
     {% endif %}
+    {# End of Page-Level Templates Section #}
 
 </div>
 {% else %}

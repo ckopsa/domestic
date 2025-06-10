@@ -54,6 +54,7 @@ class Item(BaseModel):
     rel: str
     data: List[ItemData] = PydanticField(default_factory=list)
     links: List[Link] = PydanticField(default_factory=list)
+    templates: Optional[List[Template]] = PydanticField(default_factory=list, description="Templates for the item")
 
 
 class Collection(BaseModel):
@@ -81,7 +82,7 @@ class Error(BaseModel):
 
 class CollectionJson(BaseModel):
     collection: Collection
-    template: Optional[Template] = PydanticField(None, description="Template for the collection")
+    template: Optional[List[Template]] = PydanticField(None, description="Templates for the collection")
     error: Optional[Error] = PydanticField(None, description="Error details, if any")
 
 
@@ -132,7 +133,7 @@ class CollectionJsonRepresentor:
                 transition.href = transition.href.format(**context) if context else transition.href
         links = [transition.to_link() for transition in transitions if not transition.properties]
         template = []
-        for transition in [transition for transition in transitions if transition.href and transition.method == "POST"]:
+        for transition in [transition for transition in transitions if transition.href and transition.method in ["POST", "PUT", "DELETE"]]:
             it_template = transition.to_template()
             if transition.href:
                 it_template.href = transition.href
@@ -140,14 +141,15 @@ class CollectionJsonRepresentor:
                 it_template.href = str(request.url)
             if transition.method:
                 it_template.method = transition.method
-            else:
-                it_template.method = "POST"
+            # else: # No longer needed as method is guaranteed by filter
+            #     it_template.method = "POST" # Default was POST, but now we rely on the transition's method
 
             template.append(it_template)
-        if template:
-            template = template[0]
-        else:
-            template = None
+        # Removed:
+        # if template:
+        #     template = template[0]
+        # else:
+        #     template = None
 
         items = []
         item_transitions = self.transition_manager.get_item_transitions(request)
@@ -163,8 +165,23 @@ class CollectionJsonRepresentor:
                     link = transition.to_link()
                     link.href = link_href
                     item_links.append(link)
+
+            item_templates = []
+            for transition in item_transitions:
+                if transition.properties and transition.method in ["POST", "PUT", "DELETE"]:
+                    it_template = transition.to_template()
+                    template_href = transition.href
+                    if item_context_mapper:
+                        template_href = template_href.format(**item_context_mapper(item_model))
+                    if context:
+                        template_href = template_href.format(**context)
+                    it_template.href = template_href
+                    it_template.method = transition.method
+                    item_templates.append(it_template)
+
             item = item_model.to_cj_data(href="")
             item.links.extend(item_links)
+            item.templates = item_templates
             items.append(item)
 
         return CollectionJson(
