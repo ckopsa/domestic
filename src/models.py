@@ -29,6 +29,22 @@ class TaskInstance(BaseModel):
         from_attributes = True
 
 
+class SimpleTaskInstance(BaseModel):
+    id: str
+    name: str
+    order: int
+    status: TaskStatus = TaskStatus.pending
+
+    @staticmethod
+    def from_task_instance(task_instance: TaskInstance):
+        return SimpleTaskInstance(
+            id=task_instance.id,
+            name=task_instance.name,
+            order=task_instance.order,
+            status=task_instance.status,
+        )
+
+
 class WorkflowInstance(BaseModel):
     id: str = Field(default_factory=lambda: "wf_" + str(uuid.uuid4())[:8])
     workflow_definition_id: str

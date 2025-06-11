@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated
-
-from fastapi import APIRouter, Request, Depends, Form
+from fastapi import APIRouter, Request, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 import cj_models
@@ -17,6 +15,7 @@ router = APIRouter(
     prefix="/workflow-instances",
     tags=["Workflow Instances"],
 )
+
 
 @router.get(
     "/",
@@ -72,6 +71,9 @@ async def get_workflow_instances(
         "pageTransitions": [
             "home",
         ],
+        "itemTransitions": [
+            "complete_task_instance",
+        ]
     },
     summary="View Workflow Instance",
 )
@@ -87,21 +89,57 @@ async def view_workflow_instance(
     if isinstance(current_user, RedirectResponse):
         return current_user
 
-    workflow_instance = await service.get_workflow_instance_with_tasks(instance_id=instance_id, user_id=current_user.user_id)
+    workflow_instance = await service.get_workflow_instance_with_tasks(instance_id=instance_id,
+                                                                       user_id=current_user.user_id)
     if not workflow_instance:
         return HTMLResponse(status_code=404, content="Workflow Instance not found")
 
+    def item_context_mapper(item: models.TaskInstance) -> dict:
+        return {
+            "task_id": item.id,
+        }
+    tasks = workflow_instance.tasks
+    # sort by completed last and then order
+    tasks.sort(key=lambda x: x.order if x.status != models.TaskStatus.completed else x.order + 100)
     cj = collection_json_representor.to_collection_json(
         request,
-        [workflow_instance] + workflow_instance.tasks,
-        context={"instance_id": instance_id}
+        [models.SimpleTaskInstance.from_task_instance(task) for task in tasks],
+        context={"instance_id": instance_id},
+        item_context_mapper=item_context_mapper,
     )
+        
     return await renderer.render(
-        "cj_template.html", 
+        "cj_template.html",
         request,
         {
             "current_user": current_user,
             "collection": cj.collection,
             "template": cj.template,
         }
+    )
+
+
+# complete task endpoint
+@router.post(
+    "-task/{task_id}",
+    response_model=CollectionJson,
+    summary="Complete Task",
+)
+async def complete_task_instance(
+        request: Request,
+        task_id: str,
+        current_user: AuthenticatedUser | None = Depends(get_current_user),
+        service: WorkflowService = Depends(get_workflow_service),
+):
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+
+    task_instance = await service.complete_task(
+        task_id=task_id,
+        user_id=current_user.user_id
+    )
+
+    return RedirectResponse(
+        url=str(request.url_for("view_workflow_instance", instance_id=task_instance.workflow_instance_id)),
+        status_code=303
     )
