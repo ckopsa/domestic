@@ -3,6 +3,7 @@
 {% block content %}
 
 {# Define a macro for rendering form inputs #}
+{# Define a macro for rendering form inputs #}
 {% macro render_input(data_item, id_prefix) %}
 <div class="mb-4">
     <label for="{{ id_prefix }}_{{ data_item.name }}" class="block mb-1 font-bold text-gray-200">{{ data_item.prompt |
@@ -12,7 +13,7 @@
             endif %}
             class="w-full p-2 border border-gray-700 bg-gray-900 text-gray-200 rounded-md box-border text-base transition-colors duration-200 ease-in-out focus:border-purple-500 focus:ring-2 focus:ring-purple-500 focus:outline-none">
         {% for option_val in data_item.options %}
-        <option value="{{ option_val }}" {% if option_val== data_item.value %}selected{% endif %}>{{ option_val }}
+        <option value="{{ option_val }}" {% if option_val==data_item.value %}selected{% endif %}>{{ option_val }}
         </option>
         {% endfor %}
     </select>
@@ -36,8 +37,17 @@
               {% if data_item.max_length is not none %}maxlength="{{ data_item.max_length }}" {% endif %}
               {% if data_item.required %}required{% endif %}
               class="w-full p-2 border border-gray-700 bg-gray-900 text-gray-200 rounded-md box-border text-base transition-colors duration-200 ease-in-out focus:border-purple-500 focus:ring-2 focus:ring-purple-500 focus:outline-none">{{ data_item.value | default('') }}</textarea>
+    {% elif data_item.render_hint == 'hidden' %}
+    <input type="hidden" id="{{ id_prefix }}_{{ data_item.name }}"
+           name="{{ data_item.name }}" value="{{ data_item.value | default('') }}"
+           {% if data_item.pattern %}pattern="{{ data_item.pattern }}" {% endif %}
+           {% if data_item.min_length is not none %}minlength="{{ data_item.min_length }}" {% endif %}
+           {% if data_item.max_length is not none %}maxlength="{{ data_item.max_length }}" {% endif %}
+           {% if data_item.required %}required{% endif %}
+           class="w-full p-2 border border-gray-700 bg-gray-900 text-gray-200 rounded-md box-border text-base transition-colors duration-200 ease-in-out focus:border-purple-500 focus:ring-2 focus:ring-purple-500 focus:outline-none">
     {% else %}
-    <input type="{{ data_item.input_type | default('text') }}" id="{{ id_prefix }}_{{ data_item.name }}"
+    {# Fallback to a standard text input if no other conditions are met #}
+    <input type="text" id="{{ id_prefix }}_{{ data_item.name }}"
            name="{{ data_item.name }}" value="{{ data_item.value | default('') }}"
            {% if data_item.pattern %}pattern="{{ data_item.pattern }}" {% endif %}
            {% if data_item.min_length is not none %}minlength="{{ data_item.min_length }}" {% endif %}
@@ -45,7 +55,7 @@
            {% if data_item.required %}required{% endif %}
            class="w-full p-2 border border-gray-700 bg-gray-900 text-gray-200 rounded-md box-border text-base transition-colors duration-200 ease-in-out focus:border-purple-500 focus:ring-2 focus:ring-purple-500 focus:outline-none">
     {% endif %}
-    {% endif %}
+    {% endif %} {# <-- THIS WAS THE MISSING TAG #}
 </div>
 {% endmacro %}
 
@@ -81,7 +91,9 @@
         {% if item.data %}
         <h4 class="text-lg mt-4 mb-2">Data</h4>
         {% for data_point in item.data %}
-        <div class="data-item mb-2">
+        <div class="data-item mb-2"
+             {% if data_point.render_hint == 'hidden' %}hidden{% endif %}
+        >
             <p class="leading-relaxed mb-3"><strong class="font-semibold text-gray-100">{{ data_point.prompt or
                 data_point.name }}:</strong> {{ data_point.value }}</p>
         </div>

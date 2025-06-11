@@ -30,9 +30,9 @@ class TaskInstance(BaseModel):
 
 
 class SimpleTaskInstance(BaseModel):
-    id: str
+    id: str = Field(..., json_schema_extra={"x-render-hint": "hidden"})
     name: str
-    order: int
+    order: int = Field(..., json_schema_extra={"x-render-hint": "hidden"})
     status: TaskStatus = TaskStatus.pending
 
     @staticmethod

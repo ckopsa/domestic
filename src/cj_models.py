@@ -32,8 +32,7 @@ class ItemData(BaseModel):
     max_length: Optional[int] = PydanticField(None, description="Maximum string length for validation")
     minimum: Optional[Union[int, float]] = PydanticField(None, description="Minimum value for number range validation")
     maximum: Optional[Union[int, float]] = PydanticField(None, description="Maximum value for number range validation")
-    render_hint: Optional[str] = PydanticField(None,
-                                               description="A hint for how to render the data item (e.g., 'textarea', 'colorpicker')")
+    render_hint: Optional[str] = PydanticField(None, description="A hint for how to render the data item (e.g., 'textarea', 'colorpicker')")
 
 
 class QueryData(ItemData):
@@ -103,6 +102,7 @@ def to_collection_json_data(self: BaseModel, href="") -> Item:
             value=model_dict.get(name),
             prompt=definition.get("title") or name.replace("_", " ").title(),
             type=definition.get("type"),
+            render_hint=definition.get("x-render-hint"),
         ))
     return Item(
         href=href,
