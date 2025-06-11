@@ -32,7 +32,8 @@ class ItemData(BaseModel):
     max_length: Optional[int] = PydanticField(None, description="Maximum string length for validation")
     minimum: Optional[Union[int, float]] = PydanticField(None, description="Minimum value for number range validation")
     maximum: Optional[Union[int, float]] = PydanticField(None, description="Maximum value for number range validation")
-    render_hint: Optional[str] = PydanticField(None, description="A hint for how to render the data item (e.g., 'textarea', 'colorpicker')")
+    render_hint: Optional[str] = PydanticField(None,
+                                               description="A hint for how to render the data item (e.g., 'textarea', 'colorpicker')")
 
 
 class QueryData(ItemData):
@@ -133,7 +134,8 @@ class CollectionJsonRepresentor:
         for transition in transitions:
             if transition.href:
                 transition.href = transition.href.format(**context) if context else transition.href
-        links = [transition.to_link() for transition in transitions if not transition.properties]
+        links = [transition.to_link() for transition in transitions if
+                 not transition.properties and transition.method == 'GET']
         template = []
         for transition in [transition for transition in transitions if
                            transition.href and transition.method in ["POST", "PUT", "DELETE"]]:
