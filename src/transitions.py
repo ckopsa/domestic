@@ -69,6 +69,7 @@ class Form(BaseModel):
                 **prop
             ))
         return cj_models.Template(
+            name=self.name,
             data=template_data,
             prompt=self.title,
         )

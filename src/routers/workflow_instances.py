@@ -24,6 +24,7 @@ router = APIRouter(
         "pageTransitions": [
             "home",
             "get_workflow_instances",
+            "get_workflow_definitions",
         ],
         "itemTransitions": [
             "view_workflow_instance",
@@ -70,6 +71,9 @@ async def get_workflow_instances(
     openapi_extra={
         "pageTransitions": [
             "home",
+            "get_workflow_instances",
+            "get_workflow_definitions",
+            "view_workflow_definition"
         ],
         "itemTransitions": [
             "complete_task_instance",
@@ -98,16 +102,17 @@ async def view_workflow_instance(
         return {
             "task_id": item.id,
         }
+
     tasks = workflow_instance.tasks
     # sort by completed last and then order
     tasks.sort(key=lambda x: x.order if x.status != models.TaskStatus.completed else x.order + 100)
     cj = collection_json_representor.to_collection_json(
         request,
         [models.SimpleTaskInstance.from_task_instance(task) for task in tasks],
-        context={"instance_id": instance_id},
+        context={"instance_id": instance_id, "definition_id": workflow_instance.workflow_definition_id},
         item_context_mapper=item_context_mapper,
     )
-        
+
     return await renderer.render(
         "cj_template.html",
         request,

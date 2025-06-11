@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, List
 
 from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -25,8 +25,9 @@ router = APIRouter(
     openapi_extra={
         "pageTransitions": [
             "home",
+            "get_workflow_instances",
             "get_workflow_definitions",
-            "foo_bar",
+            "simple_create_workflow_definition",
         ],
         "itemTransitions": [
             "view_workflow_definition",
@@ -108,10 +109,11 @@ async def create_workflow_instance_from_definition(
     openapi_extra={
         "pageTransitions": [
             "home",
+            "get_workflow_instances",
             "get_workflow_definitions",
             "view_workflow_definition",
             "create_workflow_instance_from_definition",
-            "create_workflow_definition_form",
+            "simple_create_workflow_definition",
         ],
     },
     summary="View Workflow Definition",
@@ -128,7 +130,9 @@ async def view_workflow_definition(
     if isinstance(current_user, RedirectResponse):
         return current_user
 
-    workflow_definition = await service.list_workflow_definitions(definition_id=definition_id)
+    workflow_definition: List[models.WorkflowDefinition] = await service.list_workflow_definitions(
+        definition_id=definition_id
+    )
     if not workflow_definition:
         return HTMLResponse(status_code=404, content="Workflow Definition not found")
 
@@ -138,6 +142,20 @@ async def view_workflow_definition(
         workflow_definition + workflow_definition[0].task_definitions,
         context={"definition_id": definition_id}
     )
+
+    first_workflow_definition: models.WorkflowDefinition = workflow_definition[0]
+    for template in cj.template:
+        if template.name == "simple_create_workflow_definition":
+            for item in template.data:
+                for k, v in first_workflow_definition.dict().items():
+                    if k == item.name:
+                        match k:
+                            case "task_definitions":
+                                item.value = "\n".join(
+                                    [task_def.name for task_def in first_workflow_definition.task_definitions])
+                            case _:
+                                item.value = first_workflow_definition.dict()[k]
+
     return await renderer.render(
         "cj_template.html",
         request,
@@ -154,7 +172,7 @@ async def view_workflow_definition(
     response_model=CollectionJson,
     summary="Create Workflow Definition Form",
 )
-async def create_workflow_definition_form(
+async def create_workflow_definition(
         request: Request,
         definition_id: str,
         workflow_definition_task: Annotated[models.TaskDefinitionBase, Form()],
@@ -216,7 +234,7 @@ async def cj_create_workflow_definition(
     response_model=CollectionJson,
     summary="Create Workflow Definition",
 )
-async def foo_bar(
+async def simple_create_workflow_definition(
         request: Request,
         definition: Annotated[models.SimpleWorkflowDefinitionCreateRequest, Form()],
         current_user: AuthenticatedUser | None = Depends(get_current_user),
@@ -233,11 +251,19 @@ async def foo_bar(
             task_definitions.append(
                 models.TaskDefinitionBase(name=task_name.strip(), order=order, due_datetime_offset_minutes=0))
 
-    created_definition = await service.create_new_definition(
+    if not await service.list_workflow_definitions(name=definition.name):
+        created_definition = await service.create_new_definition(
         name=definition.name,
         description=definition.description,
         task_definitions=task_definitions,
     )
+    else:
+        created_definition = await service.update_definition(
+            definition_id=definition.id,
+            name=definition.name,
+            description=definition.description,
+            task_definitions=task_definitions,
+        )
     return RedirectResponse(
         url=str(request.url_for("view_workflow_definition", definition_id=created_definition.id)),
         status_code=303

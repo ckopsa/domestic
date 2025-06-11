@@ -84,6 +84,7 @@ class WorkflowDefinitionCreateRequest(BaseModel):
 
 
 class SimpleWorkflowDefinitionCreateRequest(BaseModel):
+    id: str = Field(..., json_schema_extra={"x-render-hint": "hidden"})
     name: str
     description: Optional[str] = ""
     task_definitions: str = Field(
