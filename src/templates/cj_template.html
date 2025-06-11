@@ -75,7 +75,6 @@
     {% endif %}
 
     {% if collection.items %}
-    <h2 class="text-gray-100 text-2xl mt-8 mb-4 border-b border-gray-700 pb-2">Items</h2>
     {% for item in collection.items %}
     <div class="item bg-gray-800 border border-gray-700 rounded-md p-4 mb-4">
         <h3 class="text-xl mb-3" hidden><a href="{{ item.href }}"
@@ -104,7 +103,7 @@
             {% else %}
             <form action="{{ link.href }}" method="{{ link.method }}">
                 <button type="submit"
-                        class="bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded-md cursor-pointer text-sm transition-all duration-200 ease-in-out shadow hover:shadow-md transform hover:-translate-y-px active:translate-y-0 mt-2">
+                        class="bg-orange-700 hover:bg-orange-800 text-white py-1 px-3 rounded-md cursor-pointer text-sm transition-all duration-200 ease-in-out shadow hover:shadow-md transform hover:-translate-y-px active:translate-y-0 mt-2">
                     {{ link.prompt | default(link.rel) }}
                 </button>
             </form>
