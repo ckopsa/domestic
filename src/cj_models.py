@@ -54,7 +54,6 @@ class Item(BaseModel):
     rel: str
     data: List[ItemData] = PydanticField(default_factory=list)
     links: List[Link] = PydanticField(default_factory=list)
-    templates: Optional[List[Template]] = PydanticField(default_factory=list, description="Templates for the item")
 
 
 class Collection(BaseModel):
@@ -165,19 +164,6 @@ class CollectionJsonRepresentor:
                     link = transition.to_link()
                     link.href = link_href
                     item_links.append(link)
-
-            item_templates = []
-            for transition in item_transitions:
-                if transition.properties and transition.method in ["POST", "PUT", "DELETE"]:
-                    it_template = transition.to_template()
-                    template_href = transition.href
-                    if item_context_mapper:
-                        template_href = template_href.format(**item_context_mapper(item_model))
-                    if context:
-                        template_href = template_href.format(**context)
-                    it_template.href = template_href
-                    it_template.method = transition.method
-                    item_templates.append(it_template)
 
             item = item_model.to_cj_data(href="")
             item.links.extend(item_links)
