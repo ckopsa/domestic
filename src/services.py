@@ -78,7 +78,7 @@ class WorkflowService:
     async def complete_task(self, task_id: str, user_id: str) -> Optional[TaskInstance]:
         task = await self.task_repo.get_task_instance_by_id(task_id)
         if not task or task.status == models.TaskStatus.completed:
-            return None
+            return task
 
         # Check if the workflow instance belongs to the user
         workflow_instance = await self.instance_repo.get_workflow_instance_by_id(task.workflow_instance_id)

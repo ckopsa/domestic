@@ -5,34 +5,45 @@
 {# Define a macro for rendering form inputs #}
 {% macro render_input(data_item, id_prefix) %}
 <div class="mb-4">
-    <label for="{{ id_prefix }}_{{ data_item.name }}" class="block mb-1 font-bold text-gray-200">{{ data_item.prompt | default(data_item.name) }}:</label>
+    <label for="{{ id_prefix }}_{{ data_item.name }}" class="block mb-1 font-bold text-gray-200">{{ data_item.prompt |
+        default(data_item.name) }}:</label>
     {% if data_item.input_type == 'select' and data_item.options %}
-    <select id="{{ id_prefix }}_{{ data_item.name }}" name="{{ data_item.name }}" {% if data_item.required %}required{% endif %} class="w-full p-2 border border-gray-700 bg-gray-900 text-gray-200 rounded-md box-border text-base transition-colors duration-200 ease-in-out focus:border-purple-500 focus:ring-2 focus:ring-purple-500 focus:outline-none">
+    <select id="{{ id_prefix }}_{{ data_item.name }}" name="{{ data_item.name }}" {% if data_item.required %}required{%
+            endif %}
+            class="w-full p-2 border border-gray-700 bg-gray-900 text-gray-200 rounded-md box-border text-base transition-colors duration-200 ease-in-out focus:border-purple-500 focus:ring-2 focus:ring-purple-500 focus:outline-none">
         {% for option_val in data_item.options %}
-        <option value="{{ option_val }}" {% if option_val == data_item.value %}selected{% endif %}>{{ option_val }}</option>
+        <option value="{{ option_val }}" {% if option_val== data_item.value %}selected{% endif %}>{{ option_val }}
+        </option>
         {% endfor %}
     </select>
     {% elif data_item.input_type == 'checkbox' %}
-    <input type="checkbox" id="{{ id_prefix }}_{{ data_item.name }}" name="{{ data_item.name }}" {% if data_item.value %}checked{% endif %} {% if data_item.required %}required{% endif %} class="p-2 border border-gray-700 bg-gray-900 text-gray-200 rounded-md box-border text-base transition-colors duration-200 ease-in-out focus:border-purple-500 focus:ring-2 focus:ring-purple-500 focus:outline-none">
+    <input type="checkbox" id="{{ id_prefix }}_{{ data_item.name }}" name="{{ data_item.name }}" {% if data_item.value
+           %}checked{% endif %} {% if data_item.required %}required{% endif %}
+           class="p-2 border border-gray-700 bg-gray-900 text-gray-200 rounded-md box-border text-base transition-colors duration-200 ease-in-out focus:border-purple-500 focus:ring-2 focus:ring-purple-500 focus:outline-none">
     {% elif data_item.input_type == 'number' %}
-    <input type="number" id="{{ id_prefix }}_{{ data_item.name }}" name="{{ data_item.name }}" value="{{ data_item.value | default('') }}"
-           {% if data_item.minimum is not none %}min="{{ data_item.minimum }}"{% endif %}
-           {% if data_item.maximum is not none %}max="{{ data_item.maximum }}"{% endif %}
-           {% if data_item.pattern %}pattern="{{ data_item.pattern }}"{% endif %}
-           {% if data_item.required %}required{% endif %} class="w-full p-2 border border-gray-700 bg-gray-900 text-gray-200 rounded-md box-border text-base transition-colors duration-200 ease-in-out focus:border-purple-500 focus:ring-2 focus:ring-purple-500 focus:outline-none">
+    <input type="number" id="{{ id_prefix }}_{{ data_item.name }}" name="{{ data_item.name }}"
+           value="{{ data_item.value | default('') }}"
+           {% if data_item.minimum is not none %}min="{{ data_item.minimum }}" {% endif %}
+           {% if data_item.maximum is not none %}max="{{ data_item.maximum }}" {% endif %}
+           {% if data_item.pattern %}pattern="{{ data_item.pattern }}" {% endif %}
+           {% if data_item.required %}required{% endif %}
+           class="w-full p-2 border border-gray-700 bg-gray-900 text-gray-200 rounded-md box-border text-base transition-colors duration-200 ease-in-out focus:border-purple-500 focus:ring-2 focus:ring-purple-500 focus:outline-none">
     {% else %} {# Default to text input or other specified input_type, or textarea if render_hint suggests #}
     {% if data_item.render_hint == 'textarea' %}
     <textarea id="{{ id_prefix }}_{{ data_item.name }}" name="{{ data_item.name }}"
-              {% if data_item.pattern %}pattern="{{ data_item.pattern }}"{% endif %}
-              {% if data_item.min_length is not none %}minlength="{{ data_item.min_length }}"{% endif %}
-              {% if data_item.max_length is not none %}maxlength="{{ data_item.max_length }}"{% endif %}
-              {% if data_item.required %}required{% endif %} class="w-full p-2 border border-gray-700 bg-gray-900 text-gray-200 rounded-md box-border text-base transition-colors duration-200 ease-in-out focus:border-purple-500 focus:ring-2 focus:ring-purple-500 focus:outline-none">{{ data_item.value | default('') }}</textarea>
+              {% if data_item.pattern %}pattern="{{ data_item.pattern }}" {% endif %}
+              {% if data_item.min_length is not none %}minlength="{{ data_item.min_length }}" {% endif %}
+              {% if data_item.max_length is not none %}maxlength="{{ data_item.max_length }}" {% endif %}
+              {% if data_item.required %}required{% endif %}
+              class="w-full p-2 border border-gray-700 bg-gray-900 text-gray-200 rounded-md box-border text-base transition-colors duration-200 ease-in-out focus:border-purple-500 focus:ring-2 focus:ring-purple-500 focus:outline-none">{{ data_item.value | default('') }}</textarea>
     {% else %}
-    <input type="{{ data_item.input_type | default('text') }}" id="{{ id_prefix }}_{{ data_item.name }}" name="{{ data_item.name }}" value="{{ data_item.value | default('') }}"
-           {% if data_item.pattern %}pattern="{{ data_item.pattern }}"{% endif %}
-           {% if data_item.min_length is not none %}minlength="{{ data_item.min_length }}"{% endif %}
-           {% if data_item.max_length is not none %}maxlength="{{ data_item.max_length }}"{% endif %}
-           {% if data_item.required %}required{% endif %} class="w-full p-2 border border-gray-700 bg-gray-900 text-gray-200 rounded-md box-border text-base transition-colors duration-200 ease-in-out focus:border-purple-500 focus:ring-2 focus:ring-purple-500 focus:outline-none">
+    <input type="{{ data_item.input_type | default('text') }}" id="{{ id_prefix }}_{{ data_item.name }}"
+           name="{{ data_item.name }}" value="{{ data_item.value | default('') }}"
+           {% if data_item.pattern %}pattern="{{ data_item.pattern }}" {% endif %}
+           {% if data_item.min_length is not none %}minlength="{{ data_item.min_length }}" {% endif %}
+           {% if data_item.max_length is not none %}maxlength="{{ data_item.max_length }}" {% endif %}
+           {% if data_item.required %}required{% endif %}
+           class="w-full p-2 border border-gray-700 bg-gray-900 text-gray-200 rounded-md box-border text-base transition-colors duration-200 ease-in-out focus:border-purple-500 focus:ring-2 focus:ring-purple-500 focus:outline-none">
     {% endif %}
     {% endif %}
 </div>
@@ -41,7 +52,8 @@
 {% if collection %}
 <div class="collection p-4">
     <h1 class="text-gray-100 text-3xl mb-5">
-        <a href="{{ collection.href }}" rel="self" class="text-purple-400 hover:text-orange-400 hover:underline transition-colors duration-200">
+        <a href="{{ collection.href }}" rel="self"
+           class="text-purple-400 hover:text-orange-400 hover:underline transition-colors duration-200">
             {{ collection.title | default('Collection') }}
         </a>
     </h1>
@@ -51,7 +63,8 @@
         <h2 class="text-gray-100 text-2xl mt-8 mb-4 border-b border-gray-700 pb-2">Links</h2>
         {% for link in collection.links %}
         <a href="{{ link.href }}" rel="{{ link.rel }}" {% if link.prompt %}title="{{ link.prompt }}" {% endif %} {% if
-           link.method %}data-method="{{ link.method }}" {% endif %} class="text-purple-400 hover:text-orange-400 hover:underline transition-colors duration-200 mr-2 mb-2 inline-block">
+           link.method %}data-method="{{ link.method }}" {% endif %}
+           class="text-purple-400 hover:text-orange-400 hover:underline transition-colors duration-200 mr-2 mb-2 inline-block">
             {{ link.prompt | default(link.rel) }}
         </a>
         {% endfor %}
@@ -62,12 +75,15 @@
     <h2 class="text-gray-100 text-2xl mt-8 mb-4 border-b border-gray-700 pb-2">Items</h2>
     {% for item in collection.items %}
     <div class="item bg-gray-800 border border-gray-700 rounded-md p-4 mb-4">
-        <h3 class="text-xl mb-3"><a href="{{ item.href }}" class="text-purple-400 hover:text-orange-400 hover:underline transition-colors duration-200">Navigate to Instance</a></h3>
+        <h3 class="text-xl mb-3"><a href="{{ item.href }}"
+                                    class="text-purple-400 hover:text-orange-400 hover:underline transition-colors duration-200">Navigate
+            to Instance</a></h3>
         {% if item.data %}
         <h4 class="text-lg mt-4 mb-2">Data</h4>
         {% for data_point in item.data %}
         <div class="data-item mb-2">
-            <p class="leading-relaxed mb-3"><strong class="font-semibold text-gray-100">{{ data_point.prompt or data_point.name }}:</strong> {{ data_point.value }}</p>
+            <p class="leading-relaxed mb-3"><strong class="font-semibold text-gray-100">{{ data_point.prompt or
+                data_point.name }}:</strong> {{ data_point.value }}</p>
         </div>
         {% endfor %}
         {% endif %}
@@ -76,13 +92,24 @@
         <div class="item-links mt-3">
             <h4 class="text-lg mt-4 mb-2">Item Links</h4>
             {% for link in item.links %}
+            {% if link.method == "GET" %}
             <a href="{{ link.href }}" rel="{{ link.rel }}" {% if link.prompt %}title="{{ link.prompt }}" {% endif %} {%
-               if link.method %}data-method="{{ link.method }}" {% endif %} class="text-purple-400 hover:text-orange-400 hover:underline transition-colors duration-200 mr-2 mb-2 inline-block">
+               if link.method %}data-method="{{ link.method }}" {% endif %}
+               class="text-purple-400 hover:text-orange-400 hover:underline transition-colors duration-200 mr-2 mb-2 inline-block">
                 {{ link.prompt | default(link.rel) }}
             </a>
+            {% else %}
+            <form action="{{ link.href }}" method="{{ link.method }}">
+                <button type="submit"
+                        class="bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded-md cursor-pointer text-sm transition-all duration-200 ease-in-out shadow hover:shadow-md transform hover:-translate-y-px active:translate-y-0 mt-2">
+                    {{ link.prompt | default(link.rel) }}
+                </button>
+            </form>
+            {% endif %}
             {% endfor %}
         </div>
         {% endif %}
+        {# End of Item-Level Templates Section #}
     </div>
     {% endfor %}
     {% endif %}
@@ -93,7 +120,9 @@
         {% for query in collection.queries %}
         <form action="{{ query.href }}" method="{{ query.method | default('GET') }}">
             <fieldset class="border border-gray-700 p-4 rounded-md mb-4">
-                <legend class="text-lg font-semibold px-2 text-gray-200">{{ query.prompt | default(query.rel | default('Query')) }}</legend>
+                <legend class="text-lg font-semibold px-2 text-gray-200">{{ query.prompt | default(query.rel |
+                    default('Query')) }}
+                </legend>
                 <p class="leading-relaxed mb-3"><strong>Rel:</strong> {{ query.rel }}</p>
                 <p class="leading-relaxed mb-3"><strong>Href:</strong> {{ query.href }}</p>
                 {% if query.data %}
@@ -101,27 +130,37 @@
                 {{ render_input(data_item, "query_" + query.rel) }}
                 {% endfor %}
                 {% endif %}
-                <button type="submit" class="bg-purple-600 hover:bg-orange-500 text-gray-100 py-2 px-4 rounded-md cursor-pointer text-base transition-all duration-200 ease-in-out shadow-md hover:shadow-lg transform hover:-translate-y-0.5 active:translate-y-0">Submit</button>
+                <button type="submit"
+                        class="bg-purple-600 hover:bg-orange-500 text-gray-100 py-2 px-4 rounded-md cursor-pointer text-base transition-all duration-200 ease-in-out shadow-md hover:shadow-lg transform hover:-translate-y-0.5 active:translate-y-0">
+                    Submit
+                </button>
             </fieldset>
         </form>
         {% endfor %}
     </div>
     {% endif %}
 
-    {% if template %}
+    {# Page-Level Templates Section #}
+    {% if template and template|length > 0 %}
     <div class="template-section mt-6">
-        <h2 class="text-gray-100 text-2xl mt-8 mb-4 border-b border-gray-700 pb-2">Template</h2>
-        <form action="{{ template.href }}" method="{{ template.method }}"> {# Assuming POST to collection href for creation #}
-            <fieldset class="border border-gray-700 p-4 rounded-md">
-                <legend class="text-lg font-semibold px-2 text-gray-200">{{ template.prompt | default('New Item Data') }}</legend>
-                {% for data_item in template.data %}
-                {{ render_input(data_item, "template") }}
+        <h2 class="text-gray-100 text-2xl mt-8 mb-4 border-b border-gray-700 pb-2">Page Actions</h2>
+        {% for tmpl in template %}
+        <form action="{{ tmpl.href }}" method="{{ tmpl.method }}">
+            <fieldset class="border border-gray-700 p-4 rounded-md mb-3"> {# Added mb-3 for spacing between forms #}
+                <legend class="text-lg font-semibold px-2 text-gray-200">{{ tmpl.prompt | default('Action') }}</legend>
+                {% for data_item in tmpl.data %}
+                {{ render_input(data_item, "template_page_" + loop.index|string) }}
                 {% endfor %}
-                <button type="submit" class="bg-purple-600 hover:bg-orange-500 text-gray-100 py-2 px-4 rounded-md cursor-pointer text-base transition-all duration-200 ease-in-out shadow-md hover:shadow-lg transform hover:-translate-y-0.5 active:translate-y-0">Submit</button>
+                <button type="submit"
+                        class="bg-purple-600 hover:bg-orange-500 text-gray-100 py-2 px-4 rounded-md cursor-pointer text-base transition-all duration-200 ease-in-out shadow-md hover:shadow-lg transform hover:-translate-y-0.5 active:translate-y-0 mt-2">
+                    Submit
+                </button>
             </fieldset>
         </form>
+        {% endfor %}
     </div>
     {% endif %}
+    {# End of Page-Level Templates Section #}
 
 </div>
 {% else %}

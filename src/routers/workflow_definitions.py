@@ -30,6 +30,7 @@ router = APIRouter(
         ],
         "itemTransitions": [
             "view_workflow_definition",
+            "create_workflow_instance_from_definition",
         ],
     },
     summary="Workflow Definitions",
@@ -52,8 +53,12 @@ async def get_workflow_definitions(
             "definition_id": item.id,
         }
 
-    cj = collection_json_representor.to_collection_json(request, workflow_definitions, context={"definition_id": None},
-                                                        item_context_mapper=item_context_mapper)
+    cj = collection_json_representor.to_collection_json(
+        request,
+        workflow_definitions,
+        context={"definition_id": None},
+        item_context_mapper=item_context_mapper,
+    )
     return await renderer.render(
         "cj_template.html",
         request,

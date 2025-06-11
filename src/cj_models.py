@@ -20,17 +20,20 @@ class Link(BaseModel):
 
 class ItemData(BaseModel):
     name: str
-    value: Union[str, bool, int, float, dict, list, None, datetime.datetime, datetime.date] = PydanticField(None, description="Value of the data item")
+    value: Union[str, bool, int, float, dict, list, None, datetime.datetime, datetime.date] = PydanticField(None,
+                                                                                                            description="Value of the data item")
     prompt: Optional[str] = PydanticField(None, description="Human Readable prompt for the data")
     type: Optional[str] = PydanticField(None, description="Type of the data")
-    input_type: Optional[str] = PydanticField(None, description="Suggested input type (e.g., 'text', 'checkbox', 'number', 'select')")
+    input_type: Optional[str] = PydanticField(None,
+                                              description="Suggested input type (e.g., 'text', 'checkbox', 'number', 'select')")
     options: Optional[List[str]] = PydanticField(None, description="List of options for 'select' input type")
     pattern: Optional[str] = PydanticField(None, description="Regex pattern for validation")
     min_length: Optional[int] = PydanticField(None, description="Minimum string length for validation")
     max_length: Optional[int] = PydanticField(None, description="Maximum string length for validation")
     minimum: Optional[Union[int, float]] = PydanticField(None, description="Minimum value for number range validation")
     maximum: Optional[Union[int, float]] = PydanticField(None, description="Maximum value for number range validation")
-    render_hint: Optional[str] = PydanticField(None, description="A hint for how to render the data item (e.g., 'textarea', 'colorpicker')")
+    render_hint: Optional[str] = PydanticField(None,
+                                               description="A hint for how to render the data item (e.g., 'textarea', 'colorpicker')")
 
 
 class QueryData(ItemData):
@@ -81,7 +84,7 @@ class Error(BaseModel):
 
 class CollectionJson(BaseModel):
     collection: Collection
-    template: Optional[Template] = PydanticField(None, description="Template for the collection")
+    template: Optional[List[Template]] = PydanticField(None, description="Templates for the collection")
     error: Optional[Error] = PydanticField(None, description="Error details, if any")
 
 
@@ -132,7 +135,8 @@ class CollectionJsonRepresentor:
                 transition.href = transition.href.format(**context) if context else transition.href
         links = [transition.to_link() for transition in transitions if not transition.properties]
         template = []
-        for transition in [transition for transition in transitions if transition.href and transition.method == "POST"]:
+        for transition in [transition for transition in transitions if
+                           transition.href and transition.method in ["POST", "PUT", "DELETE"]]:
             it_template = transition.to_template()
             if transition.href:
                 it_template.href = transition.href
@@ -140,14 +144,8 @@ class CollectionJsonRepresentor:
                 it_template.href = str(request.url)
             if transition.method:
                 it_template.method = transition.method
-            else:
-                it_template.method = "POST"
 
             template.append(it_template)
-        if template:
-            template = template[0]
-        else:
-            template = None
 
         items = []
         item_transitions = self.transition_manager.get_item_transitions(request)
@@ -163,6 +161,7 @@ class CollectionJsonRepresentor:
                     link = transition.to_link()
                     link.href = link_href
                     item_links.append(link)
+
             item = item_model.to_cj_data(href="")
             item.links.extend(item_links)
             items.append(item)
