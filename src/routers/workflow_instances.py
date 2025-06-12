@@ -28,6 +28,7 @@ router = APIRouter(
         ],
         "itemTransitions": [
             "view_workflow_instance",
+            "archive_workflow_instance",
         ],
     },
     summary="Workflow Instances",
@@ -52,8 +53,13 @@ async def get_workflow_instances(
             "instance_id": item.id,
         }
 
-    cj = collection_json_representor.to_collection_json(request, workflow_instances, context={"instance_id": None},
-                                                        item_context_mapper=item_context_mapper)
+    cj = collection_json_representor.to_collection_json(
+        request,
+        workflow_instances,
+        context={"instance_id": None},
+        item_context_mapper=item_context_mapper,
+    )
+    cj.collection.title = "Workflow Instances" 
     return await renderer.render(
         "cj_template.html",
         request,
@@ -113,7 +119,9 @@ async def view_workflow_instance(
         context={"instance_id": instance_id, "definition_id": workflow_instance.workflow_definition_id},
         item_context_mapper=item_context_mapper,
     )
-                    
+
+    cj.collection.title = f"{workflow_instance.name} - {workflow_instance.status.title()}"
+
     return await renderer.render(
         "cj_template.html",
         request,
@@ -171,5 +179,30 @@ async def reopen_task_instance(
 
     return RedirectResponse(
         url=str(request.url_for("view_workflow_instance", instance_id=task_instance.workflow_instance_id)),
+        status_code=303
+    )
+
+
+@router.post(
+    "/{instance_id}/archive",
+    response_model=CollectionJson,
+    summary="Archive Workflow Instance",
+)
+async def archive_workflow_instance(
+        request: Request,
+        instance_id: str,
+        current_user: AuthenticatedUser | None = Depends(get_current_user),
+        service: WorkflowService = Depends(get_workflow_service),
+):
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+
+    workflow_instance = await service.archive_workflow_instance(
+        instance_id=instance_id,
+        user_id=current_user.user_id
+    )
+
+    return RedirectResponse(
+        url=str(request.url_for("view_workflow_instance", instance_id=workflow_instance.id)),
         status_code=303
     )
