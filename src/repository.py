@@ -147,9 +147,9 @@ class PostgreSQLWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanc
     async def update_workflow_instance(self, instance_id: str, instance_update: WorkflowInstance) -> Optional[WorkflowInstance]:
         instance = self.db_session.query(WorkflowInstanceORM).filter(WorkflowInstanceORM.id == instance_id).first()
         if instance:
-            update_data = instance_update.model_dump() # Use default mode='python'
+            update_data = instance_update.model_dump(exclude=set("tasks")) # Use default mode='python'
             for key, value in update_data.items():
-                setattr(instance, key, value)
+                    setattr(instance, key, value)
             self.db_session.commit()
             self.db_session.refresh(instance) # Refresh to get any DB-level changes
             return WorkflowInstance.model_validate(instance, from_attributes=True)
