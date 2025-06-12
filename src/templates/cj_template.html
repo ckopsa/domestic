@@ -74,6 +74,29 @@
     </div>
     {% endif %}
 
+    {% if collection.queries %}
+    <div class="queries mb-6">
+        {% for query in collection.queries %}
+        <form action="{{ query.href }}" method="{{ query.method | default('GET') }}">
+            <fieldset class="border border-gray-700 p-4 rounded-md mb-4">
+                <legend class="text-lg font-semibold px-2 text-gray-200">{{ query.prompt | default(query.rel |
+                    default('Query')) }}
+                </legend>
+                {% if query.data %}
+                {% for data_item in query.data %}
+                {{ render_input(data_item, "query_" + query.rel) }}
+                {% endfor %}
+                {% endif %}
+                <button type="submit"
+                        class="bg-purple-600 hover:bg-orange-500 text-gray-100 py-2 px-4 rounded-md cursor-pointer text-base transition-all duration-200 ease-in-out shadow-md hover:shadow-lg transform hover:-translate-y-0.5 active:translate-y-0">
+                    Submit
+                </button>
+            </fieldset>
+        </form>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     {% if collection.items %}
     {% for item in collection.items %}
     <div class="item bg-gray-800 border border-gray-700 rounded-md p-4 mb-4">
@@ -114,32 +137,6 @@
         {# End of Item-Level Templates Section #}
     </div>
     {% endfor %}
-    {% endif %}
-
-    {% if collection.queries %}
-    <div class="queries mb-6">
-        <h2 class="text-gray-100 text-2xl mt-8 mb-4 border-b border-gray-700 pb-2">Queries</h2>
-        {% for query in collection.queries %}
-        <form action="{{ query.href }}" method="{{ query.method | default('GET') }}">
-            <fieldset class="border border-gray-700 p-4 rounded-md mb-4">
-                <legend class="text-lg font-semibold px-2 text-gray-200">{{ query.prompt | default(query.rel |
-                    default('Query')) }}
-                </legend>
-                <p class="leading-relaxed mb-3"><strong>Rel:</strong> {{ query.rel }}</p>
-                <p class="leading-relaxed mb-3"><strong>Href:</strong> {{ query.href }}</p>
-                {% if query.data %}
-                {% for data_item in query.data %}
-                {{ render_input(data_item, "query_" + query.rel) }}
-                {% endfor %}
-                {% endif %}
-                <button type="submit"
-                        class="bg-purple-600 hover:bg-orange-500 text-gray-100 py-2 px-4 rounded-md cursor-pointer text-base transition-all duration-200 ease-in-out shadow-md hover:shadow-lg transform hover:-translate-y-0.5 active:translate-y-0">
-                    Submit
-                </button>
-            </fieldset>
-        </form>
-        {% endfor %}
-    </div>
     {% endif %}
 
     {# Page-Level Templates Section #}

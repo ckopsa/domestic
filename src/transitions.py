@@ -74,17 +74,58 @@ class TransitionManager:
                 if not op_id:
                     continue
 
-                # FastAPI operationId is typically 'route_name_path_method'
-                # We extract the 'name' we provided in the decorator.
-                route_name = op_id.split('_')[0]
-
-                # Extract parameters for form properties
                 params: List[FormProperty] = []
-                # From path e.g. /wip/{item_id}
                 for param in operation.get("parameters", []):
                     if param.get("in") == "path":
                         # params.append(param.get("name"))
                         pass
+                    if param.get("in") == "query":
+                        form_schema = param.get("schema", {})
+                        if form_schema and "$ref" in form_schema:
+                            schema_name = form_schema["$ref"].split('/')[-1]
+                            form_schema = schema.get("components", {}).get("schemas", {}).get(schema_name, {})
+                            enum_values = form_schema.get("enum")
+                            schema_pattern = form_schema.get("pattern")
+                            min_length = form_schema.get("minLength")
+                            max_length = form_schema.get("maxLength")
+                            minimum = form_schema.get("minimum")
+                            maximum = form_schema.get("maximum")
+                            schema_type = form_schema.get("type", "string")
+                            render_hint = form_schema.get("x-render-hint") # Extract render_hint
+
+                            # Determine input_type
+                            input_type = schema_type  # Default
+                            if schema_type == 'boolean':
+                                input_type = 'checkbox'
+                            elif schema_type == 'integer' or schema_type == 'number':
+                                input_type = 'number'
+                            elif schema_type == 'string' and enum_values:
+                                input_type = 'select'
+                            elif schema_type == 'string':
+                                input_type = 'text'  # Explicitly 'text' for string
+
+                            params.append(FormProperty(
+                                name=param.get("name"),
+                                value=form_schema.get("default") or "" if schema_type == "string" else props.get("default"),
+                                type=schema_type,
+                                required=param.get("required", False),
+                                prompt=param.get("name"),
+                                input_type=input_type,
+                                options=enum_values,
+                                pattern=schema_pattern,
+                                min_length=min_length,
+                                max_length=max_length,
+                                minimum=minimum,
+                                maximum=maximum,
+                                render_hint=render_hint,
+                            ))
+                        else:
+                            params.append(FormProperty(
+                                name=param.get("name"),
+                                type=param.get("schema", {}).get("type", "string"),
+                                prompt=param.get("description", param.get("name")),
+                                required=param.get("required", False),
+                            ))
 
                 # From request body
                 request_body = operation.get("requestBody")
