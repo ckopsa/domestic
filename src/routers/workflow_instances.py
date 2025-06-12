@@ -77,6 +77,7 @@ async def get_workflow_instances(
         ],
         "itemTransitions": [
             "complete_task_instance",
+            "reopen_task_instance",
         ]
     },
     summary="View Workflow Instance",
@@ -112,7 +113,7 @@ async def view_workflow_instance(
         context={"instance_id": instance_id, "definition_id": workflow_instance.workflow_definition_id},
         item_context_mapper=item_context_mapper,
     )
-
+                    
     return await renderer.render(
         "cj_template.html",
         request,
@@ -124,9 +125,8 @@ async def view_workflow_instance(
     )
 
 
-# complete task endpoint
 @router.post(
-    "-task/{task_id}",
+    "-task/{task_id}/complete",
     response_model=CollectionJson,
     summary="Complete Task",
 )
@@ -140,6 +140,31 @@ async def complete_task_instance(
         return current_user
 
     task_instance = await service.complete_task(
+        task_id=task_id,
+        user_id=current_user.user_id
+    )
+
+    return RedirectResponse(
+        url=str(request.url_for("view_workflow_instance", instance_id=task_instance.workflow_instance_id)),
+        status_code=303
+    )
+
+
+@router.post(
+    "-task/{task_id}/reopen",
+    response_model=CollectionJson,
+    summary="Reopen Task",
+)
+async def reopen_task_instance(
+        request: Request,
+        task_id: str,
+        current_user: AuthenticatedUser | None = Depends(get_current_user),
+        service: WorkflowService = Depends(get_workflow_service),
+):
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+
+    task_instance = await service.undo_complete_task(
         task_id=task_id,
         user_id=current_user.user_id
     )
