@@ -5,7 +5,6 @@ from typing import Optional, List
 from fastapi import Request
 from pydantic import BaseModel
 
-import cj_models
 
 class RelType(str, Enum):
     """Strongly-typed relation types for hypermedia links."""
@@ -46,33 +45,8 @@ class Form(BaseModel):
     method: str
     properties: list[dict]
 
-    def to_link(self):
-        return cj_models.Link(
-            rel=self.rel,
-            href=self.href,
-            prompt=self.title,
-            method=self.method,
-        )
-
-    def to_query(self):
-        return cj_models.Query(
-            rel=self.rel,
-            href=self.href,
-            prompt=self.title,
-            data=[cj_models.TemplateData(**prop) for prop in self.properties],
-        )
-
-    def to_template(self):
-        template_data = []
-        for prop in self.properties:
-            template_data.append(cj_models.TemplateData(
-                **prop
-            ))
-        return cj_models.Template(
-            name=self.name,
-            data=template_data,
-            prompt=self.title,
-        )
+    # to_link, to_query, and to_template methods will be removed.
+    # The logic will be moved to CollectionJsonRepresentor in cj_models.py.
 
 
 class TransitionManager:
