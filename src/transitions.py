@@ -18,7 +18,6 @@ class RelType(str, Enum):
     FILTER = "filter"
 
 
-# --- UPDATED: Hypermedia Control Models ---
 class FormProperty(BaseModel):
     name: str
     type: str
@@ -32,21 +31,18 @@ class FormProperty(BaseModel):
     max_length: Optional[int] = None
     minimum: Optional[Union[int, float]] = None
     maximum: Optional[Union[int, float]] = None
-    render_hint: Optional[str] = None
+    render_hint: Optional[str] = None # example: hidden
 
 
 class Form(BaseModel):
-    id: str  # Changed from str
+    id: str
     name: str
     href: str
-    rel: str  # This could also be an Enum, but is often a space-delimited list
+    rel: str
     tags: str
     title: str
     method: str
     properties: list[dict]
-
-    # to_link, to_query, and to_template methods will be removed.
-    # The logic will be moved to CollectionJsonRepresentor in cj_models.py.
 
 
 class TransitionManager:
@@ -91,7 +87,7 @@ class TransitionManager:
                             minimum = form_schema.get("minimum")
                             maximum = form_schema.get("maximum")
                             schema_type = form_schema.get("type", "string")
-                            render_hint = form_schema.get("x-render-hint") # Extract render_hint
+                            render_hint = form_schema.get("x-render-hint")
 
                             # Determine input_type
                             input_type = schema_type  # Default
@@ -109,7 +105,7 @@ class TransitionManager:
                                 value=form_schema.get("default") or "" if schema_type == "string" else props.get("default"),
                                 type=schema_type,
                                 required=param.get("required", False),
-                                prompt=param.get("name"),
+                                prompt=param.get("title") or param.get("name"),
                                 input_type=input_type,
                                 options=enum_values,
                                 pattern=schema_pattern,
@@ -123,8 +119,10 @@ class TransitionManager:
                             params.append(FormProperty(
                                 name=param.get("name"),
                                 type=param.get("schema", {}).get("type", "string"),
-                                prompt=param.get("description", param.get("name")),
                                 required=param.get("required", False),
+                                prompt=param.get("schema", {}).get("title", param.get("name")),
+                                value=param.get("schema", {}).get("default", None),
+                                render_hint=param.get("schema", {}).get("x-render-hint", None),
                             ))
 
                 # From request body
@@ -179,18 +177,44 @@ class TransitionManager:
                             else:
                                 # params.extend(form_schema.get("properties", {}).keys())
                                 pass
-                self.page_transitions[operation.get("operationId")] = operation.get("pageTransitions", [])
-                self.item_transitions[operation.get("operationId")] = operation.get("itemTransitions", [])
-                self.routes_info[operation.get("operationId")] = Form(
-                    id=operation.get("operationId"),
-                    name=operation.get("operationId"),
-                    href=path,
-                    rel="",
-                    tags=" ".join(operation.get("tags", [])),
-                    title=operation.get("summary", ""),
-                    method=method.upper(),
-                    properties=[prop.dict() for prop in params],
-                )
+                            
+                if method.upper() == 'GET' and len(params) > 0:
+                    query_id = operation.get("operationId") + '_query'
+                    self.routes_info[query_id] = Form(
+                        id=query_id,
+                        name=query_id,
+                        href=path,
+                        rel="",
+                        tags=" ".join(operation.get("tags", [])),
+                        title=operation.get("summary", ""),
+                        method=method.upper(),
+                        properties=[prop.dict() for prop in params],
+                    )
+                    self.page_transitions[operation.get("operationId")] = operation.get("pageTransitions", [])
+                    self.item_transitions[operation.get("operationId")] = operation.get("itemTransitions", [])
+                    self.routes_info[operation.get("operationId")] = Form(
+                        id=operation.get("operationId"),
+                        name=operation.get("operationId"),
+                        href=path,
+                        rel="",
+                        tags=" ".join(operation.get("tags", [])),
+                        title=operation.get("summary", ""),
+                        method=method.upper(),
+                        properties=[],
+                    )
+                else:
+                    self.page_transitions[operation.get("operationId")] = operation.get("pageTransitions", [])
+                    self.item_transitions[operation.get("operationId")] = operation.get("itemTransitions", [])
+                    self.routes_info[operation.get("operationId")] = Form(
+                        id=operation.get("operationId"),
+                        name=operation.get("operationId"),
+                        href=path,
+                        rel="",
+                        tags=" ".join(operation.get("tags", [])),
+                        title=operation.get("summary", ""),
+                        method=method.upper(),
+                        properties=[prop.dict() for prop in params],
+                    )
 
     def get_transitions(
             self,
