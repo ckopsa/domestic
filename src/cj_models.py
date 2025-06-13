@@ -132,34 +132,40 @@ class CollectionJsonRepresentor:
         for transition in transitions:
             if transition.href:
                 transition.href = transition.href.format(**context) if context else transition.href
-        links = [transition.to_link() for transition in transitions if
-                 not transition.properties and transition.method == 'GET']
+        links = [
+            Link(rel=t.rel, href=t.href, prompt=t.title, method=t.method)
+            for t in transitions if not t.properties and t.method == 'GET'
+        ]
+        queries = [
+            Query(rel=t.rel, href=t.href, prompt=t.title, data=[TemplateData(**prop) for prop in t.properties])
+            for t in transitions if t.properties and t.method == 'GET'
+        ]
         template = []
-        for transition in [transition for transition in transitions if
-                           transition.href and transition.method in ["POST", "PUT", "DELETE"]]:
-            it_template = transition.to_template()
-            if transition.href:
-                it_template.href = transition.href
+        for t in [t for t in transitions if
+                  t.href and t.method in ["POST", "PUT", "DELETE"]]:
+            template_data_objects = [TemplateData(**prop) for prop in t.properties]
+            it_template = Template(name=t.name, data=template_data_objects, prompt=t.title)
+            if t.href:
+                it_template.href = t.href
             else:
                 it_template.href = str(request.url)
-            if transition.method:
-                it_template.method = transition.method
-
+            if t.method:
+                it_template.method = t.method
             template.append(it_template)
 
         items = []
         item_transitions = self.transition_manager.get_item_transitions(request)
         for item_model in models:
             item_links = []
-            for transition in item_transitions:
-                link_href = transition.href
+            for t_item in item_transitions: # Renamed transition to t_item to avoid conflict
+                link_href = t_item.href
                 if item_context_mapper:
                     link_href = link_href.format(**item_context_mapper(item_model))
                 if context:
                     link_href = link_href.format(**context)
-                if not transition.properties:
-                    link = transition.to_link()
-                    link.href = link_href
+                if not t_item.properties:
+                    # Create Link object directly
+                    link = Link(rel=t_item.rel, href=link_href, prompt=t_item.title, method=t_item.method)
                     item_links.append(link)
 
             item = item_model.to_cj_data(href="")
@@ -171,7 +177,7 @@ class CollectionJsonRepresentor:
                 href=str(request.url),
                 version="1.0",
                 items=items,
-                queries=[],
+                queries=queries,
                 links=links,
                 title="Title"
             ),

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Request, Depends
+from typing import Annotated
+
+from fastapi import APIRouter, Request, Depends, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 import cj_models
@@ -25,6 +27,7 @@ router = APIRouter(
             "home",
             "get_workflow_instances",
             "get_workflow_definitions",
+            "get_workflow_instances_query",
         ],
         "itemTransitions": [
             "view_workflow_instance",
@@ -35,6 +38,8 @@ router = APIRouter(
 )
 async def get_workflow_instances(
         request: Request,
+        status: Annotated[models.WorkflowStatus, Query(title="Status")] = models.WorkflowStatus.active,
+        definition_id: Annotated[str, Query(title="Definition ID", json_schema_extra={"x-render-hint": "hidden"})] = "",
         current_user: AuthenticatedUser | None = Depends(get_current_user),
         service: WorkflowService = Depends(get_workflow_service),
         renderer: HtmlRendererInterface = Depends(get_html_renderer),
@@ -45,7 +50,10 @@ async def get_workflow_instances(
         return current_user
 
     workflow_instances: list[models.WorkflowInstance] = await service.list_instances_for_user(
-        user_id=current_user.user_id)
+        status=status,
+        definition_id=definition_id if definition_id else None, 
+        user_id=current_user.user_id,
+    )
 
     # Convert the workflow instance to Collection+JSON format
     def item_context_mapper(item: models.WorkflowInstance) -> dict:

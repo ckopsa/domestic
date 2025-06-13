@@ -5,7 +5,6 @@ from typing import Optional, List
 from fastapi import Request
 from pydantic import BaseModel
 
-import cj_models
 
 class RelType(str, Enum):
     """Strongly-typed relation types for hypermedia links."""
@@ -19,7 +18,6 @@ class RelType(str, Enum):
     FILTER = "filter"
 
 
-# --- UPDATED: Hypermedia Control Models ---
 class FormProperty(BaseModel):
     name: str
     type: str
@@ -33,46 +31,18 @@ class FormProperty(BaseModel):
     max_length: Optional[int] = None
     minimum: Optional[Union[int, float]] = None
     maximum: Optional[Union[int, float]] = None
-    render_hint: Optional[str] = None
+    render_hint: Optional[str] = None # example: hidden
 
 
 class Form(BaseModel):
-    id: str  # Changed from str
+    id: str
     name: str
     href: str
-    rel: str  # This could also be an Enum, but is often a space-delimited list
+    rel: str
     tags: str
     title: str
     method: str
     properties: list[dict]
-
-    def to_link(self):
-        return cj_models.Link(
-            rel=self.rel,
-            href=self.href,
-            prompt=self.title,
-            method=self.method,
-        )
-
-    def to_query(self):
-        return cj_models.Query(
-            rel=self.rel,
-            href=self.href,
-            prompt=self.title,
-            data=[cj_models.TemplateData(**prop) for prop in self.properties],
-        )
-
-    def to_template(self):
-        template_data = []
-        for prop in self.properties:
-            template_data.append(cj_models.TemplateData(
-                **prop
-            ))
-        return cj_models.Template(
-            name=self.name,
-            data=template_data,
-            prompt=self.title,
-        )
 
 
 class TransitionManager:
@@ -100,17 +70,60 @@ class TransitionManager:
                 if not op_id:
                     continue
 
-                # FastAPI operationId is typically 'route_name_path_method'
-                # We extract the 'name' we provided in the decorator.
-                route_name = op_id.split('_')[0]
-
-                # Extract parameters for form properties
                 params: List[FormProperty] = []
-                # From path e.g. /wip/{item_id}
                 for param in operation.get("parameters", []):
                     if param.get("in") == "path":
                         # params.append(param.get("name"))
                         pass
+                    if param.get("in") == "query":
+                        form_schema = param.get("schema", {})
+                        if form_schema and "$ref" in form_schema:
+                            schema_name = form_schema["$ref"].split('/')[-1]
+                            form_schema = schema.get("components", {}).get("schemas", {}).get(schema_name, {})
+                            enum_values = form_schema.get("enum")
+                            schema_pattern = form_schema.get("pattern")
+                            min_length = form_schema.get("minLength")
+                            max_length = form_schema.get("maxLength")
+                            minimum = form_schema.get("minimum")
+                            maximum = form_schema.get("maximum")
+                            schema_type = form_schema.get("type", "string")
+                            render_hint = form_schema.get("x-render-hint")
+
+                            # Determine input_type
+                            input_type = schema_type  # Default
+                            if schema_type == 'boolean':
+                                input_type = 'checkbox'
+                            elif schema_type == 'integer' or schema_type == 'number':
+                                input_type = 'number'
+                            elif schema_type == 'string' and enum_values:
+                                input_type = 'select'
+                            elif schema_type == 'string':
+                                input_type = 'text'  # Explicitly 'text' for string
+
+                            params.append(FormProperty(
+                                name=param.get("name"),
+                                value=form_schema.get("default") or "" if schema_type == "string" else props.get("default"),
+                                type=schema_type,
+                                required=param.get("required", False),
+                                prompt=param.get("title") or param.get("name"),
+                                input_type=input_type,
+                                options=enum_values,
+                                pattern=schema_pattern,
+                                min_length=min_length,
+                                max_length=max_length,
+                                minimum=minimum,
+                                maximum=maximum,
+                                render_hint=render_hint,
+                            ))
+                        else:
+                            params.append(FormProperty(
+                                name=param.get("name"),
+                                type=param.get("schema", {}).get("type", "string"),
+                                required=param.get("required", False),
+                                prompt=param.get("schema", {}).get("title", param.get("name")),
+                                value=param.get("schema", {}).get("default", None),
+                                render_hint=param.get("schema", {}).get("x-render-hint", None),
+                            ))
 
                 # From request body
                 request_body = operation.get("requestBody")
@@ -164,18 +177,44 @@ class TransitionManager:
                             else:
                                 # params.extend(form_schema.get("properties", {}).keys())
                                 pass
-                self.page_transitions[operation.get("operationId")] = operation.get("pageTransitions", [])
-                self.item_transitions[operation.get("operationId")] = operation.get("itemTransitions", [])
-                self.routes_info[operation.get("operationId")] = Form(
-                    id=operation.get("operationId"),
-                    name=operation.get("operationId"),
-                    href=path,
-                    rel="",
-                    tags=" ".join(operation.get("tags", [])),
-                    title=operation.get("summary", ""),
-                    method=method.upper(),
-                    properties=[prop.dict() for prop in params],
-                )
+                            
+                if method.upper() == 'GET' and len(params) > 0:
+                    query_id = operation.get("operationId") + '_query'
+                    self.routes_info[query_id] = Form(
+                        id=query_id,
+                        name=query_id,
+                        href=path,
+                        rel="",
+                        tags=" ".join(operation.get("tags", [])),
+                        title=operation.get("summary", ""),
+                        method=method.upper(),
+                        properties=[prop.dict() for prop in params],
+                    )
+                    self.page_transitions[operation.get("operationId")] = operation.get("pageTransitions", [])
+                    self.item_transitions[operation.get("operationId")] = operation.get("itemTransitions", [])
+                    self.routes_info[operation.get("operationId")] = Form(
+                        id=operation.get("operationId"),
+                        name=operation.get("operationId"),
+                        href=path,
+                        rel="",
+                        tags=" ".join(operation.get("tags", [])),
+                        title=operation.get("summary", ""),
+                        method=method.upper(),
+                        properties=[],
+                    )
+                else:
+                    self.page_transitions[operation.get("operationId")] = operation.get("pageTransitions", [])
+                    self.item_transitions[operation.get("operationId")] = operation.get("itemTransitions", [])
+                    self.routes_info[operation.get("operationId")] = Form(
+                        id=operation.get("operationId"),
+                        name=operation.get("operationId"),
+                        href=path,
+                        rel="",
+                        tags=" ".join(operation.get("tags", [])),
+                        title=operation.get("summary", ""),
+                        method=method.upper(),
+                        properties=[prop.dict() for prop in params],
+                    )
 
     def get_transitions(
             self,
