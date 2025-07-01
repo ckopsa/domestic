@@ -84,7 +84,7 @@ class WorkflowDefinitionCreateRequest(BaseModel):
 
 
 class SimpleWorkflowDefinitionCreateRequest(BaseModel):
-    id: str = Field(..., json_schema_extra={"x-render-hint": "hidden"})
+    id: str = Field(default_factory=lambda: "def_" + str(uuid.uuid4())[:8], json_schema_extra={"x-render-hint": "hidden"})
     name: str
     description: Optional[str] = ""
     task_definitions: str = Field(
