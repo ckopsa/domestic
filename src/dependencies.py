@@ -38,8 +38,4 @@ def get_transition_registry() -> TransitionManager:
     return TransitionManager()
 
 
-def get_collection_json_representor(
-        transition_manager: TransitionManager = Depends(get_transition_registry)
-) -> cj_models.CollectionJsonRepresentor:
-    """Provides an instance of the CollectionJsonRepresentor."""
-    return cj_models.CollectionJsonRepresentor(transition_manager=transition_manager)
+

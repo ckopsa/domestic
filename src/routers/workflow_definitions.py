@@ -10,8 +10,9 @@ import models
 from cj_models import CollectionJson
 from core.html_renderer import HtmlRendererInterface
 from core.security import AuthenticatedUser, get_current_user
-from dependencies import get_html_renderer, get_workflow_service, get_collection_json_representor
+from dependencies import get_html_renderer, get_workflow_service
 from services import WorkflowService
+from transitions import TransitionManager
 
 router = APIRouter(
     prefix="/workflow-definitions",
@@ -19,54 +20,60 @@ router = APIRouter(
 )
 
 
+def get_transition_registry(request: Request) -> TransitionManager:
+    return TransitionManager(request)
+
+
 @router.get(
     "/",
     response_model=CollectionJson,
-    openapi_extra={
-        "pageTransitions": [
-            "home",
-            "get_workflow_instances",
-            "get_workflow_definitions",
-            "simple_create_workflow_definition",
-        ],
-        "itemTransitions": [
-            "view_workflow_definition",
-            "create_workflow_instance_from_definition",
-        ],
-    },
     summary="Workflow Definitions",
+    operation_id="get_workflow_definitions",
 )
 async def get_workflow_definitions(
         request: Request,
         current_user: AuthenticatedUser | None = Depends(get_current_user),
         service: WorkflowService = Depends(get_workflow_service),
         renderer: HtmlRendererInterface = Depends(get_html_renderer),
-        collection_json_representor: cj_models.CollectionJsonRepresentor = Depends(get_collection_json_representor)
+        transition_manager: TransitionManager = Depends(get_transition_registry),
 ):
     """Returns a Collection+JSON representation of workflow definitions."""
     if isinstance(current_user, RedirectResponse):
         return current_user
     workflow_definitions: list[models.WorkflowDefinition] = await service.list_workflow_definitions()
 
-    # Convert the workflow definition to Collection+JSON format
-    def item_context_mapper(item: models.WorkflowDefinition) -> dict:
-        return {
-            "definition_id": item.id,
-        }
+    page_transitions = [
+        transition_manager.get_transition("home", {}),
+        transition_manager.get_transition("get_workflow_instances", {}),
+        transition_manager.get_transition("get_workflow_definitions", {}),
+        transition_manager.get_transition("simple_create_workflow_definition", {}),
+    ]
 
-    cj = collection_json_representor.to_collection_json(
-        request,
-        workflow_definitions,
-        context={"definition_id": None},
-        item_context_mapper=item_context_mapper,
+    item_transitions = [
+        transition_manager.get_transition("view_workflow_definition", {"definition_id": "{definition_id}"}),
+        transition_manager.get_transition("create_workflow_instance_from_definition", {"definition_id": "{definition_id}"}),
+    ]
+
+    items = []
+    for item in workflow_definitions:
+        item_model = item.to_cj_data(href=str(request.url_for("view_workflow_definition", definition_id=item.id)))
+        item_model.links.extend([t.to_link() for t in item_transitions if t])
+        items.append(item_model)
+
+    collection = cj_models.Collection(
+        href=str(request.url),
+        title="Workflow Definitions",
+        links=[t.to_link() for t in page_transitions if t],
+        items=items,
+        queries=[t.to_query() for t in page_transitions if t],
     )
+
     return await renderer.render(
         "cj_template.html",
         request,
         {
             "current_user": current_user,
-            "collection": cj.collection,
-            "template": cj.template,
+            "collection": collection,
         }
     )
 
@@ -74,6 +81,7 @@ async def get_workflow_definitions(
 @router.post(
     "/{definition_id}/createInstance",
     summary="Create Workflow Instance",
+    operation_id="create_workflow_instance_from_definition",
 )
 async def create_workflow_instance_from_definition(
         request: Request,
@@ -106,17 +114,8 @@ async def create_workflow_instance_from_definition(
 @router.get(
     "/{definition_id}",
     response_model=CollectionJson,
-    openapi_extra={
-        "pageTransitions": [
-            "home",
-            "get_workflow_instances",
-            "get_workflow_definitions",
-            "view_workflow_definition",
-            "create_workflow_instance_from_definition",
-            "simple_create_workflow_definition",
-        ],
-    },
     summary="View Workflow Definition",
+    operation_id="view_workflow_definition",
 )
 async def view_workflow_definition(
         request: Request,
@@ -124,9 +123,9 @@ async def view_workflow_definition(
         current_user: AuthenticatedUser | None = Depends(get_current_user),
         service: WorkflowService = Depends(get_workflow_service),
         renderer: HtmlRendererInterface = Depends(get_html_renderer),
-        collection_json_representor: cj_models.CollectionJsonRepresentor = Depends(get_collection_json_representor)
+        transition_manager: TransitionManager = Depends(get_transition_registry),
 ):
-    """Returns a Collection+JSON representation of a specific workflow definition."""
+    """Returns a Collection+JSON representation of a specific workflow definition.""" 
     if isinstance(current_user, RedirectResponse):
         return current_user
 
@@ -136,33 +135,38 @@ async def view_workflow_definition(
     if not workflow_definition:
         return HTMLResponse(status_code=404, content="Workflow Definition not found")
 
-    # Convert the workflow definition to Collection+JSON format
-    cj = collection_json_representor.to_collection_json(
-        request,
-        workflow_definition + workflow_definition[0].task_definitions,
-        context={"definition_id": definition_id}
+    page_transitions = [
+        transition_manager.get_transition("home", {}),
+        transition_manager.get_transition("get_workflow_instances", {}),
+        transition_manager.get_transition("get_workflow_definitions", {}),
+        transition_manager.get_transition("view_workflow_definition", {"definition_id": definition_id}),
+        transition_manager.get_transition("create_workflow_instance_from_definition", {"definition_id": definition_id}),
+        transition_manager.get_transition("simple_create_workflow_definition", {}),
+    ]
+
+    items = []
+    for item in workflow_definition + workflow_definition[0].task_definitions:
+        item_model = item.to_cj_data(href=str(request.url_for("view_workflow_definition", definition_id=definition_id)))
+        items.append(item_model)
+
+    collection = cj_models.Collection(
+        href=str(request.url),
+        title="View Workflow Definition",
+        links=[t.to_link() for t in page_transitions if t],
+        items=items,
+        queries=[t.to_query() for t in page_transitions if t],
     )
 
     first_workflow_definition: models.WorkflowDefinition = workflow_definition[0]
-    for template in cj.template:
-        if template.name == "simple_create_workflow_definition":
-            for item in template.data:
-                for k, v in first_workflow_definition.dict().items():
-                    if k == item.name:
-                        match k:
-                            case "task_definitions":
-                                item.value = "\n".join(
-                                    [task_def.name for task_def in first_workflow_definition.task_definitions])
-                            case _:
-                                item.value = first_workflow_definition.dict()[k]
+    template = transition_manager.get_transition("simple_create_workflow_definition", {}).to_template(first_workflow_definition.dict())
 
     return await renderer.render(
         "cj_template.html",
         request,
         {
             "current_user": current_user,
-            "collection": cj.collection,
-            "template": cj.template,
+            "collection": collection,
+            "template": template,
         }
     )
 
@@ -171,6 +175,7 @@ async def view_workflow_definition(
     "/{definition_id}",
     response_model=CollectionJson,
     summary="Create Workflow Definition Form",
+    operation_id="create_workflow_definition_form",
 )
 async def create_workflow_definition(
         request: Request,
@@ -206,6 +211,7 @@ async def create_workflow_definition(
     "/",
     response_model=CollectionJson,
     summary="Create Workflow Definition",
+    operation_id="cj_create_workflow_definition",
 )
 async def cj_create_workflow_definition(
         request: Request,
@@ -233,6 +239,7 @@ async def cj_create_workflow_definition(
     "-simpleForm",
     response_model=CollectionJson,
     summary="Create Workflow Definition",
+    operation_id="simple_create_workflow_definition",
 )
 async def simple_create_workflow_definition(
         request: Request,

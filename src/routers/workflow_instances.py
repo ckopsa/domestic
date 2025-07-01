@@ -8,8 +8,9 @@ import models
 from cj_models import CollectionJson
 from core.html_renderer import HtmlRendererInterface
 from core.security import AuthenticatedUser, get_current_user
-from dependencies import get_html_renderer, get_workflow_service, get_collection_json_representor
+from dependencies import get_html_renderer, get_workflow_service
 from services import WorkflowService
+from transitions import TransitionManager
 
 router = APIRouter(
     prefix="/workflow-instances",
@@ -17,28 +18,22 @@ router = APIRouter(
 )
 
 
+def get_transition_registry(request: Request) -> TransitionManager:
+    return TransitionManager(request)
+
+
 @router.get(
     "/",
     response_model=CollectionJson,
-    openapi_extra={
-        "pageTransitions": [
-            "home",
-            "get_workflow_instances",
-            "get_workflow_definitions",
-        ],
-        "itemTransitions": [
-            "view_workflow_instance",
-            "archive_workflow_instance",
-        ],
-    },
     summary="Workflow Instances",
+    operation_id="get_workflow_instances",
 )
 async def get_workflow_instances(
         request: Request,
         current_user: AuthenticatedUser | None = Depends(get_current_user),
         service: WorkflowService = Depends(get_workflow_service),
         renderer: HtmlRendererInterface = Depends(get_html_renderer),
-        collection_json_representor: cj_models.CollectionJsonRepresentor = Depends(get_collection_json_representor)
+        transition_manager: TransitionManager = Depends(get_transition_registry),
 ):
     """Returns a Collection+JSON representation of workflow instances."""
     if isinstance(current_user, RedirectResponse):
@@ -47,26 +42,36 @@ async def get_workflow_instances(
     workflow_instances: list[models.WorkflowInstance] = await service.list_instances_for_user(
         user_id=current_user.user_id)
 
-    # Convert the workflow instance to Collection+JSON format
-    def item_context_mapper(item: models.WorkflowInstance) -> dict:
-        return {
-            "instance_id": item.id,
-        }
+    page_transitions = [
+        transition_manager.get_transition("home", {}),
+        transition_manager.get_transition("get_workflow_instances", {}),
+        transition_manager.get_transition("get_workflow_definitions", {}),
+    ]
 
-    cj = collection_json_representor.to_collection_json(
-        request,
-        workflow_instances,
-        context={"instance_id": None},
-        item_context_mapper=item_context_mapper,
+    item_transitions = [
+        transition_manager.get_transition("view_workflow_instance", {"instance_id": "{instance_id}"}),
+        transition_manager.get_transition("archive_workflow_instance", {"instance_id": "{instance_id}"}),
+    ]
+
+    items = []
+    for item in workflow_instances:
+        item_model = item.to_cj_data(href=str(request.url_for("view_workflow_instance", instance_id=item.id)))
+        item_model.links.extend([t.to_link() for t in item_transitions if t])
+        items.append(item_model)
+
+    collection = cj_models.Collection(
+        href=str(request.url),
+        title="Workflow Instances",
+        links=[t.to_link() for t in page_transitions if t],
+        items=items,
     )
-    cj.collection.title = "Workflow Instances" 
+
     return await renderer.render(
         "cj_template.html",
         request,
         {
             "current_user": current_user,
-            "collection": cj.collection,
-            "template": cj.template,
+            "collection": collection,
         }
     )
 
@@ -74,19 +79,8 @@ async def get_workflow_instances(
 @router.get(
     "/{instance_id}",
     response_model=CollectionJson,
-    openapi_extra={
-        "pageTransitions": [
-            "home",
-            "get_workflow_instances",
-            "get_workflow_definitions",
-            "view_workflow_definition"
-        ],
-        "itemTransitions": [
-            "complete_task_instance",
-            "reopen_task_instance",
-        ]
-    },
     summary="View Workflow Instance",
+    operation_id="view_workflow_instance",
 )
 async def view_workflow_instance(
         request: Request,
@@ -94,7 +88,7 @@ async def view_workflow_instance(
         current_user: AuthenticatedUser | None = Depends(get_current_user),
         service: WorkflowService = Depends(get_workflow_service),
         renderer: HtmlRendererInterface = Depends(get_html_renderer),
-        collection_json_representor: cj_models.CollectionJsonRepresentor = Depends(get_collection_json_representor)
+        transition_manager: TransitionManager = Depends(get_transition_registry),
 ):
     """Returns a Collection+JSON representation of a specific workflow instance."""
     if isinstance(current_user, RedirectResponse):
@@ -105,30 +99,41 @@ async def view_workflow_instance(
     if not workflow_instance:
         return HTMLResponse(status_code=404, content="Workflow Instance not found")
 
-    def item_context_mapper(item: models.TaskInstance) -> dict:
-        return {
-            "task_id": item.id,
-        }
+    page_transitions = [
+        transition_manager.get_transition("home", {}),
+        transition_manager.get_transition("get_workflow_instances", {}),
+        transition_manager.get_transition("get_workflow_definitions", {}),
+        transition_manager.get_transition("view_workflow_definition", {"definition_id": workflow_instance.workflow_definition_id}),
+    ]
+
+    item_transitions = [
+        transition_manager.get_transition("complete_task_instance", {"task_id": "{task_id}"}),
+        transition_manager.get_transition("reopen_task_instance", {"task_id": "{task_id}"}),
+    ]
 
     tasks = workflow_instance.tasks
     # sort by completed last and then order
     tasks.sort(key=lambda x: x.order if x.status != models.TaskStatus.completed else x.order + 100)
-    cj = collection_json_representor.to_collection_json(
-        request,
-        [models.SimpleTaskInstance.from_task_instance(task) for task in tasks],
-        context={"instance_id": instance_id, "definition_id": workflow_instance.workflow_definition_id},
-        item_context_mapper=item_context_mapper,
-    )
 
-    cj.collection.title = f"{workflow_instance.name} - {workflow_instance.status.title()}"
+    items = []
+    for item in [models.SimpleTaskInstance.from_task_instance(task) for task in tasks]:
+        item_model = item.to_cj_data(href=str(request.url_for("view_workflow_instance", instance_id=instance_id)))
+        item_model.links.extend([t.to_link() for t in item_transitions if t])
+        items.append(item_model)
+
+    collection = cj_models.Collection(
+        href=str(request.url),
+        title=f"{workflow_instance.name} - {workflow_instance.status.title()}",
+        links=[t.to_link() for t in page_transitions if t],
+        items=items,
+    )
 
     return await renderer.render(
         "cj_template.html",
         request,
         {
             "current_user": current_user,
-            "collection": cj.collection,
-            "template": cj.template,
+            "collection": collection,
         }
     )
 
@@ -137,6 +142,7 @@ async def view_workflow_instance(
     "-task/{task_id}/complete",
     response_model=CollectionJson,
     summary="Complete Task",
+    operation_id="complete_task_instance",
 )
 async def complete_task_instance(
         request: Request,
@@ -162,6 +168,7 @@ async def complete_task_instance(
     "-task/{task_id}/reopen",
     response_model=CollectionJson,
     summary="Reopen Task",
+    operation_id="reopen_task_instance",
 )
 async def reopen_task_instance(
         request: Request,
@@ -187,6 +194,7 @@ async def reopen_task_instance(
     "/{instance_id}/archive",
     response_model=CollectionJson,
     summary="Archive Workflow Instance",
+    operation_id="archive_workflow_instance",
 )
 async def archive_workflow_instance(
         request: Request,
