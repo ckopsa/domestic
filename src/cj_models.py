@@ -81,7 +81,7 @@ class CollectionJson(BaseModel):
     error: Optional[Error] = PydanticField(None, description="Error details, if any")
 
 
-def to_collection_json_data(self: BaseModel, href="") -> Item:
+def to_collection_json_data(self: BaseModel, href="", links=None) -> Item:
     """
     Converts a Pydantic model instance into a Collection+JSON 'data' array.
     'self' will be the model instance when this is called.
@@ -101,7 +101,8 @@ def to_collection_json_data(self: BaseModel, href="") -> Item:
     return Item(
         href=href,
         rel="item",
-        data=cj_data
+        data=cj_data,
+        links=links or [],
     )
 
 

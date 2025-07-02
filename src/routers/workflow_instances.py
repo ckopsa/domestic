@@ -26,7 +26,6 @@ def get_transition_registry(request: Request) -> TransitionManager:
     "/",
     response_model=CollectionJson,
     summary="Workflow Instances",
-    operation_id="get_workflow_instances",
 )
 async def get_workflow_instances(
         request: Request,
@@ -42,27 +41,31 @@ async def get_workflow_instances(
     workflow_instances: list[models.WorkflowInstance] = await service.list_instances_for_user(
         user_id=current_user.user_id)
 
-    page_transitions = [
-        transition_manager.get_transition("home", {}),
-        transition_manager.get_transition("get_workflow_instances", {}),
-        transition_manager.get_transition("get_workflow_definitions", {}),
-    ]
-
-    item_transitions = [
-        transition_manager.get_transition("view_workflow_instance", {"instance_id": "{instance_id}"}),
-        transition_manager.get_transition("archive_workflow_instance", {"instance_id": "{instance_id}"}),
-    ]
-
     items = []
     for item in workflow_instances:
-        item_model = item.to_cj_data(href=str(request.url_for("view_workflow_instance", instance_id=item.id)))
-        item_model.links.extend([t.to_link() for t in item_transitions if t])
+        links = []
+        if item.status == models.WorkflowStatus.archived:
+            links.append(
+                transition_manager.get_transition("view_workflow_instance", {"instance_id": item.id}).to_link())
+        else:
+            links.append(
+                transition_manager.get_transition("view_workflow_instance", {"instance_id": item.id}).to_link())
+            links.append(
+                transition_manager.get_transition("archive_workflow_instance", {"instance_id": item.id}).to_link())
+        item_model = item.to_cj_data(
+            href=str(request.url_for("view_workflow_instance", instance_id=item.id)),
+            links=links,
+        )
         items.append(item_model)
 
     collection = cj_models.Collection(
         href=str(request.url),
         title="Workflow Instances",
-        links=[t.to_link() for t in page_transitions if t],
+        links=[t.to_link() for t in [
+            transition_manager.get_transition("home", {}),
+            transition_manager.get_transition("get_workflow_instances", {}),
+            transition_manager.get_transition("get_workflow_definitions", {}),
+        ]],
         items=items,
     )
 
@@ -80,7 +83,6 @@ async def get_workflow_instances(
     "/{instance_id}",
     response_model=CollectionJson,
     summary="View Workflow Instance",
-    operation_id="view_workflow_instance",
 )
 async def view_workflow_instance(
         request: Request,
@@ -103,12 +105,11 @@ async def view_workflow_instance(
         transition_manager.get_transition("home", {}),
         transition_manager.get_transition("get_workflow_instances", {}),
         transition_manager.get_transition("get_workflow_definitions", {}),
-        transition_manager.get_transition("view_workflow_definition", {"definition_id": workflow_instance.workflow_definition_id}),
+        transition_manager.get_transition("view_workflow_definition",
+                                          {"definition_id": workflow_instance.workflow_definition_id}),
     ]
 
     item_transitions = [
-        transition_manager.get_transition("complete_task_instance", {"task_id": "{task_id}"}),
-        transition_manager.get_transition("reopen_task_instance", {"task_id": "{task_id}"}),
     ]
 
     tasks = workflow_instance.tasks
@@ -117,9 +118,15 @@ async def view_workflow_instance(
 
     items = []
     for item in [models.SimpleTaskInstance.from_task_instance(task) for task in tasks]:
-        item_model = item.to_cj_data(href=str(request.url_for("view_workflow_instance", instance_id=instance_id)))
-        item_model.links.extend([t.to_link() for t in item_transitions if t])
-        items.append(item_model)
+        links = []
+        if item.status == models.TaskStatus.completed:
+            links.append(transition_manager.get_transition("reopen_task_instance", {"task_id": item.id}).to_link())
+        else:
+            links.append(transition_manager.get_transition("complete_task_instance", {"task_id": item.id}).to_link())
+        items.append(item.to_cj_data(
+            href=str(request.url_for("view_workflow_instance", instance_id=instance_id)),
+            links=links,
+        ))
 
     collection = cj_models.Collection(
         href=str(request.url),
@@ -142,7 +149,6 @@ async def view_workflow_instance(
     "-task/{task_id}/complete",
     response_model=CollectionJson,
     summary="Complete Task",
-    operation_id="complete_task_instance",
 )
 async def complete_task_instance(
         request: Request,
@@ -168,7 +174,6 @@ async def complete_task_instance(
     "-task/{task_id}/reopen",
     response_model=CollectionJson,
     summary="Reopen Task",
-    operation_id="reopen_task_instance",
 )
 async def reopen_task_instance(
         request: Request,
@@ -194,7 +199,6 @@ async def reopen_task_instance(
     "/{instance_id}/archive",
     response_model=CollectionJson,
     summary="Archive Workflow Instance",
-    operation_id="archive_workflow_instance",
 )
 async def archive_workflow_instance(
         request: Request,
