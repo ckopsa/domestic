@@ -14,7 +14,15 @@ from transitions import TransitionManager
 
 router = APIRouter(
     prefix="/workflow-instances",
-    tags=["Workflow Instances"],
+    tags=["workflow-instances"],
+    responses={
+        200: {
+            "content": {
+                "application/vnd.collection+json": {},
+                "text/html": {}
+            },
+        }
+    },
 )
 
 
@@ -22,6 +30,7 @@ router = APIRouter(
     "/",
     response_model=CollectionJson,
     summary="Workflow Instances",
+    tags=["collection"]
 )
 async def get_workflow_instances(
         request: Request,
@@ -77,6 +86,7 @@ async def get_workflow_instances(
     "/{instance_id}",
     response_model=CollectionJson,
     summary="View Workflow Instance",
+    tags=["item"],
 )
 async def view_workflow_instance(
         request: Request,
@@ -141,6 +151,7 @@ async def view_workflow_instance(
     "-task/{task_id}/complete",
     response_model=CollectionJson,
     summary="Complete Task",
+    tags=["edit"],
 )
 async def complete_task_instance(
         request: Request,
@@ -166,6 +177,7 @@ async def complete_task_instance(
     "-task/{task_id}/reopen",
     response_model=CollectionJson,
     summary="Reopen Task",
+    tags=["edit"],
 )
 async def reopen_task_instance(
         request: Request,
@@ -191,6 +203,7 @@ async def reopen_task_instance(
     "/{instance_id}/archive",
     response_model=CollectionJson,
     summary="Archive Workflow Instance",
+    tags=["edit"],
 )
 async def archive_workflow_instance(
         request: Request,

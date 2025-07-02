@@ -20,9 +20,17 @@ async def healthcheck():
 
 @router.get(
     "/",
-    tags=["home"],
+    tags=["collection"],
     response_class=HTMLResponse,
-    operation_id="home"
+    operation_id="home",
+    responses={
+        200: {
+            "content": {
+                "application/vnd.collection+json": {},
+                "text/html": {}
+            },
+        }
+    },
 )
 async def home(
         request: Request,

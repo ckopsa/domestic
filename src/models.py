@@ -85,10 +85,10 @@ class WorkflowDefinitionCreateRequest(BaseModel):
 
 class SimpleWorkflowDefinitionCreateRequest(BaseModel):
     id: str = Field(default_factory=lambda: "def_" + str(uuid.uuid4())[:8], json_schema_extra={"x-render-hint": "hidden"})
-    name: str
+    name: str = "New Workflow Definition"
     description: Optional[str] = ""
     task_definitions: str = Field(
-        ...,
+        "1. Task One\n2. Task Two\n3. Task Three",
         description="Newline-separated list of task names",
         title="Task Definitions",
         json_schema_extra={

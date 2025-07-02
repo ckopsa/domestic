@@ -31,9 +31,9 @@ class Form(BaseModel):
     method: str
     properties: list[dict]
 
-    def to_link(self):
+    def to_link(self, rel: Optional[str] = None):
         return cj_models.Link(
-            rel=self.rel,
+            rel=rel or self.rel,
             href=self.href,
             prompt=self.title,
             method=self.method,
@@ -64,6 +64,7 @@ class Form(BaseModel):
             prompt=self.title,
             href=self.href,
             method=self.method,
+            rel=self.rel,
         )
 
 
@@ -187,11 +188,11 @@ class TransitionManager:
                     id=operation.get("operationId"),
                     name=operation.get("operationId"),
                     href=path,
-                    rel="",
+                    rel=" ".join(operation.get("tags", [])) if operation.get("tags") else "",
                     tags=" ".join(operation.get("tags", [])),
                     title=operation.get("summary", ""),
                     method=method.upper(),
-                    properties=[prop.dict() for prop in params],
+                    properties=[prop.model_dump() for prop in params],
                 )
 
     def get_transition(self, transition_name: str, context: Dict[str, str]) -> Optional[Form]:

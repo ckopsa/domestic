@@ -16,7 +16,15 @@ from transitions import TransitionManager
 
 router = APIRouter(
     prefix="/workflow-definitions",
-    tags=["Workflow Definitions"],
+    tags=["workflow-definitions"],
+    responses={
+        200: {
+            "content": {
+                "application/vnd.collection+json": {},
+                "text/html": {}
+            },
+        }
+    },
 )
 
 
@@ -24,6 +32,7 @@ router = APIRouter(
     "/",
     response_model=CollectionJson,
     summary="Workflow Definitions",
+    tags=["collection"]
 )
 async def get_workflow_definitions(
         request: Request,
@@ -42,9 +51,9 @@ async def get_workflow_definitions(
         item_model = item.to_cj_data(
             href=str(request.url_for("view_workflow_definition", definition_id=item.id)),
             links=[t.to_link() for t in [
-                transition_manager.get_transition("view_workflow_definition", {"definition_id": "{definition_id}"}),
+                transition_manager.get_transition("view_workflow_definition", {"definition_id": item.id}),
                 transition_manager.get_transition("create_workflow_instance_from_definition",
-                                                  {"definition_id": "{definition_id}"}),
+                                                  {"definition_id": item.id}),
             ]]
         )
         items.append(item_model)
@@ -63,11 +72,7 @@ async def get_workflow_definitions(
 
     template = [
         transition_manager.get_transition("simple_create_workflow_definition", {}).to_template(
-            defaults={
-                "name": "New Workflow Definition",
-                "description": "",
-                "task_definitions": "1. Task Name\n2. Another Task Name",
-            }
+            defaults=models.SimpleWorkflowDefinitionCreateRequest().model_dump()
         )
     ]
 
@@ -82,6 +87,7 @@ async def get_workflow_definitions(
 @router.post(
     "/{definition_id}/createInstance",
     summary="Create Workflow Instance",
+    tags=["create", "workflow-instances"],
 )
 async def create_workflow_instance_from_definition(
         definition_id: str,
@@ -114,6 +120,7 @@ async def create_workflow_instance_from_definition(
     "/{definition_id}",
     response_model=CollectionJson,
     summary="View Workflow Definition",
+    tags=["item"],
 )
 async def view_workflow_definition(
         request: Request,
@@ -133,11 +140,6 @@ async def view_workflow_definition(
     if not workflow_definition:
         return HTMLResponse(status_code=404, content="Workflow Definition not found")
 
-    page_transitions = [
-        transition_manager.get_transition("view_workflow_definition", {"definition_id": definition_id}),
-        transition_manager.get_transition("simple_create_workflow_definition", {}),
-    ]
-
     items = []
     for item in workflow_definition + workflow_definition[0].task_definitions:
         item_model = item.to_cj_data(href=str(request.url_for("view_workflow_definition", definition_id=definition_id)))
@@ -146,7 +148,7 @@ async def view_workflow_definition(
     collection = cj_models.Collection(
         href=str(request.url),
         title="View Workflow Definition",
-        links=[t.to_link() for t in page_transitions if [
+        links=[t.to_link() for t in [
             transition_manager.get_transition("home", {}),
             transition_manager.get_transition("get_workflow_instances", {}),
             transition_manager.get_transition("get_workflow_definitions", {}),
@@ -183,6 +185,7 @@ async def view_workflow_definition(
     "/{definition_id}",
     response_model=CollectionJson,
     summary="Create Workflow Definition Form",
+    tags=["create"],
 )
 async def create_workflow_definition(
         request: Request,
@@ -263,7 +266,7 @@ async def simple_create_workflow_definition(
             task_definitions.append(
                 models.TaskDefinitionBase(name=task_name.strip(), order=order, due_datetime_offset_minutes=0))
 
-    if not await service.list_workflow_definitions(name=definition.name):
+    if not await service.list_workflow_definitions(definition_id=definition.id):
         created_definition = await service.create_new_definition(
             name=definition.name,
             description=definition.description,

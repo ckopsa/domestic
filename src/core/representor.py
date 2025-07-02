@@ -21,7 +21,7 @@ class Representor:
             match item.strip():
                 case "application/vnd.collection+json":
                     return JSONResponse(
-                        content=collection_json.dict(),
+                        content=collection_json.model_dump(),
                         headers={"Content-Type": "application/vnd.collection+json"}
                     )
         return await self.html_renderer.render("cj_template.html", self.request,

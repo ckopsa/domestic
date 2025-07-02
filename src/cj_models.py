@@ -66,6 +66,7 @@ class Template(BaseModel):
     href: Optional[str] = None
     method: Optional[str] = PydanticField("POST", description="HTTP method for the template")
     prompt: Optional[str] = None
+    rel: Optional[str] = None
 
 
 class Error(BaseModel):
@@ -81,13 +82,13 @@ class CollectionJson(BaseModel):
     error: Optional[Error] = PydanticField(None, description="Error details, if any")
 
 
-def to_collection_json_data(self: BaseModel, href="", links=None) -> Item:
+def to_collection_json_data(self: BaseModel, href="", links=None, rel="item") -> Item:
     """
     Converts a Pydantic model instance into a Collection+JSON 'data' array.
     'self' will be the model instance when this is called.
     """
-    schema = self.schema()
-    model_dict = self.dict()
+    schema = self.model_json_schema()
+    model_dict = self.model_dump()
     cj_data = []
 
     for name, definition in schema.get("properties", {}).items():
@@ -100,7 +101,7 @@ def to_collection_json_data(self: BaseModel, href="", links=None) -> Item:
         ))
     return Item(
         href=href,
-        rel="item",
+        rel=rel,
         data=cj_data,
         links=links or [],
     )
