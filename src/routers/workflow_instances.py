@@ -3,14 +3,14 @@ from __future__ import annotations
 from fastapi import APIRouter, Request, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-import cj_models
-import models
-from cj_models import CollectionJson
-from core.html_renderer import HtmlRendererInterface
-from core.security import AuthenticatedUser, get_current_user
-from dependencies import get_html_renderer, get_workflow_service
-from services import WorkflowService
-from transitions import TransitionManager
+from src import cj_models # Corrected
+from src import models # Corrected
+from src.cj_models import CollectionJson # Corrected
+from src.core.html_renderer import HtmlRendererInterface # Corrected
+from src.core.security import AuthenticatedUser, get_current_user # Corrected
+from src.dependencies import get_html_renderer, get_workflow_service # Corrected
+from src.services import WorkflowService # Corrected
+from src.transitions import TransitionManager # Corrected
 
 router = APIRouter(
     prefix="/workflow-instances",

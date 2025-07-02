@@ -6,8 +6,8 @@ from fastapi import APIRouter, Request, HTTPException
 from fastapi import status
 from fastapi.responses import RedirectResponse
 
-from config import KEYCLOAK_SERVER_URL, KEYCLOAK_REALM, KEYCLOAK_API_CLIENT_ID, KEYCLOAK_API_CLIENT_SECRET, \
-    KEYCLOAK_REDIRECT_URI
+from src.config import KEYCLOAK_SERVER_URL, KEYCLOAK_REALM, KEYCLOAK_API_CLIENT_ID, KEYCLOAK_API_CLIENT_SECRET, \
+    KEYCLOAK_REDIRECT_URI # Corrected import
 
 router = APIRouter(tags=["auth"])
 

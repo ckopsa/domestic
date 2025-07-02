@@ -2,14 +2,15 @@ from typing import Tuple
 
 from fastapi import Depends
 
-import cj_models
-from core.html_renderer import HtmlRendererInterface, Jinja2HtmlRenderer
-from database import get_db
-from repository import WorkflowDefinitionRepository, WorkflowInstanceRepository, TaskInstanceRepository, \
-    PostgreSQLWorkflowRepository
-from services import WorkflowService
-from templating import get_templates
-from transitions import TransitionManager
+from src import cj_models # Corrected import
+from src.core.html_renderer import HtmlRendererInterface, Jinja2HtmlRenderer # Assuming src. prefix is correct/needed
+# Consistent import with how tests will refer to it, assuming project root is in PYTHONPATH
+from src.database import get_db
+from src.repository import WorkflowDefinitionRepository, WorkflowInstanceRepository, TaskInstanceRepository, \
+    PostgreSQLWorkflowRepository # Assuming src. prefix is correct/needed
+from src.services import WorkflowService # Assuming src. prefix is correct/needed
+from src.templating import get_templates # Assuming src. prefix is correct/needed
+from src.transitions import TransitionManager # Assuming src. prefix is correct/needed
 
 
 # Dependency for HTML Renderer

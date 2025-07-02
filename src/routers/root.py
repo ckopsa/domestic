@@ -3,11 +3,11 @@ from __future__ import annotations
 from fastapi import APIRouter, Request, Depends, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-import cj_models
-from core.html_renderer import HtmlRendererInterface
-from core.security import AuthenticatedUser, get_current_user
-from dependencies import get_html_renderer
-from transitions import TransitionManager
+from src import cj_models
+from src.core.html_renderer import HtmlRendererInterface
+from src.core.security import AuthenticatedUser, get_current_user # Already src.prefixed due to previous changes
+from src.dependencies import get_html_renderer
+from src.transitions import TransitionManager
 
 router = APIRouter()
 
