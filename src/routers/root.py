@@ -42,21 +42,17 @@ async def home(
     if isinstance(current_user, RedirectResponse):
         return current_user
 
-    page_transitions = [
-        transition_manager.get_transition("home", {}),
-        transition_manager.get_transition("get_workflow_definitions", {}),
-        transition_manager.get_transition("get_workflow_instances", {}),
-    ]
-
-    collection = cj_models.Collection(
-        href=str(request.url),
-        title="Home",
-        links=[t.to_link() for t in page_transitions if t],
-    )
-
     return await representor.represent(
         cj_models.CollectionJson(
-            collection=collection,
+            collection=(cj_models.Collection(
+                href=str(request.url),
+                title="Home",
+                links=[t.to_link() for t in [
+                    transition_manager.get_transition("home", {}),
+                    transition_manager.get_transition("get_workflow_definitions", {}),
+                    transition_manager.get_transition("get_workflow_instances", {}),
+                ]],
+            )),
             template=[],
             error=None,
         ))
