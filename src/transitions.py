@@ -7,7 +7,7 @@ from fastapi import Request
 from pydantic import BaseModel
 from pydantic.types import StrictBool
 
-from src import cj_models
+import cj_models
 
 
 class FormProperty(BaseModel):
@@ -198,6 +198,6 @@ class TransitionManager:
         """
         Get a specific transition by its name.
         """
-        form = self.routes_info.get(transition_name)
+        form = self.routes_info.get(transition_name).copy(deep=True)
         form.href = form.href.format(**context)
-        return self.routes_info.get(transition_name)
+        return form
