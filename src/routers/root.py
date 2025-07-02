@@ -4,16 +4,12 @@ from fastapi import APIRouter, Request, Depends, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 import cj_models
-from core.html_renderer import HtmlRendererInterface
+from core.representor import Representor
 from core.security import AuthenticatedUser, get_current_user
-from dependencies import get_html_renderer
+from dependencies import get_transition_registry, get_representor
 from transitions import TransitionManager
 
 router = APIRouter()
-
-
-def get_transition_registry(request: Request) -> TransitionManager:
-    return TransitionManager(request)
 
 
 @router.get("/health", status_code=status.HTTP_200_OK)
@@ -31,8 +27,8 @@ async def healthcheck():
 async def home(
         request: Request,
         current_user: AuthenticatedUser | None = Depends(get_current_user),
-        renderer: HtmlRendererInterface = Depends(get_html_renderer),
         transition_manager: TransitionManager = Depends(get_transition_registry),
+        representor: Representor = Depends(get_representor),
 ):
     """Serves the homepage."""
     if isinstance(current_user, RedirectResponse):
@@ -50,13 +46,9 @@ async def home(
         links=[t.to_link() for t in page_transitions if t],
     )
 
-    return await renderer.render(
-        "cj_template.html",
-        request,
-        {
-            "current_user": current_user,
-            "collection": collection,
-        }
-    )
-
-
+    return await representor.represent(
+        cj_models.CollectionJson(
+            collection=collection,
+            template=[],
+            error=None,
+        ))

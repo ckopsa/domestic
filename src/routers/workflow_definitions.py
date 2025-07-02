@@ -8,9 +8,9 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 import cj_models
 import models
 from cj_models import CollectionJson
-from core.html_renderer import HtmlRendererInterface
+from core.representor import Representor
 from core.security import AuthenticatedUser, get_current_user
-from dependencies import get_html_renderer, get_workflow_service
+from dependencies import get_workflow_service, get_transition_registry, get_representor
 from services import WorkflowService
 from transitions import TransitionManager
 
@@ -18,10 +18,6 @@ router = APIRouter(
     prefix="/workflow-definitions",
     tags=["Workflow Definitions"],
 )
-
-
-def get_transition_registry(request: Request) -> TransitionManager:
-    return TransitionManager(request)
 
 
 @router.get(
@@ -33,7 +29,7 @@ async def get_workflow_definitions(
         request: Request,
         current_user: AuthenticatedUser | None = Depends(get_current_user),
         service: WorkflowService = Depends(get_workflow_service),
-        renderer: HtmlRendererInterface = Depends(get_html_renderer),
+        representor: Representor = Depends(get_representor),
         transition_manager: TransitionManager = Depends(get_transition_registry),
 ):
     """Returns a Collection+JSON representation of workflow definitions."""
@@ -75,15 +71,12 @@ async def get_workflow_definitions(
         )
     ]
 
-    return await renderer.render(
-        "cj_template.html",
-        request,
-        {
-            "current_user": current_user,
-            "collection": collection,
-            "template": template,
-        }
-    )
+    return await representor.represent(
+        cj_models.CollectionJson(
+            collection=collection,
+            template=template,
+            error=None,
+        ))
 
 
 @router.post(
@@ -91,7 +84,6 @@ async def get_workflow_definitions(
     summary="Create Workflow Instance",
 )
 async def create_workflow_instance_from_definition(
-        request: Request,
         definition_id: str,
         current_user: AuthenticatedUser | None = Depends(get_current_user),
         service: WorkflowService = Depends(get_workflow_service),
@@ -128,7 +120,7 @@ async def view_workflow_definition(
         definition_id: str,
         current_user: AuthenticatedUser | None = Depends(get_current_user),
         service: WorkflowService = Depends(get_workflow_service),
-        renderer: HtmlRendererInterface = Depends(get_html_renderer),
+        representor: Representor = Depends(get_representor),
         transition_manager: TransitionManager = Depends(get_transition_registry),
 ):
     """Returns a Collection+JSON representation of a specific workflow definition."""
@@ -179,15 +171,12 @@ async def view_workflow_definition(
             ),
         }),
     ]
-    return await renderer.render(
-        "cj_template.html",
-        request,
-        {
-            "current_user": current_user,
-            "collection": collection,
-            "template": templates,
-        }
-    )
+    return await representor.represent(
+        cj_models.CollectionJson(
+            collection=collection,
+            template=templates,
+            error=None,
+        ))
 
 
 @router.post(

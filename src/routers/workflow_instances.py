@@ -6,9 +6,9 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 import cj_models
 import models
 from cj_models import CollectionJson
-from core.html_renderer import HtmlRendererInterface
+from core.representor import Representor
 from core.security import AuthenticatedUser, get_current_user
-from dependencies import get_html_renderer, get_workflow_service
+from dependencies import get_workflow_service, get_transition_registry, get_representor
 from services import WorkflowService
 from transitions import TransitionManager
 
@@ -16,10 +16,6 @@ router = APIRouter(
     prefix="/workflow-instances",
     tags=["Workflow Instances"],
 )
-
-
-def get_transition_registry(request: Request) -> TransitionManager:
-    return TransitionManager(request)
 
 
 @router.get(
@@ -31,7 +27,7 @@ async def get_workflow_instances(
         request: Request,
         current_user: AuthenticatedUser | None = Depends(get_current_user),
         service: WorkflowService = Depends(get_workflow_service),
-        renderer: HtmlRendererInterface = Depends(get_html_renderer),
+        representor: Representor = Depends(get_representor),
         transition_manager: TransitionManager = Depends(get_transition_registry),
 ):
     """Returns a Collection+JSON representation of workflow instances."""
@@ -69,14 +65,12 @@ async def get_workflow_instances(
         items=items,
     )
 
-    return await renderer.render(
-        "cj_template.html",
-        request,
-        {
-            "current_user": current_user,
-            "collection": collection,
-        }
-    )
+    return await representor.represent(
+        cj_models.CollectionJson(
+            collection=collection,
+            template=[],
+            error=None,
+        ))
 
 
 @router.get(
@@ -89,7 +83,7 @@ async def view_workflow_instance(
         instance_id: str,
         current_user: AuthenticatedUser | None = Depends(get_current_user),
         service: WorkflowService = Depends(get_workflow_service),
-        renderer: HtmlRendererInterface = Depends(get_html_renderer),
+        representor: Representor = Depends(get_representor),
         transition_manager: TransitionManager = Depends(get_transition_registry),
 ):
     """Returns a Collection+JSON representation of a specific workflow instance."""
@@ -135,14 +129,12 @@ async def view_workflow_instance(
         items=items,
     )
 
-    return await renderer.render(
-        "cj_template.html",
-        request,
-        {
-            "current_user": current_user,
-            "collection": collection,
-        }
-    )
+    return await representor.represent(
+        cj_models.CollectionJson(
+            collection=collection,
+            template=[],
+            error=None,
+        ))
 
 
 @router.post(

@@ -1,9 +1,9 @@
 from typing import Tuple
 
-from fastapi import Depends
+from fastapi import Depends, Request
 
-import cj_models
 from core.html_renderer import HtmlRendererInterface, Jinja2HtmlRenderer
+from core.representor import Representor
 from database import get_db
 from repository import WorkflowDefinitionRepository, WorkflowInstanceRepository, TaskInstanceRepository, \
     PostgreSQLWorkflowRepository
@@ -12,12 +12,10 @@ from templating import get_templates
 from transitions import TransitionManager
 
 
-# Dependency for HTML Renderer
 def get_html_renderer() -> HtmlRendererInterface:
     return Jinja2HtmlRenderer(get_templates())
 
 
-# --- Dependencies ---
 def get_workflow_repository(db=Depends(get_db)) -> Tuple[
     WorkflowDefinitionRepository, WorkflowInstanceRepository, TaskInstanceRepository]:
     """Provides instances of the repository interfaces."""
@@ -34,8 +32,16 @@ def get_workflow_service(
     return WorkflowService(definition_repo=definition_repo, instance_repo=instance_repo, task_repo=task_repo)
 
 
-def get_transition_registry() -> TransitionManager:
-    return TransitionManager()
+def get_transition_registry(request: Request) -> TransitionManager:
+    return TransitionManager(request)
 
 
-
+def get_representor(
+        request: Request,
+        html_renderer: HtmlRendererInterface = Depends(get_html_renderer),
+) -> Representor:
+    """Provides an instance of the Representor."""
+    return Representor(
+        request=request,
+        html_renderer=html_renderer,
+    )
