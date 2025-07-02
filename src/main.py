@@ -4,8 +4,9 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
-from routers import root, auth, workflow_definitions
-from routers import workflow_instances as workflow_instances_router
+# Treat src as a package
+from src.routers import root, auth, workflow_definitions
+from src.routers import workflow_instances as workflow_instances_router
 
 
 def generate_unique_id(route: "APIRoute") -> str:

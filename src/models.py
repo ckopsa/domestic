@@ -4,7 +4,7 @@ from typing import Optional, List
 
 from pydantic import BaseModel, Field
 
-from db_models.enums import WorkflowStatus, TaskStatus
+from src.db_models.enums import WorkflowStatus, TaskStatus # Corrected import
 
 
 class TaskDefinitionBase(BaseModel):

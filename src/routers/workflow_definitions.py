@@ -5,14 +5,15 @@ from typing import Annotated, List
 from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-import cj_models
-import models
-from cj_models import CollectionJson
-from core.html_renderer import HtmlRendererInterface
-from core.security import AuthenticatedUser, get_current_user
-from dependencies import get_html_renderer, get_workflow_service
-from services import WorkflowService
-from transitions import TransitionManager
+from src import cj_models # Corrected
+from src import models # Corrected
+from src.cj_models import CollectionJson # Corrected
+from src.core.html_renderer import HtmlRendererInterface # Corrected
+# Use the same import path as the test for get_current_user
+from src.core.security import AuthenticatedUser, get_current_user
+from src.dependencies import get_html_renderer, get_workflow_service # Corrected
+from src.services import WorkflowService # Corrected
+from src.transitions import TransitionManager # Corrected
 
 router = APIRouter(
     prefix="/workflow-definitions",
@@ -170,6 +171,54 @@ async def view_workflow_definition(
         }
     )
 
+# Moved simple_create_workflow_definition before /{definition_id} to ensure correct routing
+@router.post(
+    "/-simpleForm",  # Added leading slash
+    response_model=CollectionJson,
+    summary="Create Workflow Definition",
+    operation_id="simple_create_workflow_definition",
+)
+async def simple_create_workflow_definition(
+        request: Request,
+        definition: Annotated[models.SimpleWorkflowDefinitionCreateRequest, Form()],
+        current_user: AuthenticatedUser | None = Depends(get_current_user),
+        service: WorkflowService = Depends(get_workflow_service),
+):
+    """Creates a new workflow definition and returns it in Collection+JSON format."""
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+
+    task_definitions = []
+    for order, task_name in enumerate(definition.task_definitions.splitlines(), start=1):
+        if task_name.strip():
+            print(order)
+            task_definitions.append(
+                models.TaskDefinitionBase(name=task_name.strip(), order=order, due_datetime_offset_minutes=0))
+
+    # Check if a definition with the same name already exists
+    existing_definitions = await service.list_workflow_definitions(name=definition.name)
+
+    if not existing_definitions:
+        created_definition = await service.create_new_definition(
+            name=definition.name,
+            description=definition.description,
+            task_definitions=task_definitions,
+        )
+    else:
+        # If definition with name exists, update it.
+        # The original code used definition.id which would be a new random ID from the form.
+        # We should use the ID of the *existing* definition found by name.
+        existing_definition_id = existing_definitions[0].id
+        created_definition = await service.update_definition(
+            definition_id=existing_definition_id, # Use ID of existing definition
+            name=definition.name,
+            description=definition.description,
+            task_definitions=task_definitions,
+        )
+    return RedirectResponse(
+        url=str(request.url_for("view_workflow_definition", definition_id=created_definition.id)),
+        status_code=303
+    )
 
 @router.post(
     "/{definition_id}",
@@ -235,43 +284,5 @@ async def cj_create_workflow_definition(
     )
 
 
-@router.post(
-    "-simpleForm",
-    response_model=CollectionJson,
-    summary="Create Workflow Definition",
-    operation_id="simple_create_workflow_definition",
-)
-async def simple_create_workflow_definition(
-        request: Request,
-        definition: Annotated[models.SimpleWorkflowDefinitionCreateRequest, Form()],
-        current_user: AuthenticatedUser | None = Depends(get_current_user),
-        service: WorkflowService = Depends(get_workflow_service),
-):
-    """Creates a new workflow definition and returns it in Collection+JSON format."""
-    if isinstance(current_user, RedirectResponse):
-        return current_user
-
-    task_definitions = []
-    for order, task_name in enumerate(definition.task_definitions.splitlines(), start=1):
-        if task_name.strip():
-            print(order)
-            task_definitions.append(
-                models.TaskDefinitionBase(name=task_name.strip(), order=order, due_datetime_offset_minutes=0))
-
-    if not await service.list_workflow_definitions(name=definition.name):
-        created_definition = await service.create_new_definition(
-        name=definition.name,
-        description=definition.description,
-        task_definitions=task_definitions,
-    )
-    else:
-        created_definition = await service.update_definition(
-            definition_id=definition.id,
-            name=definition.name,
-            description=definition.description,
-            task_definitions=task_definitions,
-        )
-    return RedirectResponse(
-        url=str(request.url_for("view_workflow_definition", definition_id=created_definition.id)),
-        status_code=303
-    )
+# This block is the duplicated one and should be removed.
+# The correctly placed simple_create_workflow_definition is earlier in the file.

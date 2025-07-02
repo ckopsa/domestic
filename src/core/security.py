@@ -7,7 +7,7 @@ from fastapi.security import OAuth2PasswordBearer
 from jwt.algorithms import RSAAlgorithm
 from pydantic import BaseModel
 
-from config import KEYCLOAK_SERVER_URL, KEYCLOAK_REALM
+from src.config import KEYCLOAK_SERVER_URL, KEYCLOAK_REALM # Corrected import
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
