@@ -67,7 +67,7 @@
         {% for link in collection.links %}
         <a href="{{ link.href }}" rel="{{ link.rel }}" {% if link.prompt %}title="{{ link.prompt }}" {% endif %} {% if
            link.method %}data-method="{{ link.method }}" {% endif %}
-           class="text-purple-400 hover:text-orange-400 hover:underline transition-colors duration-200 mr-2 mb-2 inline-block">
+           class="text-amber-500 hover:text-orange-400 hover:underline transition-colors duration-200 mr-2 mb-2 inline-block">
             {{ link.prompt | default(link.rel) }}
         </a>
         {% endfor %}
@@ -76,23 +76,23 @@
 
     {% if collection.items %}
     {% for item in collection.items %}
-    <div class="item bg-gray-800 border border-gray-700 rounded-md p-4 mb-4">
-        <h3 class="text-xl mb-3" hidden><a href="{{ item.href }}"
-                                    class="text-purple-400 hover:text-orange-400 hover:underline transition-colors duration-200">Navigate
-            to Instance</a></h3>
+    <div class="item outline outline-gray-800 rounded-md p-4 mb-10">
+        <h3 class="text-xl mb-3" hidden>
+            <a href="{{ item.href }}" class="text-purple-400 hover:text-orange-400 hover:underline transition-colors duration-200">Navigate to Instance</a>
+        </h3>
         {% if item.data %}
         {% for data_point in item.data %}
         <div class="data-item mb-2"
              {% if data_point.render_hint == 'hidden' %}hidden{% endif %}
         >
-            <p class="leading-relaxed mb-3"><strong class="font-semibold text-gray-100">{{ data_point.prompt or
+            <p class="leading-relaxed mb-3"><strong class="font-semibold text-gray-600">{{ data_point.prompt or
                 data_point.name }}:</strong> {{ data_point.value }}</p>
         </div>
         {% endfor %}
         {% endif %}
 
         {% if item.links %}
-        <div class="item-links mt-3">
+        <div class="item-links mt-3 text-right">
             {% for link in item.links %}
             {% if link.method == "GET" %}
             <a href="{{ link.href }}" rel="{{ link.rel }}" {% if link.prompt %}title="{{ link.prompt }}" {% endif %} {%
@@ -103,7 +103,7 @@
             {% else %}
             <form action="{{ link.href }}" method="{{ link.method }}">
                 <button type="submit"
-                        class="bg-orange-700 hover:bg-orange-800 text-white py-1 px-3 rounded-md cursor-pointer text-sm transition-all duration-200 ease-in-out shadow hover:shadow-md transform hover:-translate-y-px active:translate-y-0 mt-2">
+                        class="outline outline-orange-600 hover:outline-5 text-gray-400 py-1 px-3 rounded-md cursor-pointer text-sm transition-all duration-200 ease-in-out shadow hover:shadow-md transform hover:-translate-y-px active:translate-y-0 mt-2">
                     {{ link.prompt | default(link.rel) }}
                 </button>
             </form>

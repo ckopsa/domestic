@@ -65,22 +65,15 @@ async def get_workflow_definitions(
             transition_manager.get_transition("home", {}),
             transition_manager.get_transition("get_workflow_instances", {}),
             transition_manager.get_transition("get_workflow_definitions", {}),
+            transition_manager.get_transition("simple_create_workflow_definition_form", {}),
         ]],
         items=items,
         queries=[],
     )
 
-    template = [
-        transition_manager.get_transition("simple_create_workflow_definition", {}).to_template(
-            defaults=models.SimpleWorkflowDefinitionCreateRequest().model_dump()
-        )
-    ]
-
     return await representor.represent(
         cj_models.CollectionJson(
             collection=collection,
-            template=template,
-            error=None,
         ))
 
 
@@ -242,6 +235,46 @@ async def cj_create_workflow_definition(
         url=str(request.url_for("view_workflow_definition", definition_id=created_definition.id)),
         status_code=303
     )
+
+
+@router.get(
+    "-simpleForm",
+    response_model=CollectionJson,
+    summary="Create Workflow Definition",
+)
+async def simple_create_workflow_definition_form(
+        request: Request,
+        current_user: AuthenticatedUser | None = Depends(get_current_user),
+        transition_manager: TransitionManager = Depends(get_transition_registry),
+        representor: Representor = Depends(get_representor),
+):
+    """Returns a Collection+JSON representation of a form to create a new workflow definition."""
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+
+    collection = cj_models.Collection(
+        href=str(request.url),
+        title="Create Workflow Definition",
+        links=[t.to_link() for t in [
+            transition_manager.get_transition("home", {}),
+            transition_manager.get_transition("get_workflow_definitions", {}),
+        ]],
+        items=[],
+        queries=[],
+    )
+
+    template = [
+        transition_manager.get_transition("simple_create_workflow_definition", {}).to_template(
+            defaults=models.SimpleWorkflowDefinitionCreateRequest().model_dump()
+        )
+    ]
+
+    return await representor.represent(
+        cj_models.CollectionJson(
+            collection=collection,
+            template=template,
+            error=None,
+        ))
 
 
 @router.post(
