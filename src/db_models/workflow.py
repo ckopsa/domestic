@@ -35,6 +35,8 @@ class WorkflowInstance(Base):
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     share_token = Column(String, unique=True, index=True, nullable=True)
     due_datetime = Column(DateTime, nullable=True)
+    family_id = Column(String, ForeignKey("families.id"), nullable=True, index=True)
 
     definition = relationship("WorkflowDefinition", back_populates="instances")
     tasks = relationship("TaskInstance", back_populates="workflow_instance", order_by="TaskInstance.order")
+    # family = relationship("Family", backref="workflow_instances") # Optional: if direct Family object access needed

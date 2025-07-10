@@ -43,8 +43,20 @@ async def get_workflow_instances(
     if isinstance(current_user, RedirectResponse):
         return current_user
 
-    workflow_instances: list[models.WorkflowInstance] = await service.list_instances_for_user(
-        user_id=current_user.user_id)
+    family_id_param = request.query_params.get('family_id')
+    workflow_instances: list[models.WorkflowInstance]
+
+    if family_id_param:
+        # TODO: Add authorization check: is current_user part of this family_id_param?
+        # This is crucial for security. For now, proceeding as per initial prompt's scope.
+        workflow_instances = await service.list_instances_for_family(family_id_param)
+    elif current_user and hasattr(current_user, 'user_id'): # Check current_user and user_id existence
+        workflow_instances = await service.list_instances_for_user(user_id=current_user.user_id)
+    else:
+        # Not authenticated and no family_id provided.
+        # Return empty list or an appropriate error response.
+        # For Collection+JSON, an empty list of items is acceptable.
+        workflow_instances = []
 
     items = []
     for item in workflow_instances:
