@@ -9,7 +9,9 @@ from db_models.enums import WorkflowStatus, TaskStatus
 from db_models.task import TaskInstance as TaskInstanceORM
 from db_models.task_definition import TaskDefinition as TaskDefinitionORM
 from db_models.workflow import WorkflowDefinition as WorkflowDefinitionORM, WorkflowInstance as WorkflowInstanceORM
-from models import WorkflowDefinition, WorkflowInstance, TaskInstance, TaskDefinitionBase
+from db_models.family import Family as FamilyORM # New import
+# FamilyMember as FamilyMemberORM - not directly used in provided snippet but good to keep in mind
+from models import WorkflowDefinition, WorkflowInstance, TaskInstance, TaskDefinitionBase, Family # New import for Pydantic model
 
 # In-memory stores
 _workflow_definitions_db: Dict[str, WorkflowDefinition] = {}
@@ -64,6 +66,10 @@ class WorkflowInstanceRepository(ABC):
 
     @abstractmethod
     async def get_workflow_instance_by_share_token(self, share_token: str) -> Optional[WorkflowInstance]:
+        pass
+
+    @abstractmethod
+    async def list_instances_by_family_id(self, family_id: str) -> List[WorkflowInstance]:
         pass
 
 
@@ -207,6 +213,24 @@ class PostgreSQLWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanc
         if instance_orm:
             return WorkflowInstance.model_validate(instance_orm, from_attributes=True)
         return None
+
+    async def list_instances_by_family_id(self, family_id: str) -> List[WorkflowInstance]:
+        query = self.db_session.query(WorkflowInstanceORM).filter(WorkflowInstanceORM.family_id == family_id)
+        instances_orm = query.order_by(WorkflowInstanceORM.created_at.desc()).all()
+        return [WorkflowInstance.model_validate(inst, from_attributes=True) for inst in instances_orm]
+
+    async def create_family(self, family: Family) -> Family:
+        # **family.model_dump() should be correct for Pydantic v2+
+        # For Pydantic v1, it would be family.dict()
+        family_orm = FamilyORM(**family.model_dump())
+        self.db_session.add(family_orm)
+        self.db_session.commit()
+        self.db_session.refresh(family_orm)
+        return Family.model_validate(family_orm, from_attributes=True)
+
+    async def get_family_by_id(self, family_id: str) -> Optional[Family]:
+        family_orm = self.db_session.query(FamilyORM).filter(FamilyORM.id == family_id).first()
+        return Family.model_validate(family_orm, from_attributes=True) if family_orm else None
 
     async def create_workflow_definition(self, definition_data: WorkflowDefinition) -> WorkflowDefinition:
         task_definitions_data = definition_data.task_definitions
