@@ -1,7 +1,4 @@
-import os
-
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from routers import root, auth, workflow_definitions
