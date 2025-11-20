@@ -82,16 +82,11 @@ class CollectionJson(BaseModel):
     error: Optional[Error] = PydanticField(None, description="Error details, if any")
 
 
-class HypermediaMixin:
+class CJBaseModel(BaseModel):
     def to_cj_data(self, href="", links=None, rel="item") -> Item:
         """
         Converts a Pydantic model instance into a Collection+JSON 'data' array.
         """
-        # This mixin is intended to be used with Pydantic models,
-        # so we assume `model_json_schema` and `model_dump` are available.
-        if not isinstance(self, BaseModel):
-            raise TypeError("HypermediaMixin must be used with a Pydantic BaseModel")
-
         schema = self.model_json_schema()
         model_dict = self.model_dump()
         cj_data = []
