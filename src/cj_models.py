@@ -82,29 +82,31 @@ class CollectionJson(BaseModel):
     error: Optional[Error] = PydanticField(None, description="Error details, if any")
 
 
-def to_collection_json_data(self: BaseModel, href="", links=None, rel="item") -> Item:
-    """
-    Converts a Pydantic model instance into a Collection+JSON 'data' array.
-    'self' will be the model instance when this is called.
-    """
-    schema = self.model_json_schema()
-    model_dict = self.model_dump()
-    cj_data = []
+class HypermediaMixin:
+    def to_cj_data(self, href="", links=None, rel="item") -> Item:
+        """
+        Converts a Pydantic model instance into a Collection+JSON 'data' array.
+        """
+        # This mixin is intended to be used with Pydantic models,
+        # so we assume `model_json_schema` and `model_dump` are available.
+        if not isinstance(self, BaseModel):
+            raise TypeError("HypermediaMixin must be used with a Pydantic BaseModel")
 
-    for name, definition in schema.get("properties", {}).items():
-        cj_data.append(ItemData(
-            name=name,
-            value=model_dict.get(name),
-            prompt=definition.get("title") or name.replace("_", " ").title(),
-            type=definition.get("type"),
-            render_hint=definition.get("x-render-hint"),
-        ))
-    return Item(
-        href=href,
-        rel=rel,
-        data=cj_data,
-        links=links or [],
-    )
+        schema = self.model_json_schema()
+        model_dict = self.model_dump()
+        cj_data = []
 
-
-BaseModel.to_cj_data = to_collection_json_data
+        for name, definition in schema.get("properties", {}).items():
+            cj_data.append(ItemData(
+                name=name,
+                value=model_dict.get(name),
+                prompt=definition.get("title") or name.replace("_", " ").title(),
+                type=definition.get("type"),
+                render_hint=definition.get("x-render-hint"),
+            ))
+        return Item(
+            href=href,
+            rel=rel,
+            data=cj_data,
+            links=links or [],
+        )

@@ -14,6 +14,16 @@ from dependencies import get_workflow_service, get_transition_registry, get_repr
 from services import WorkflowService
 from transitions import TransitionManager
 
+# Import other routers for transition references
+# We use local imports or rely on the fact that we are passing function objects.
+# To avoid circular imports if they existed, we could use strings, but here we import what we can.
+from routers.root import home
+# parsing 'from routers.workflow_instances import get_workflow_instances' might be safe
+# but to be absolutely sure we don't trigger top-level cycles if workflow_instances changes,
+# we will check if we can import it.
+# workflow_instances.py doesn't import this file, so it is safe.
+from routers.workflow_instances import get_workflow_instances
+
 router = APIRouter(
     prefix="/workflow-definitions",
     tags=["workflow-definitions"],
@@ -51,8 +61,8 @@ async def get_workflow_definitions(
         item_model = item.to_cj_data(
             href=str(request.url_for("view_workflow_definition", definition_id=item.id)),
             links=[t.to_link() for t in [
-                transition_manager.get_transition("view_workflow_definition", {"definition_id": item.id}),
-                transition_manager.get_transition("create_workflow_instance_from_definition",
+                transition_manager.get_transition(view_workflow_definition, {"definition_id": item.id}),
+                transition_manager.get_transition(create_workflow_instance_from_definition,
                                                   {"definition_id": item.id}),
             ]]
         )
@@ -62,10 +72,10 @@ async def get_workflow_definitions(
         href=str(request.url),
         title="Workflow Definitions",
         links=[t.to_link() for t in [
-            transition_manager.get_transition("home", {}),
-            transition_manager.get_transition("get_workflow_instances", {}),
-            transition_manager.get_transition("get_workflow_definitions", {}),
-            transition_manager.get_transition("simple_create_workflow_definition_form", {}),
+            transition_manager.get_transition(home, {}),
+            transition_manager.get_transition(get_workflow_instances, {}),
+            transition_manager.get_transition(get_workflow_definitions, {}),
+            transition_manager.get_transition(simple_create_workflow_definition_form, {}),
         ]],
         items=items,
         queries=[],
@@ -142,9 +152,9 @@ async def view_workflow_definition(
         href=str(request.url),
         title="View Workflow Definition",
         links=[t.to_link() for t in [
-            transition_manager.get_transition("home", {}),
-            transition_manager.get_transition("get_workflow_instances", {}),
-            transition_manager.get_transition("get_workflow_definitions", {}),
+            transition_manager.get_transition(home, {}),
+            transition_manager.get_transition(get_workflow_instances, {}),
+            transition_manager.get_transition(get_workflow_definitions, {}),
         ]],
         items=items,
         queries=[],
@@ -153,10 +163,10 @@ async def view_workflow_definition(
     first_workflow_definition: models.WorkflowDefinition = workflow_definition[0]
     templates = [
         transition_manager.get_transition(
-            "create_workflow_instance_from_definition",
+            create_workflow_instance_from_definition,
             {"definition_id": definition_id}).to_template(),
         transition_manager.get_transition(
-            "simple_create_workflow_definition", {}
+            simple_create_workflow_definition, {}
         ).to_template({
             "id": first_workflow_definition.id,
             "name": first_workflow_definition.name,
@@ -256,15 +266,15 @@ async def simple_create_workflow_definition_form(
         href=str(request.url),
         title="Create Workflow Definition",
         links=[t.to_link() for t in [
-            transition_manager.get_transition("home", {}),
-            transition_manager.get_transition("get_workflow_definitions", {}),
+            transition_manager.get_transition(home, {}),
+            transition_manager.get_transition(get_workflow_definitions, {}),
         ]],
         items=[],
         queries=[],
     )
 
     template = [
-        transition_manager.get_transition("simple_create_workflow_definition", {}).to_template(
+        transition_manager.get_transition(simple_create_workflow_definition, {}).to_template(
             defaults=models.SimpleWorkflowDefinitionCreateRequest().model_dump()
         )
     ]
