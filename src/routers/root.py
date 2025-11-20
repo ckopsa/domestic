@@ -3,11 +3,10 @@ from __future__ import annotations
 from fastapi import APIRouter, Request, Depends, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-import cj_models
+from fastapi_hypermedia import cj_models, transitions
 from core.representor import Representor
 from core.security import AuthenticatedUser, get_current_user
 from dependencies import get_transition_registry, get_representor
-from transitions import TransitionManager
 
 router = APIRouter()
 
@@ -35,7 +34,7 @@ async def healthcheck():
 async def home(
         request: Request,
         current_user: AuthenticatedUser | None = Depends(get_current_user),
-        transition_manager: TransitionManager = Depends(get_transition_registry),
+        transition_manager: transitions.TransitionManager = Depends(get_transition_registry),
         representor: Representor = Depends(get_representor),
 ):
     """Serves the homepage."""

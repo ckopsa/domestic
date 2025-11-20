@@ -7,7 +7,7 @@ from fastapi import Request
 from pydantic import BaseModel
 from pydantic.types import StrictBool
 
-import cj_models
+from . import cj_models
 
 
 class FormProperty(BaseModel):

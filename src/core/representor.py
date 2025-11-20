@@ -1,7 +1,7 @@
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
-import cj_models
+from fastapi_hypermedia import cj_models
 from core.html_renderer import HtmlRendererInterface
 
 

@@ -5,14 +5,13 @@ from typing import Annotated, List
 from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-import cj_models
 import models
-from cj_models import CollectionJson
+from fastapi_hypermedia import cj_models, transitions
+from fastapi_hypermedia.cj_models import CollectionJson
 from core.representor import Representor
 from core.security import AuthenticatedUser, get_current_user
 from dependencies import get_workflow_service, get_transition_registry, get_representor
 from services import WorkflowService
-from transitions import TransitionManager
 
 router = APIRouter(
     prefix="/workflow-definitions",
@@ -39,7 +38,7 @@ async def get_workflow_definitions(
         current_user: AuthenticatedUser | None = Depends(get_current_user),
         service: WorkflowService = Depends(get_workflow_service),
         representor: Representor = Depends(get_representor),
-        transition_manager: TransitionManager = Depends(get_transition_registry),
+        transition_manager: transitions.TransitionManager = Depends(get_transition_registry),
 ):
     """Returns a Collection+JSON representation of workflow definitions."""
     if isinstance(current_user, RedirectResponse):
@@ -121,7 +120,7 @@ async def view_workflow_definition(
         current_user: AuthenticatedUser | None = Depends(get_current_user),
         service: WorkflowService = Depends(get_workflow_service),
         representor: Representor = Depends(get_representor),
-        transition_manager: TransitionManager = Depends(get_transition_registry),
+        transition_manager: transitions.TransitionManager = Depends(get_transition_registry),
 ):
     """Returns a Collection+JSON representation of a specific workflow definition."""
     if isinstance(current_user, RedirectResponse):
@@ -245,7 +244,7 @@ async def cj_create_workflow_definition(
 async def simple_create_workflow_definition_form(
         request: Request,
         current_user: AuthenticatedUser | None = Depends(get_current_user),
-        transition_manager: TransitionManager = Depends(get_transition_registry),
+        transition_manager: transitions.TransitionManager = Depends(get_transition_registry),
         representor: Representor = Depends(get_representor),
 ):
     """Returns a Collection+JSON representation of a form to create a new workflow definition."""

@@ -8,8 +8,8 @@ from database import get_db
 from repository import WorkflowDefinitionRepository, WorkflowInstanceRepository, TaskInstanceRepository, \
     PostgreSQLWorkflowRepository
 from services import WorkflowService
-from templating import get_templates
-from transitions import TransitionManager
+from fastapi_hypermedia.templating import get_templates
+from fastapi_hypermedia.transitions import TransitionManager
 
 
 def get_html_renderer() -> HtmlRendererInterface:
