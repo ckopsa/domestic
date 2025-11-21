@@ -4,10 +4,11 @@ from typing import Optional, List
 
 from pydantic import BaseModel, Field
 
+from cj_models import CJBaseModel
 from db_models.enums import WorkflowStatus, TaskStatus
 
 
-class TaskDefinitionBase(BaseModel):
+class TaskDefinitionBase(CJBaseModel):
     name: str = Field(..., description="Name of the task", title="Task Name",
                       examples=["Review Document", "Approve Budget"])
     order: int = Field(..., description="Order of the task in the workflow", title="Task Order",
@@ -20,7 +21,7 @@ class TaskDefinitionBase(BaseModel):
     )
 
 
-class TaskInstance(BaseModel):
+class TaskInstance(CJBaseModel):
     id: str = Field(default_factory=lambda: "task_" + str(uuid.uuid4())[:8])
     workflow_instance_id: str
     name: str
@@ -32,7 +33,7 @@ class TaskInstance(BaseModel):
         from_attributes = True
 
 
-class SimpleTaskInstance(BaseModel):
+class SimpleTaskInstance(CJBaseModel):
     id: str = Field(..., json_schema_extra={"x-render-hint": "hidden"})
     name: str
     order: int = Field(..., json_schema_extra={"x-render-hint": "hidden"})
@@ -48,7 +49,7 @@ class SimpleTaskInstance(BaseModel):
         )
 
 
-class WorkflowInstance(BaseModel):
+class WorkflowInstance(CJBaseModel):
     id: str = Field(default_factory=lambda: "wf_" + str(uuid.uuid4())[:8], json_schema_extra={"x-render-hint": "hidden"})
     workflow_definition_id: str = Field(..., json_schema_extra={"x-render-hint": "hidden"})
     name: Optional[str] = None  # Made name optional
@@ -63,7 +64,7 @@ class WorkflowInstance(BaseModel):
         from_attributes = True
 
 
-class WorkflowDefinition(BaseModel):
+class WorkflowDefinition(CJBaseModel):
     id: str = Field(
         default_factory=lambda: "def_" + str(uuid.uuid4())[:8],
         json_schema_extra={"x-render-hint": "hidden"}
@@ -78,12 +79,12 @@ class WorkflowDefinition(BaseModel):
         from_attributes = True
 
 
-class WorkflowDefinitionCreateRequest(BaseModel):
+class WorkflowDefinitionCreateRequest(CJBaseModel):
     name: str
     description: Optional[str] = ""
 
 
-class SimpleWorkflowDefinitionCreateRequest(BaseModel):
+class SimpleWorkflowDefinitionCreateRequest(CJBaseModel):
     id: str = Field(default_factory=lambda: "def_" + str(uuid.uuid4())[:8], json_schema_extra={"x-render-hint": "hidden"})
     name: str = "New Workflow Definition"
     description: Optional[str] = ""
@@ -97,6 +98,6 @@ class SimpleWorkflowDefinitionCreateRequest(BaseModel):
     )
 
 
-class WorkflowInstanceCreateRequest(BaseModel):
+class WorkflowInstanceCreateRequest(CJBaseModel):
     definition_id: str
     name: Optional[str] = None

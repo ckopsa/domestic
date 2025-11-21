@@ -1,7 +1,7 @@
 import datetime
 import enum
 from typing import Dict, Union
-from typing import Optional, List
+from typing import Optional, List, Callable
 
 from fastapi import Request
 from pydantic import BaseModel
@@ -195,10 +195,22 @@ class TransitionManager:
                     properties=[prop.model_dump() for prop in params],
                 )
 
-    def get_transition(self, transition_name: str, context: Dict[str, str]) -> Optional[Form]:
+    def get_transition(self, transition: str | Callable, context: Dict[str, str]) -> Optional[Form]:
         """
-        Get a specific transition by its name.
+        Get a specific transition by its name or function.
         """
-        form = self.routes_info.get(transition_name).copy(deep=True)
+        if callable(transition):
+            transition_name = transition.__name__
+        else:
+            transition_name = transition
+
+        form_template = self.routes_info.get(transition_name)
+        if not form_template:
+            # Fallback or error handling if transition not found
+            # For now, returning None or letting it crash later as appropriate
+            # It's better to be explicit if something is missing.
+            raise ValueError(f"Transition '{transition_name}' not found in API schema.")
+
+        form = form_template.copy(deep=True)
         form.href = form.href.format(**context)
         return form
