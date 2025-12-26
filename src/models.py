@@ -58,9 +58,21 @@ class WorkflowInstance(BaseModel):
     share_token: Optional[str] = Field(None, json_schema_extra={"x-render-hint": "hidden"})
     due_datetime: Optional[datetime] = Field(None, json_schema_extra={"x-render-hint": "hidden"})
     tasks: List[TaskInstance] = Field(default_factory=list, json_schema_extra={"x-render-hint": "hidden"})
+    family_id: Optional[str] = None # New field for family sharing
 
     class Config:
         from_attributes = True
+
+
+class Family(BaseModel):
+    id: str = Field(default_factory=lambda: "fam_" + str(uuid.uuid4())[:8])
+    name: str
+    admin_user_id: str
+    members: List[str] = []  # user_ids
+
+
+class FamilyCreate(BaseModel):
+    name: str
 
 
 class WorkflowDefinition(BaseModel):
