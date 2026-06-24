@@ -2,6 +2,8 @@
 from abc import ABC, abstractmethod
 from datetime import date as DateObject
 from typing import List, Optional, Dict
+import hashlib
+import secrets
 
 from sqlalchemy import case
 
@@ -9,6 +11,7 @@ from db_models.enums import WorkflowStatus, TaskStatus
 from db_models.task import TaskInstance as TaskInstanceORM
 from db_models.task_definition import TaskDefinition as TaskDefinitionORM
 from db_models.workflow import WorkflowDefinition as WorkflowDefinitionORM, WorkflowInstance as WorkflowInstanceORM
+from db_models.api_key import APIKey
 from models import WorkflowDefinition, WorkflowInstance, TaskInstance, TaskDefinitionBase
 
 # In-memory stores
@@ -106,7 +109,25 @@ class TaskNotFoundError(Exception):
     pass
 
 
-class PostgreSQLWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanceRepository, TaskInstanceRepository):
+class APIKeyRepository(ABC):
+    @abstractmethod
+    async def create_api_key(self, user_id: str, key_name: str) -> str:
+        pass
+
+    @abstractmethod
+    async def list_api_keys(self, user_id: str) -> List[Dict]:
+        pass
+
+    @abstractmethod
+    async def revoke_api_key(self, user_id: str, key_id: int) -> bool:
+        pass
+
+    @abstractmethod
+    async def validate_api_key(self, key_hash: str) -> Optional[str]:
+        pass
+
+
+class PostgreSQLWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanceRepository, TaskInstanceRepository, APIKeyRepository):
     def __init__(self, db_session):
         self.db_session = db_session
 
@@ -280,6 +301,31 @@ class PostgreSQLWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanc
         if instance_orm:
             return WorkflowInstance.model_validate(instance_orm, from_attributes=True)
         return None
+
+    async def create_api_key(self, user_id: str, key_name: str) -> str:
+        key = secrets.token_urlsafe(32)
+        key_hash = hashlib.sha256(key.encode()).hexdigest()
+        api_key = APIKey(user_id=user_id, key_hash=key_hash, key_name=key_name)
+        self.db_session.add(api_key)
+        self.db_session.commit()
+        self.db_session.refresh(api_key)
+        return key
+
+    async def list_api_keys(self, user_id: str) -> List[Dict]:
+        keys = self.db_session.query(APIKey).filter(APIKey.user_id == user_id, APIKey.revoked == False).all()
+        return [{"id": k.id, "name": k.key_name, "created_at": k.created_at.isoformat()} for k in keys]
+
+    async def revoke_api_key(self, user_id: str, key_id: int) -> bool:
+        key = self.db_session.query(APIKey).filter(APIKey.id == key_id, APIKey.user_id == user_id).first()
+        if key:
+            key.revoked = True
+            self.db_session.commit()
+            return True
+        return False
+
+    async def validate_api_key(self, key_hash: str) -> Optional[str]:
+        key = self.db_session.query(APIKey).filter(APIKey.key_hash == key_hash, APIKey.revoked == False).first()
+        return key.user_id if key else None
 
 
 class InMemoryWorkflowRepository(WorkflowDefinitionRepository, WorkflowInstanceRepository, TaskInstanceRepository):

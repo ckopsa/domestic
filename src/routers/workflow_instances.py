@@ -58,13 +58,13 @@ async def get_workflow_instances(
             links.append(
                 transition_manager.get_transition("archive_workflow_instance", {"instance_id": item.id}).to_link())
         item_model = item.to_cj_data(
-            href=str(request.url_for("view_workflow_instance", instance_id=item.id)),
+            href=f"/workflow-instances/{item.id}",
             links=links,
         )
         items.append(item_model)
 
     collection = cj_models.Collection(
-        href=str(request.url),
+        href="/workflow-instances/",
         title="Workflow Instances",
         links=[t.to_link() for t in [
             transition_manager.get_transition("home", {}),
@@ -128,12 +128,12 @@ async def view_workflow_instance(
         else:
             links.append(transition_manager.get_transition("complete_task_instance", {"task_id": item.id}).to_link())
         items.append(item.to_cj_data(
-            href=str(request.url_for("view_workflow_instance", instance_id=instance_id)),
+            href=f"/workflow-instances/{instance_id}",
             links=links,
         ))
 
     collection = cj_models.Collection(
-        href=str(request.url),
+        href=f"/workflow-instances/{instance_id}",
         title=f"{workflow_instance.name} - {workflow_instance.status.title()}",
         links=[t.to_link() for t in page_transitions if t],
         items=items,

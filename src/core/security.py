@@ -1,13 +1,16 @@
 from typing import Annotated, Dict, Any
 
+import hashlib
 import jwt
 import requests
 from fastapi import Depends, HTTPException, status, Request
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import OAuth2PasswordBearer, APIKeyHeader
 from jwt.algorithms import RSAAlgorithm
 from pydantic import BaseModel
 
 from config import KEYCLOAK_SERVER_URL, KEYCLOAK_REALM
+from dependencies import get_api_key_repository
+from repository import APIKeyRepository
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
@@ -32,13 +35,22 @@ def get_keycloak_public_keys() -> Dict[str, Any]:
 
 
 async def get_current_user(request: Request,
-                           token: Annotated[str | None, Depends(oauth2_scheme)] = None) -> AuthenticatedUser:
-    """Extract user information from Keycloak JWT token."""
+                           token: Annotated[str | None, Depends(oauth2_scheme)] = None,
+                           api_key_repo: APIKeyRepository = Depends(get_api_key_repository),
+                           api_key: str | None = Depends(APIKeyHeader(name="X-API-Key", auto_error=False))) -> AuthenticatedUser:
+    """Extract user information from API key or Keycloak JWT token."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Invalid authentication credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
+    # Try API key first
+    if api_key:
+        key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+        user_id = await api_key_repo.validate_api_key(key_hash)
+        if user_id:
+            return AuthenticatedUser(user_id=user_id, username="", email=None, full_name=None)
 
     if token is None:
         token = request.cookies.get("access_token", "")

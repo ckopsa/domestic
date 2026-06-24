@@ -49,7 +49,7 @@ async def get_workflow_definitions(
     items = []
     for item in workflow_definitions:
         item_model = item.to_cj_data(
-            href=str(request.url_for("view_workflow_definition", definition_id=item.id)),
+            href=f"/workflow-definitions/{item.id}",
             links=[t.to_link() for t in [
                 transition_manager.get_transition("view_workflow_definition", {"definition_id": item.id}),
                 transition_manager.get_transition("create_workflow_instance_from_definition",
@@ -59,7 +59,7 @@ async def get_workflow_definitions(
         items.append(item_model)
 
     collection = cj_models.Collection(
-        href=str(request.url),
+        href="/workflow-definitions/",
         title="Workflow Definitions",
         links=[t.to_link() for t in [
             transition_manager.get_transition("home", {}),
@@ -135,11 +135,11 @@ async def view_workflow_definition(
 
     items = []
     for item in workflow_definition + workflow_definition[0].task_definitions:
-        item_model = item.to_cj_data(href=str(request.url_for("view_workflow_definition", definition_id=definition_id)))
+        item_model = item.to_cj_data(href=f"/workflow-definitions/{definition_id}")
         items.append(item_model)
 
     collection = cj_models.Collection(
-        href=str(request.url),
+        href=f"/workflow-definitions/{definition_id}",
         title="View Workflow Definition",
         links=[t.to_link() for t in [
             transition_manager.get_transition("home", {}),
@@ -253,7 +253,7 @@ async def simple_create_workflow_definition_form(
         return current_user
 
     collection = cj_models.Collection(
-        href=str(request.url),
+        href="/workflow-definitions-simpleForm",
         title="Create Workflow Definition",
         links=[t.to_link() for t in [
             transition_manager.get_transition("home", {}),

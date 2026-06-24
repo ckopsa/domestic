@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
-from routers import root, auth, workflow_definitions
+from routers import root, auth, workflow_definitions, api_keys
 from routers import workflow_instances as workflow_instances_router
 
 
@@ -24,3 +24,4 @@ app.include_router(root.router)
 app.include_router(auth.router)
 app.include_router(workflow_definitions.router)
 app.include_router(workflow_instances_router.router)
+app.include_router(api_keys.router)
